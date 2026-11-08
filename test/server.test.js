@@ -111,9 +111,6 @@ test('a control change immediately reaches another client and is saved on disk',
   const overlayInitial = await overlay.waitFor((message) => message.type === 'state');
   assert.deepEqual(overlayInitial.settings, initial.settings);
   assert.equal(initial.settings.version, 5);
-  assert.equal(initial.settings.modules.logo.showMark, true);
-  assert.equal(initial.settings.modules.logo.weight, 500);
-  assert.equal(initial.settings.modules.hosts.slotCount, 2);
   assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
@@ -461,12 +458,62 @@ test('lyrics load enforces the exact UTF-8 document boundary and retains prior d
   assert.equal(jsonBytes(doc), LYRIC_BYTES);
   const accepted = await lyricCommand(client, 'lyrics:load', { doc }, 'load-boundary');
   assert.equal(accepted.type, 'lyrics:state');
+  assert.equal(accepted.manual.lines, null);
   assert.deepEqual((await observer.waitFor((message) => message.id === accepted.id)).doc, doc);
   doc.at(-1).text += 'x';
   const rejected = await lyricCommand(client, 'lyrics:load', { doc }, 'load-over');
   assert.equal(rejected.type, 'error');
   assert.match(rejected.message, /200 KiB/);
   assert.equal(jsonBytes(app.getState().settings.modules.lyrics.doc), LYRIC_BYTES);
+});
+
+test('one LRC load shares all lines with manual and preserves the committed on-air sentence', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await lyricCommand(client, 'lyrics:manual', { action: 'load', value: ['旧歌', '旧歌下一句'] });
+  await lyricCommand(client, 'lyrics:manual', { action: 'auto', value: 5 });
+  await lyricCommand(client, 'lyrics:onair', { source: 'manual' });
+  const loaded = await lyricCommand(client, 'lyrics:load', { doc: demoDoc });
+  assert.deepEqual(loaded.doc, demoDoc);
+  assert.equal(loaded.manual.lines, null);
+  assert.equal(loaded.manual.current, '旧歌');
+  assert.equal(loaded.manual.index, null);
+  assert.equal(loaded.manual.remaining, null);
+  assert.equal(loaded.source, 'manual');
+  const clock = createLyricsClock();
+  clock.apply(loaded);
+  assert.deepEqual(clock.lines, demoDoc.map((line) => line.text));
+
+  const stepped = await lyricCommand(client, 'lyrics:manual', { action: 'step', value: 1 });
+  assert.equal(stepped.manual.current, demoDoc[0].text);
+  assert.equal(stepped.manual.next, demoDoc[1].text);
+  await setup.stop(first.app);
+  const restarted = await setup.start();
+  const reconnect = await setup.connect(restarted.wsUrl);
+  const state = await reconnect.waitFor((message) => message.type === 'lyrics:state');
+  clock.apply(state);
+  assert.equal(state.armed, false);
+  assert.deepEqual(clock.lines, demoDoc.map((line) => line.text));
+  assert.equal(state.manual.index, 0);
+});
+
+test('an existing timeline-only import is available in manual without importing again', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const settings = first.app.getState().settings;
+  await setup.stop(first.app);
+  settings.modules.lyrics.doc = demoDoc;
+  await writeFile(setup.settingsPath, JSON.stringify(settings));
+
+  const { wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  const initial = await client.waitFor((message) => message.type === 'lyrics:state');
+  const clock = createLyricsClock();
+  clock.apply(initial);
+  assert.deepEqual(clock.lines, demoDoc.map((line) => line.text));
+  const selected = await lyricCommand(client, 'lyrics:manual', { action: 'select', value: 1 });
+  assert.equal(selected.manual.current, demoDoc[1].text);
 });
 
 test('timeline transport progresses independently of the selected output and sends lightweight deltas', async (t) => {

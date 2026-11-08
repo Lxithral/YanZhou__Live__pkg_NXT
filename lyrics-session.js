@@ -38,14 +38,18 @@ export function validateLyricSettings({ source, doc, transport, manual }) {
     throw new Error('歌词播放位置或速率无效。');
   }
   requireFields(manual, ['lines', 'index', 'current', 'autoSeconds']);
-  validateLines(manual.lines);
-  if (manual.index !== null) validateIndex(manual.index, manual.lines);
+  if (manual.lines !== null) validateLines(manual.lines);
+  if (manual.index !== null) validateIndex(manual.index, manual.lines ?? doc);
   if (!isLine(manual.current) || !AUTO_SECONDS.includes(manual.autoSeconds)) throw new Error('手动字幕设置无效。');
   return { source, doc, transport, manual };
 }
 
 export function createLyricsSession(initial, onChange) {
   let { source, doc, transport, manual } = initial;
+  let documentLines = doc.map((line) => line.text);
+  if (documentLines.length && manual.lines?.length === 0) {
+    manual = { ...manual, lines: null };
+  }
   let end = documentEnd(doc);
   let startedAt = null;
   let armed = false;
@@ -57,12 +61,16 @@ export function createLyricsSession(initial, onChange) {
     return Math.min(end, Math.round(transport.position + elapsed));
   }
 
+  function manualLines() {
+    return manual.lines ?? documentLines;
+  }
+
   function nextLine() {
-    return manual.index === null ? '' : manual.lines[manual.index + 1] ?? '';
+    return manual.index === null ? '' : manualLines()[manual.index + 1] ?? '';
   }
 
   function selectLine(index) {
-    manual = { ...manual, index, current: manual.lines[index] };
+    manual = { ...manual, index, current: manualLines()[index] };
   }
 
   function scheduleAuto() {
@@ -120,13 +128,13 @@ export function createLyricsSession(initial, onChange) {
         manual = { ...manual, lines: value, index: 0, current: value[0] };
         break;
       case 'select':
-        validateIndex(value, manual.lines);
+        validateIndex(value, manualLines());
         selectLine(value);
         break;
       case 'step': {
         if (value !== -1 && value !== 1) throw new Error('切句方向无效。');
         const index = manual.index === null ? 0 : manual.index + value;
-        if (index < 0 || index >= manual.lines.length) return;
+        if (index < 0 || index >= manualLines().length) return;
         selectLine(index);
         break;
       }
@@ -153,10 +161,15 @@ export function createLyricsSession(initial, onChange) {
         case 'lyrics:load':
           requireFields(payload, ['doc']);
           doc = validateDocument(payload.doc);
+          documentLines = doc.map((line) => line.text);
           end = documentEnd(doc);
           transport = { ...transport, position: 0 };
           startedAt = null;
-          return { doc: true };
+          if (armed && source === 'manual') manual = { ...manual, lines: null, index: null };
+          else manual = { ...manual, lines: null, index: 0, current: documentLines[0] };
+          clearTimeout(autoTimer);
+          deadline = null;
+          return { doc: true, lines: true };
         case 'lyrics:transport':
           requireFields(payload, ['action', 'value']);
           applyTransport(payload.action, payload.value);
