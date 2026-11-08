@@ -398,6 +398,7 @@ function fitFocus() {
 function rebuildFocus() {
   $('focusCanvas').replaceChildren();
   focusRenderer = MODULES[activeModule].create($('focusCanvas'), { sample: activeModule === 'lyrics' });
+  focusRenderer.updateLyrics?.(lyricsClock);
   fitFocus();
 }
 
@@ -450,6 +451,7 @@ function connect() {
     } else if (message.type === 'lyrics:state') {
       lyricsClock.apply(message);
       previewRenderers.lyrics.updateLyrics(lyricsClock);
+      focusRenderer?.updateLyrics?.(lyricsClock);
       revision = message.revision ?? revision;
       updateSaveStatus();
     } else if (message.type === 'saved') {

@@ -179,7 +179,7 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     const state = clock?.state;
     const selected = state?.armed ? state.source : null;
     setSource(selected);
-    if (sample) {
+    if (sample && !clock?.state?.armed) {
       updateWindow(DEMO, 2, DEMO[2], null);
       return;
     }
