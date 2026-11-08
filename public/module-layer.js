@@ -1,7 +1,7 @@
 const STYLE_ID = 'yanzhou-module-layer-style';
 
 const BASE_CSS = `
-@font-face { font-family: 'MiSans'; src: url('/assets/fonts/MiSans-Medium.ttf') format('truetype'); font-style: normal; font-weight: 100 900; font-display: block; }
+@font-face { font-family: 'MiSans'; src: url('/assets/fonts/MiSansVF.ttf') format('truetype-variations'); font-style: normal; font-weight: 150 700; font-display: block; }
 .module-layer { position: absolute; left: 0; top: 0; transform-origin: top left; will-change: transform, opacity; font-family: 'MiSans', sans-serif; line-height: 1; user-select: none; -webkit-user-select: none; }
 .module-layer[hidden] { display: none !important; }
 .module-body { display: block; }

@@ -27,6 +27,7 @@ const MODULES = {
       { key: 'showMark', id: 'logoShowMark', kind: 'boolean' },
       { key: 'color', id: 'logoColor', hexId: 'logoColorHex', kind: 'color' },
       { key: 'textColor', id: 'logoTextColor', hexId: 'logoTextColorHex', kind: 'color' },
+      { key: 'weight', id: 'logoWeight', numberId: 'logoWeightNumber', kind: 'weight' },
       { key: 'scale', id: 'logoScale', numberId: 'logoScaleNumber', kind: 'percent' },
       { key: 'opacity', id: 'logoOpacity', numberId: 'logoOpacityNumber', kind: 'opacity' },
     ],
@@ -103,7 +104,6 @@ let focusRenderer = null;
 
 const outputUrl = new URL('/overlay.html', location.href).href;
 $('obsAddress').textContent = outputUrl;
-$('outputLink').href = outputUrl;
 
 function setInput(id, value) {
   const input = $(id);
@@ -310,7 +310,7 @@ function renderControls() {
     const module = settings.modules[moduleId];
     for (const field of MODULES[moduleId].fields) {
       if (field.kind === 'color') {
-        setInput(field.id, module[field.key]);
+        $(field.id).style.background = module[field.key];
         setInput(field.hexId, module[field.key].toUpperCase());
       } else if (field.kind === 'boolean') {
         $(field.id).checked = Boolean(module[field.key]);
@@ -318,7 +318,7 @@ function renderControls() {
         const percent = Math.round(module[field.key] * 100);
         updateRange(field.id, percent);
         setInput(field.numberId, percent);
-      } else if (field.kind === 'opacity') {
+      } else if (field.kind === 'opacity' || field.kind === 'weight') {
         updateRange(field.id, module[field.key]);
         setInput(field.numberId, module[field.key]);
       } else {
@@ -505,12 +505,9 @@ function populateAnimationSelects() {
 }
 
 function bindColorField(moduleId, field) {
-  const picker = $(field.id);
+  const swatch = $(field.id);
   const hex = $(field.hexId);
-  picker.addEventListener('input', (event) => {
-    hex.removeAttribute('aria-invalid');
-    edit(moduleId, { [field.key]: event.target.value.toUpperCase() });
-  });
+  swatch.addEventListener('click', () => openPicker(moduleId, field));
   hex.addEventListener('input', (event) => {
     const value = event.target.value.trim();
     const valid = /^#[0-9a-f]{6}$/i.test(value);
@@ -520,6 +517,126 @@ function bindColorField(moduleId, field) {
   hex.addEventListener('blur', () => {
     hex.removeAttribute('aria-invalid');
     hex.value = settings.modules[moduleId][field.key].toUpperCase();
+  });
+}
+
+const PICKER_PRESETS = ['#FFFFFF', '#10151D', '#772B2C', '#D4AB78', '#FFAA00', '#E23A2E', '#E86A17', '#28A745', '#2E6FE2', '#7A4FD4'];
+const picker = $('colorPicker');
+let pickerTarget = null;
+let pickerHsv = { h: 0, s: 0, v: 1 };
+
+function hsvToHex(h, s, v) {
+  const channel = (n) => {
+    const k = (n + h / 60) % 6;
+    const x = v - v * s * Math.max(0, Math.min(k, 4 - k, 1));
+    return Math.round(x * 255).toString(16).padStart(2, '0');
+  };
+  return `#${channel(5)}${channel(3)}${channel(1)}`.toUpperCase();
+}
+
+function hexToHsv(hex) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  let h = 0;
+  if (delta) {
+    if (max === r) h = ((g - b) / delta) % 6;
+    else if (max === g) h = (b - r) / delta + 2;
+    else h = (r - g) / delta + 4;
+    h = (h * 60 + 360) % 360;
+  }
+  return { h, s: max === 0 ? 0 : delta / max, v: max };
+}
+
+function renderPicker() {
+  const { h, s, v } = pickerHsv;
+  $('pickerArea').style.background = `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, hsl(${h}, 100%, 50%))`;
+  $('pickerDot').style.left = `${s * 100}%`;
+  $('pickerDot').style.top = `${(1 - v) * 100}%`;
+  $('pickerHueDot').style.left = `${(h / 360) * 100}%`;
+  $('pickerHex').textContent = hsvToHex(h, s, v);
+}
+
+function commitPicker() {
+  if (!pickerTarget) return;
+  edit(pickerTarget.moduleId, { [pickerTarget.field.key]: hsvToHex(pickerHsv.h, pickerHsv.s, pickerHsv.v) });
+}
+
+function openPicker(moduleId, field) {
+  pickerTarget = { moduleId, field };
+  pickerHsv = hexToHsv(settings.modules[moduleId][field.key]);
+  renderPicker();
+  picker.hidden = false;
+  const swatch = $(field.id);
+  const anchor = swatch.getBoundingClientRect();
+  const width = picker.offsetWidth;
+  const height = picker.offsetHeight;
+  picker.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, anchor.left))}px`;
+  picker.style.top = `${anchor.bottom + height + 8 > window.innerHeight - 8 ? Math.max(8, anchor.top - height - 8) : anchor.bottom + 8}px`;
+}
+
+function closePicker() {
+  picker.hidden = true;
+  pickerTarget = null;
+}
+
+function bindPicker() {
+  for (const preset of PICKER_PRESETS) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.preset = preset;
+    button.style.background = preset;
+    button.setAttribute('aria-label', `使用颜色 ${preset}`);
+    $('pickerPresets').appendChild(button);
+  }
+  const dragOn = (element, onMove) => {
+    element.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      element.setPointerCapture(event.pointerId);
+      onMove(event);
+      const move = (e) => onMove(e);
+      const stop = () => {
+        element.removeEventListener('pointermove', move);
+        element.removeEventListener('pointerup', stop);
+        element.removeEventListener('pointercancel', stop);
+      };
+      element.addEventListener('pointermove', move);
+      element.addEventListener('pointerup', stop);
+      element.addEventListener('pointercancel', stop);
+    });
+  };
+  const area = $('pickerArea');
+  const hue = $('pickerHue');
+  dragOn(area, (event) => {
+    const r = area.getBoundingClientRect();
+    pickerHsv.s = Math.min(1, Math.max(0, (event.clientX - r.left) / r.width));
+    pickerHsv.v = 1 - Math.min(1, Math.max(0, (event.clientY - r.top) / r.height));
+    renderPicker();
+    commitPicker();
+  });
+  dragOn(hue, (event) => {
+    const r = hue.getBoundingClientRect();
+    pickerHsv.h = Math.min(360, Math.max(0, ((event.clientX - r.left) / r.width) * 360));
+    renderPicker();
+    commitPicker();
+  });
+  $('pickerPresets').addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-preset]');
+    if (!button) return;
+    pickerHsv = hexToHsv(button.dataset.preset);
+    renderPicker();
+    commitPicker();
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (picker.hidden) return;
+    if (event.target.closest('.color-picker') || event.target.closest('.color-control')) return;
+    closePicker();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !picker.hidden) closePicker();
   });
 }
 
@@ -590,7 +707,7 @@ function bindFields() {
         bindColorField(moduleId, field);
       } else if (field.kind === 'percent') {
         bindRangeField(moduleId, field, 100);
-      } else if (field.kind === 'opacity') {
+      } else if (field.kind === 'opacity' || field.kind === 'weight') {
         bindRangeField(moduleId, field, 1);
       }
     }
@@ -680,17 +797,6 @@ function bindGlobalControls() {
       y: settings.modules[activeModule].y + moves[event.key][1],
     });
   });
-  for (const button of document.querySelectorAll('[data-position]')) {
-    button.addEventListener('click', () => {
-      const bounds = previewRenderers[activeModule].getBounds();
-      const right = button.dataset.position.endsWith('right');
-      const bottom = button.dataset.position.startsWith('bottom');
-      edit(activeModule, {
-        x: right ? settings.canvas.width - bounds.width - 72 : 72,
-        y: bottom ? settings.canvas.height - bounds.height - 64 : 64,
-      });
-    });
-  }
   for (const button of document.querySelectorAll('[data-background]')) {
     if (button.tagName !== 'BUTTON') continue;
     button.addEventListener('click', () => {
@@ -727,6 +833,7 @@ function bindGlobalControls() {
 
 populateAnimationSelects();
 initThemeSwitch();
+bindPicker();
 bindFields();
 bindDrag();
 bindGlobalControls();

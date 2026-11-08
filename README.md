@@ -24,7 +24,7 @@
 左侧「包装模块」切换 Logo 挂角 / 主持字幕 / 节目单，当前模块的名称、内容与局部放大同步切换。每个模块的设置分为四段：
 
 - **01 显示内容**：各模块文字（Logo 主副标题与校徽显隐、主持人标签与名单、节目名与预告等）。
-- **02 外观**：校徽色/强调色与文字颜色、整体大小、透明度。
+- **02 外观**：校徽色/强调色与文字颜色（内置取色器，支持 HEX）、Logo 字重（MiSans 可变字体 150–700）、整体大小、透明度。
 - **03 位置**：水平 X / 垂直 Y 滑条与像素输入，也可直接拖动预览中的模块，或用方向键微调（按住 Shift 每次 10 px），并支持四角快捷定位。滑条范围会随模块实际尺寸调整，不会移出画面。
 - **04 出场 / 退场**：分别选择出场与退场动画以及动画时长。
 
@@ -38,18 +38,18 @@
 
 如要手动编辑 `settings.json`，先正常退出服务再修改；启动时发现文件损坏会报错并保留原文件。
 
-旧版设置会在启动时自动迁移并写回：`version: 1`（只有 Logo 挂角）迁移为模块结构，`version: 2` 补充 Logo 校徽显隐字段（`showMark`，默认开启），原有内容、颜色与位置都会保留。
+旧版设置会在启动时自动迁移并写回：`version: 1`（只有 Logo 挂角）迁移为模块结构，`version: 2` 补充 Logo 校徽显隐（`showMark`），`version: 3` 补充 Logo 字重（`weight`，可变字体 150–700），原有内容、颜色与位置都会保留。
 
 ## 设置结构
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "canvas": { "width": 1920, "height": 1080 },
   "modules": {
     "logo": {
       "visible": true, "showMark": true, "title": "中山市烟洲中学", "subtitle": "YANZHOU · LIVE",
-      "color": "#D4AB78", "textColor": "#F4F0E8",
+      "color": "#FFFFFF", "textColor": "#772B2C", "weight": 500,
       "x": 72, "y": 64, "scale": 1, "opacity": 100,
       "animation": { "enter": "fade-up", "exit": "fade-down", "duration": 600 }
     },

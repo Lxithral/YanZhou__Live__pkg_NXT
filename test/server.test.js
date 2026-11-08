@@ -108,8 +108,9 @@ test('a control change immediately reaches another client and is saved on disk',
   const initial = await controller.waitFor((message) => message.type === 'state');
   const overlayInitial = await overlay.waitFor((message) => message.type === 'state');
   assert.deepEqual(overlayInitial.settings, initial.settings);
-  assert.equal(initial.settings.version, 3);
+  assert.equal(initial.settings.version, 4);
   assert.equal(initial.settings.modules.logo.showMark, true);
+  assert.equal(initial.settings.modules.logo.weight, 500);
   assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
@@ -181,6 +182,8 @@ test('invalid patches are rejected atomically and leave saved settings unchanged
     { modules: { logo: { color: 'red' } } },
     { modules: { logo: { visible: 'yes' } } },
     { modules: { logo: { showMark: 'yes' } } },
+    { modules: { logo: { weight: 100 } } },
+    { modules: { logo: { weight: 'bold' } } },
     { modules: { logo: {} } },
     { modules: { hosts: { names: 'y'.repeat(400) } } },
     { modules: { hosts: { accentColor: '#12345' } } },
@@ -262,25 +265,27 @@ test('a version 1 settings file is migrated to the module format in place', asyn
   const { app } = await setup.start();
 
   const state = app.getState();
-  assert.equal(state.settings.version, 3);
+  assert.equal(state.settings.version, 4);
   assert.equal(state.settings.modules.logo.title, 'YZBTVS');
   assert.equal(state.settings.modules.logo.color, '#FFFFFF');
   assert.equal(state.settings.modules.logo.x, 146);
   assert.equal(state.settings.modules.logo.showMark, true);
+  assert.equal(state.settings.modules.logo.weight, 500);
   assert.deepEqual(state.settings.modules.logo.animation, { enter: 'fade-up', exit: 'fade-down', duration: 600 });
   assert.equal(state.settings.modules.hosts.visible, false);
   assert.equal(state.settings.modules.program.visible, false);
   assert.equal(state.settings.modules.program.current, '节目名称');
 
   const persisted = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
-  assert.equal(persisted.version, 3);
+  assert.equal(persisted.version, 4);
   assert.equal(persisted.modules.logo.title, 'YZBTVS');
   assert.equal(persisted.modules.logo.showMark, true);
+  assert.equal(persisted.modules.logo.weight, 500);
   assert.equal(persisted.modules.hosts.label, '主持人');
   assert.equal(persisted.modules.program.label, '正在演出');
 });
 
-test('a version 2 settings file gains the logo mark flag and keeps every other value', async (t) => {
+test('a version 2 settings file gains the logo mark and weight flags and keeps every other value', async (t) => {
   const setup = await fixture(t);
   const v2 = {
     version: 2,
@@ -309,8 +314,9 @@ test('a version 2 settings file gains the logo mark flag and keeps every other v
   const controller = await setup.connect(wsUrl);
   const initial = await controller.waitFor((message) => message.type === 'state');
 
-  assert.equal(initial.settings.version, 3);
+  assert.equal(initial.settings.version, 4);
   assert.equal(initial.settings.modules.logo.showMark, true);
+  assert.equal(initial.settings.modules.logo.weight, 500);
   assert.equal(initial.settings.modules.logo.title, 'YZBTVS');
   assert.equal(initial.settings.modules.hosts.names, '张三');
 
@@ -318,7 +324,7 @@ test('a version 2 settings file gains the logo mark flag and keeps every other v
   const hidden = await controller.waitFor((message) => message.type === 'state' && message.settings.modules.logo.showMark === false);
   await controller.waitFor((message) => message.type === 'saved' && message.revision >= hidden.revision);
   const persisted = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
-  assert.equal(persisted.version, 3);
+  assert.equal(persisted.version, 4);
   assert.equal(persisted.modules.logo.showMark, false);
   assert.equal(persisted.modules.logo.title, 'YZBTVS');
 });

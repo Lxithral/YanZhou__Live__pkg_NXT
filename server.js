@@ -28,10 +28,11 @@ const FIELD_RULES = {
   y: { kind: 'number', min: 0, max: 1080, label: '垂直 Y' },
   scale: { kind: 'number', min: 0.25, max: 3, label: '大小' },
   opacity: { kind: 'number', min: 0, max: 100, label: '不透明度' },
+  weight: { kind: 'number', min: 150, max: 700, label: '字重' },
 };
 
 const MODULE_FIELDS = {
-  logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
   hosts: ['visible', 'label', 'names', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
@@ -39,7 +40,7 @@ const MODULE_FIELDS = {
 const clone = (value) => structuredClone(value);
 
 export const DEFAULT_SETTINGS = {
-  version: 3,
+  version: 4,
   canvas: { width: 1920, height: 1080 },
   modules: {
     logo: {
@@ -47,8 +48,9 @@ export const DEFAULT_SETTINGS = {
       showMark: true,
       title: '中山市烟洲中学',
       subtitle: 'YANZHOU · LIVE',
-      color: '#D4AB78',
-      textColor: '#F4F0E8',
+      color: '#FFFFFF',
+      textColor: '#772B2C',
+      weight: 500,
       x: 72,
       y: 64,
       scale: 1,
@@ -191,8 +193,8 @@ function validateModule(moduleId, module) {
 }
 
 function validateSettings(settings) {
-  if (!isObject(settings) || settings.version !== 3) {
-    throw new Error('settings.json 格式不正确：版本应为 3。');
+  if (!isObject(settings) || settings.version !== 4) {
+    throw new Error('settings.json 格式不正确：版本应为 4。');
   }
   if (!isObject(settings.canvas) || settings.canvas.width !== 1920 || settings.canvas.height !== 1080) {
     throw new Error('settings.json 格式不正确，画布应为 1920 × 1080。');
@@ -205,17 +207,18 @@ function validateSettings(settings) {
   for (const moduleId of MODULE_IDS) {
     modules[moduleId] = validateModule(moduleId, settings.modules[moduleId] ?? clone(DEFAULT_SETTINGS.modules[moduleId]));
   }
-  return { version: 3, canvas: { width: 1920, height: 1080 }, modules };
+  return { version: 4, canvas: { width: 1920, height: 1080 }, modules };
 }
 
-/** Upgrade older settings files to the current schema (v3 adds logo.showMark). */
+/** Upgrade older settings files stepwise to the current schema
+ *  (v3 added logo.showMark, v4 added logo.weight). */
 export function migrateSettings(raw) {
   if (!isObject(raw)) return raw;
   let settings = raw;
   if (settings.version === 1 && isObject(settings.logo)) {
     const logo = clone(DEFAULT_SETTINGS.modules.logo);
     for (const field of MODULE_FIELDS.logo) {
-      if (field === 'showMark') continue;
+      if (field === 'showMark' || field === 'weight') continue;
       if (Object.hasOwn(settings.logo, field)) logo[field] = settings.logo[field];
     }
     settings = {
@@ -232,6 +235,11 @@ export function migrateSettings(raw) {
     const modules = clone(settings.modules);
     if (isObject(modules.logo)) modules.logo = { showMark: true, ...modules.logo };
     settings = { ...settings, version: 3, modules };
+  }
+  if (settings.version === 3 && isObject(settings.modules)) {
+    const modules = clone(settings.modules);
+    if (isObject(modules.logo) && !Object.hasOwn(modules.logo, 'weight')) modules.logo.weight = 500;
+    settings = { ...settings, version: 4, modules };
   }
   return settings;
 }

@@ -30,10 +30,8 @@
         <button type="button" data-theme-option="dark" title="深色" aria-label="深色主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
       </div>
       <span class="connection-status" id="connectionStatus" role="status"><i></i><span id="connectionText">正在连接</span></span>
-      <a class="button output-link" id="outputLink" href="/overlay.html" target="_blank" rel="noopener noreferrer">打开输出页<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M10 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5"/></svg></a>
     </div>
   </header>
-
   <div class="app-shell">
     <aside class="module-sidebar" aria-label="包装模块">
       <p class="eyebrow">WORKSPACE</p>
@@ -64,13 +62,11 @@
         <div class="sidebar-file"><span class="tiny-dot"></span>settings.json</div>
       </div>
     </aside>
-
     <main class="monitor-column">
       <div class="section-heading">
         <h1>画面监看<span class="heading-tag" id="activeModuleTag">Logo 挂角</span></h1>
         <span class="canvas-dimensions">1920 <span>×</span> 1080</span>
       </div>
-
       <section class="preview-card" aria-label="包装实时预览">
         <div class="preview-toolbar">
           <div class="preview-live"><span></span>全画面 · 查看位置</div>
@@ -98,7 +94,6 @@
           <span id="previewScale">100%</span>
         </div>
       </section>
-
       <section class="focus-card" aria-labelledby="focusTitle">
         <div class="focus-heading"><h2 id="focusTitle">Logo 挂角 · 局部放大</h2><span id="focusScale">自动适配</span></div>
         <div class="focus-stage" id="focusStage" data-background="dark" aria-label="选中模块的局部放大预览">
@@ -110,7 +105,6 @@
         </div>
       </section>
     </main>
-
     <aside class="properties-column" aria-labelledby="propertiesTitle">
       <div class="properties-heading">
         <h2 id="propertiesTitle">Logo 挂角设置</h2>
@@ -118,7 +112,6 @@
       </div>
       <section class="properties-card">
         <div class="visibility-row"><div><strong id="visibilityTitle">显示 Logo 挂角</strong><small>同步控制输出画面的显示状态</small></div><label class="switch"><input id="moduleVisible" type="checkbox" checked aria-label="显示当前模块"><span></span></label></div>
-
         <div class="module-panel" data-module-panel="logo">
           <div class="settings-section">
             <h3><span>01</span>显示内容</h3>
@@ -131,8 +124,9 @@
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="logoColor">校徽颜色</label><div class="color-control"><input id="logoColor" type="color"><input id="logoColorHex" class="hex-input" type="text" maxlength="7" aria-label="校徽颜色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="logoTextColor">文字颜色</label><div class="color-control"><input id="logoTextColor" type="color"><input id="logoTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="logoColor">校徽颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoColor" aria-label="校徽颜色，打开取色器"></button><input id="logoColorHex" class="hex-input" type="text" maxlength="7" aria-label="校徽颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="logoTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoTextColor" aria-label="文字颜色，打开取色器"></button><input id="logoTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="logoWeight">字重</label><div class="slider-line"><input id="logoWeight" class="range-input" type="range" min="150" max="700" step="10"><div class="number-unit"><input id="logoWeightNumber" type="number" min="150" max="700" step="10" aria-label="字重数值"><span></span></div></div></div>
               <div class="field"><label class="field-label" for="logoScale">整体大小</label><div class="slider-line"><input id="logoScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="logoScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="logoOpacity">不透明度</label><div class="slider-line"><input id="logoOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="logoOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
@@ -151,7 +145,6 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="logoYMax">1080 px · 下</span></div>
               </div>
             </div>
-            <div class="position-presets" role="group" aria-label="快捷定位"><button type="button" data-position="top-left" title="定位到左上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 11V8h4"/></svg><span>左上</span></button><button type="button" data-position="top-right" title="定位到右上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 8h4v3"/></svg><span>右上</span></button><button type="button" data-position="bottom-left" title="定位到左下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 13v3h4"/></svg><span>左下</span></button><button type="button" data-position="bottom-right" title="定位到右下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 16h4v-3"/></svg><span>右下</span></button></div>
           </div>
           <div class="settings-section">
             <h3><span>04</span>出场 / 退场</h3>
@@ -162,7 +155,6 @@
             </div>
           </div>
         </div>
-
         <div class="module-panel" data-module-panel="hosts" hidden>
           <div class="settings-section">
             <h3><span>01</span>显示内容</h3>
@@ -174,8 +166,8 @@
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="hostsAccent">强调色</label><div class="color-control"><input id="hostsAccent" type="color"><input id="hostsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="hostsTextColor">文字颜色</label><div class="color-control"><input id="hostsTextColor" type="color"><input id="hostsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="hostsAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsAccent" aria-label="强调色，打开取色器"></button><input id="hostsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="hostsTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsTextColor" aria-label="文字颜色，打开取色器"></button><input id="hostsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="hostsScale">整体大小</label><div class="slider-line"><input id="hostsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="hostsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="hostsOpacity">不透明度</label><div class="slider-line"><input id="hostsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="hostsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
@@ -194,7 +186,6 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="hostsYMax">1080 px · 下</span></div>
               </div>
             </div>
-            <div class="position-presets" role="group" aria-label="快捷定位"><button type="button" data-position="top-left" title="定位到左上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 11V8h4"/></svg><span>左上</span></button><button type="button" data-position="top-right" title="定位到右上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 8h4v3"/></svg><span>右上</span></button><button type="button" data-position="bottom-left" title="定位到左下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 13v3h4"/></svg><span>左下</span></button><button type="button" data-position="bottom-right" title="定位到右下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 16h4v-3"/></svg><span>右下</span></button></div>
           </div>
           <div class="settings-section">
             <h3><span>04</span>出场 / 退场</h3>
@@ -205,7 +196,6 @@
             </div>
           </div>
         </div>
-
         <div class="module-panel" data-module-panel="program" hidden>
           <div class="settings-section">
             <h3><span>01</span>显示内容</h3>
@@ -219,8 +209,8 @@
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="programAccent">强调色</label><div class="color-control"><input id="programAccent" type="color"><input id="programAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="programTextColor">文字颜色</label><div class="color-control"><input id="programTextColor" type="color"><input id="programTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="programAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="programAccent" aria-label="强调色，打开取色器"></button><input id="programAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="programTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="programTextColor" aria-label="文字颜色，打开取色器"></button><input id="programTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="programScale">整体大小</label><div class="slider-line"><input id="programScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="programScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="programOpacity">不透明度</label><div class="slider-line"><input id="programOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="programOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
@@ -239,7 +229,6 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="programYMax">1080 px · 下</span></div>
               </div>
             </div>
-            <div class="position-presets" role="group" aria-label="快捷定位"><button type="button" data-position="top-left" title="定位到左上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 11V8h4"/></svg><span>左上</span></button><button type="button" data-position="top-right" title="定位到右上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 8h4v3"/></svg><span>右上</span></button><button type="button" data-position="bottom-left" title="定位到左下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 13v3h4"/></svg><span>左下</span></button><button type="button" data-position="bottom-right" title="定位到右下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 16h4v-3"/></svg><span>右下</span></button></div>
           </div>
           <div class="settings-section">
             <h3><span>04</span>出场 / 退场</h3>
@@ -250,12 +239,10 @@
             </div>
           </div>
         </div>
-
         <div class="save-status" id="saveStatus" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><div><strong id="saveText">正在读取设置</strong><small id="saveDetail">修改后自动保存到 settings.json</small></div></div>
       </section>
     </aside>
   </div>
-
   <footer class="app-footer">
     <section class="connection-card" aria-labelledby="obsConnectionTitle" title="在 OBS 中添加浏览器来源，填入此地址，设置为 1920×1080。两处预览仅用于控制面板，OBS 输出保持透明。">
       <div class="connection-card-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M8 10h8M12 7v6"/></svg></div>
@@ -265,7 +252,12 @@
       </div>
     </section>
   </footer>
-
+  <div class="color-picker" id="colorPicker" hidden>
+    <div class="picker-area" id="pickerArea"><div class="picker-dot" id="pickerDot"></div></div>
+    <div class="picker-hue" id="pickerHue"><div class="picker-hue-dot" id="pickerHueDot"></div></div>
+    <div class="picker-presets" id="pickerPresets" role="group" aria-label="常用颜色"></div>
+    <div class="picker-footer"><code id="pickerHex">#FFFFFF</code><span>HEX</span></div>
+  </div>
   <div class="toast" id="toast" role="status" hidden></div>
   <script type="module" src="/control.js"></script>
 </body>

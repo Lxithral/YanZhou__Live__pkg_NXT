@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "canvas": {
     "width": 1920,
     "height": 1080
@@ -8,13 +8,14 @@
     "logo": {
       "visible": true,
       "showMark": true,
-      "title": "YZBTVSS",
+      "title": "YZBTVS",
       "subtitle": "",
       "color": "#FFFFFF",
-      "textColor": "#FFAA00",
+      "textColor": "#772B2C",
+      "weight": 500,
       "x": 146,
       "y": 98,
-      "scale": 0.67,
+      "scale": 2.09,
       "opacity": 100,
       "animation": {
         "enter": "fade-up",
