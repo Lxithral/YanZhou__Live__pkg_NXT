@@ -12,10 +12,10 @@
       "subtitle": "",
       "color": "#FFFFFF",
       "textColor": "#772B2C",
-      "weight": 500,
+      "weight": 640,
       "x": 146,
       "y": 98,
-      "scale": 2.09,
+      "scale": 0.98,
       "opacity": 100,
       "animation": {
         "enter": "fade-up",
@@ -24,7 +24,7 @@
       }
     },
     "hosts": {
-      "visible": true,
+      "visible": false,
       "label": "主持人",
       "names": "张三｜高三（2）班\n李四｜学生会",
       "slotCount": 4,
@@ -56,6 +56,2885 @@
         "enter": "fade-up",
         "exit": "fade-down",
         "duration": 600
+      }
+    },
+    "lyrics": {
+      "visible": true,
+      "accentColor": "#D4AB78",
+      "textColor": "#F4F0E8",
+      "x": 240,
+      "y": 850,
+      "scale": 1,
+      "opacity": 100,
+      "animation": {
+        "enter": "none",
+        "exit": "none",
+        "duration": 200
+      },
+      "source": "timeline",
+      "doc": [
+        {
+          "start": 13070,
+          "text": "All I know is （ooh ooh ooh）",
+          "tokens": [
+            {
+              "text": "All",
+              "start": 13070
+            },
+            {
+              "text": " ",
+              "start": 13370
+            },
+            {
+              "text": "I",
+              "start": 13370
+            },
+            {
+              "text": " ",
+              "start": 13460
+            },
+            {
+              "text": "know",
+              "start": 13460
+            },
+            {
+              "text": " ",
+              "start": 13700
+            },
+            {
+              "text": "is",
+              "start": 13700
+            },
+            {
+              "text": " ",
+              "start": 13910
+            },
+            {
+              "text": "（",
+              "start": 13910
+            },
+            {
+              "text": "ooh",
+              "start": 13910
+            },
+            {
+              "text": " ",
+              "start": 13940
+            },
+            {
+              "text": "ooh",
+              "start": 13940
+            },
+            {
+              "text": " ",
+              "start": 14570
+            },
+            {
+              "text": "ooh",
+              "start": 14570
+            },
+            {
+              "text": "）",
+              "start": 15650
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 16040,
+          "text": "We could go anywhere we could do",
+          "tokens": [
+            {
+              "text": "We",
+              "start": 16040
+            },
+            {
+              "text": " ",
+              "start": 16190
+            },
+            {
+              "text": "could",
+              "start": 16190
+            },
+            {
+              "text": " ",
+              "start": 16340
+            },
+            {
+              "text": "go",
+              "start": 16340
+            },
+            {
+              "text": " ",
+              "start": 16760
+            },
+            {
+              "text": "anywhere",
+              "start": 16760
+            },
+            {
+              "text": " ",
+              "start": 17390
+            },
+            {
+              "text": "we",
+              "start": 17390
+            },
+            {
+              "text": " ",
+              "start": 17540
+            },
+            {
+              "text": "could",
+              "start": 17540
+            },
+            {
+              "text": " ",
+              "start": 17720
+            },
+            {
+              "text": "do",
+              "start": 17720
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 18770,
+          "text": "Anything girl whatever the mood we're in",
+          "tokens": [
+            {
+              "text": "Anything",
+              "start": 18770
+            },
+            {
+              "text": " ",
+              "start": 19430
+            },
+            {
+              "text": "girl",
+              "start": 19430
+            },
+            {
+              "text": " ",
+              "start": 19640
+            },
+            {
+              "text": "whatever",
+              "start": 19640
+            },
+            {
+              "text": " ",
+              "start": 20270
+            },
+            {
+              "text": "the",
+              "start": 20270
+            },
+            {
+              "text": " ",
+              "start": 20390
+            },
+            {
+              "text": "mood",
+              "start": 20390
+            },
+            {
+              "text": " ",
+              "start": 21260
+            },
+            {
+              "text": "we're",
+              "start": 21260
+            },
+            {
+              "text": " ",
+              "start": 21740
+            },
+            {
+              "text": "in",
+              "start": 21740
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 23990,
+          "text": "All I know is （ooh ooh ooh）",
+          "tokens": [
+            {
+              "text": "All",
+              "start": 23990
+            },
+            {
+              "text": " ",
+              "start": 24320
+            },
+            {
+              "text": "I",
+              "start": 24320
+            },
+            {
+              "text": " ",
+              "start": 24350
+            },
+            {
+              "text": "know",
+              "start": 24350
+            },
+            {
+              "text": " ",
+              "start": 24590
+            },
+            {
+              "text": "is",
+              "start": 24590
+            },
+            {
+              "text": " ",
+              "start": 24770
+            },
+            {
+              "text": "（",
+              "start": 24770
+            },
+            {
+              "text": "ooh",
+              "start": 24800
+            },
+            {
+              "text": " ",
+              "start": 25490
+            },
+            {
+              "text": "ooh",
+              "start": 25490
+            },
+            {
+              "text": " ",
+              "start": 26600
+            },
+            {
+              "text": "ooh",
+              "start": 26600
+            },
+            {
+              "text": "）",
+              "start": 26630
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 26900,
+          "text": "Getting lost late at night under stars",
+          "tokens": [
+            {
+              "text": "Getting",
+              "start": 26900
+            },
+            {
+              "text": " ",
+              "start": 27290
+            },
+            {
+              "text": "lost",
+              "start": 27290
+            },
+            {
+              "text": " ",
+              "start": 27720
+            },
+            {
+              "text": "late",
+              "start": 27720
+            },
+            {
+              "text": " ",
+              "start": 27900
+            },
+            {
+              "text": "at",
+              "start": 27900
+            },
+            {
+              "text": " ",
+              "start": 27990
+            },
+            {
+              "text": "night",
+              "start": 27990
+            },
+            {
+              "text": " ",
+              "start": 28370
+            },
+            {
+              "text": "under",
+              "start": 28370
+            },
+            {
+              "text": " ",
+              "start": 28550
+            },
+            {
+              "text": "stars",
+              "start": 28550
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 29630,
+          "text": "Finding love standing right where we are your lips",
+          "tokens": [
+            {
+              "text": "Finding",
+              "start": 29630
+            },
+            {
+              "text": " ",
+              "start": 30020
+            },
+            {
+              "text": "love",
+              "start": 30020
+            },
+            {
+              "text": " ",
+              "start": 30380
+            },
+            {
+              "text": "standing",
+              "start": 30380
+            },
+            {
+              "text": " ",
+              "start": 30680
+            },
+            {
+              "text": "right",
+              "start": 30680
+            },
+            {
+              "text": " ",
+              "start": 31070
+            },
+            {
+              "text": "where",
+              "start": 31070
+            },
+            {
+              "text": " ",
+              "start": 31250
+            },
+            {
+              "text": "we",
+              "start": 31250
+            },
+            {
+              "text": " ",
+              "start": 31490
+            },
+            {
+              "text": "are",
+              "start": 31490
+            },
+            {
+              "text": " ",
+              "start": 32150
+            },
+            {
+              "text": "your",
+              "start": 32150
+            },
+            {
+              "text": " ",
+              "start": 32570
+            },
+            {
+              "text": "lips",
+              "start": 32570
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 33830,
+          "text": "They pull me in the moment",
+          "tokens": [
+            {
+              "text": "They",
+              "start": 33830
+            },
+            {
+              "text": " ",
+              "start": 34100
+            },
+            {
+              "text": "pull",
+              "start": 34100
+            },
+            {
+              "text": " ",
+              "start": 34550
+            },
+            {
+              "text": "me",
+              "start": 34550
+            },
+            {
+              "text": " ",
+              "start": 35030
+            },
+            {
+              "text": "in",
+              "start": 35030
+            },
+            {
+              "text": " ",
+              "start": 35360
+            },
+            {
+              "text": "the",
+              "start": 35360
+            },
+            {
+              "text": " ",
+              "start": 35510
+            },
+            {
+              "text": "moment",
+              "start": 35510
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 36950,
+          "text": "You and I alone and",
+          "tokens": [
+            {
+              "text": "You",
+              "start": 36950
+            },
+            {
+              "text": " ",
+              "start": 37340
+            },
+            {
+              "text": "and",
+              "start": 37340
+            },
+            {
+              "text": " ",
+              "start": 37760
+            },
+            {
+              "text": "I",
+              "start": 37760
+            },
+            {
+              "text": " ",
+              "start": 38060
+            },
+            {
+              "text": "alone",
+              "start": 38060
+            },
+            {
+              "text": " ",
+              "start": 39110
+            },
+            {
+              "text": "and",
+              "start": 39110
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 39410,
+          "text": "People may be watching I don't mind ‘cause",
+          "tokens": [
+            {
+              "text": "People",
+              "start": 39410
+            },
+            {
+              "text": " ",
+              "start": 40400
+            },
+            {
+              "text": "may",
+              "start": 40400
+            },
+            {
+              "text": " ",
+              "start": 40730
+            },
+            {
+              "text": "be",
+              "start": 40730
+            },
+            {
+              "text": " ",
+              "start": 41000
+            },
+            {
+              "text": "watching",
+              "start": 41000
+            },
+            {
+              "text": " ",
+              "start": 42440
+            },
+            {
+              "text": "I",
+              "start": 42440
+            },
+            {
+              "text": " ",
+              "start": 43070
+            },
+            {
+              "text": "don't",
+              "start": 43070
+            },
+            {
+              "text": " ",
+              "start": 43460
+            },
+            {
+              "text": "mind",
+              "start": 43460
+            },
+            {
+              "text": " ",
+              "start": 45380
+            },
+            {
+              "text": "‘",
+              "start": 45380
+            },
+            {
+              "text": "cause",
+              "start": 45440
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 46400,
+          "text": "Anywhere with you feels right",
+          "tokens": [
+            {
+              "text": "Anywhere",
+              "start": 46400
+            },
+            {
+              "text": " ",
+              "start": 47060
+            },
+            {
+              "text": "with",
+              "start": 47060
+            },
+            {
+              "text": " ",
+              "start": 47270
+            },
+            {
+              "text": "you",
+              "start": 47270
+            },
+            {
+              "text": " ",
+              "start": 47480
+            },
+            {
+              "text": "feels",
+              "start": 47480
+            },
+            {
+              "text": " ",
+              "start": 47930
+            },
+            {
+              "text": "right",
+              "start": 47930
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 49100,
+          "text": "Anywhere with you feels like",
+          "tokens": [
+            {
+              "text": "Anywhere",
+              "start": 49100
+            },
+            {
+              "text": " ",
+              "start": 49790
+            },
+            {
+              "text": "with",
+              "start": 49790
+            },
+            {
+              "text": " ",
+              "start": 50000
+            },
+            {
+              "text": "you",
+              "start": 50000
+            },
+            {
+              "text": " ",
+              "start": 50210
+            },
+            {
+              "text": "feels",
+              "start": 50210
+            },
+            {
+              "text": " ",
+              "start": 50690
+            },
+            {
+              "text": "like",
+              "start": 50690
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 51560,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 51560
+            },
+            {
+              "text": " ",
+              "start": 52430
+            },
+            {
+              "text": "in",
+              "start": 52430
+            },
+            {
+              "text": " ",
+              "start": 52610
+            },
+            {
+              "text": "the",
+              "start": 52610
+            },
+            {
+              "text": " ",
+              "start": 52670
+            },
+            {
+              "text": "rain",
+              "start": 52670
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 54440,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 54440
+            },
+            {
+              "text": " ",
+              "start": 55130
+            },
+            {
+              "text": "in",
+              "start": 55130
+            },
+            {
+              "text": " ",
+              "start": 55370
+            },
+            {
+              "text": "the",
+              "start": 55370
+            },
+            {
+              "text": " ",
+              "start": 55430
+            },
+            {
+              "text": "rain",
+              "start": 55430
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 57260,
+          "text": "We don't need a fancy town",
+          "tokens": [
+            {
+              "text": "We",
+              "start": 57260
+            },
+            {
+              "text": " ",
+              "start": 57680
+            },
+            {
+              "text": "don't",
+              "start": 57680
+            },
+            {
+              "text": " ",
+              "start": 57860
+            },
+            {
+              "text": "need",
+              "start": 57860
+            },
+            {
+              "text": " ",
+              "start": 58040
+            },
+            {
+              "text": "a",
+              "start": 58040
+            },
+            {
+              "text": " ",
+              "start": 58070
+            },
+            {
+              "text": "fancy",
+              "start": 58070
+            },
+            {
+              "text": " ",
+              "start": 58760
+            },
+            {
+              "text": "town",
+              "start": 58760
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 59840,
+          "text": "Or bottles that we can't pronounce",
+          "tokens": [
+            {
+              "text": "Or",
+              "start": 59840
+            },
+            {
+              "text": " ",
+              "start": 59990
+            },
+            {
+              "text": "bottles",
+              "start": 59990
+            },
+            {
+              "text": " ",
+              "start": 60590
+            },
+            {
+              "text": "that",
+              "start": 60590
+            },
+            {
+              "text": " ",
+              "start": 60740
+            },
+            {
+              "text": "we",
+              "start": 60740
+            },
+            {
+              "text": " ",
+              "start": 60830
+            },
+            {
+              "text": "can't",
+              "start": 60830
+            },
+            {
+              "text": " ",
+              "start": 61160
+            },
+            {
+              "text": "pronounce",
+              "start": 61160
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 62480,
+          "text": "Cause anywhere babe",
+          "tokens": [
+            {
+              "text": "Cause",
+              "start": 62480
+            },
+            {
+              "text": " ",
+              "start": 62810
+            },
+            {
+              "text": "anywhere",
+              "start": 62810
+            },
+            {
+              "text": " ",
+              "start": 63530
+            },
+            {
+              "text": "babe",
+              "start": 63530
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 65000,
+          "text": "Is like Paris in the rain",
+          "tokens": [
+            {
+              "text": "Is",
+              "start": 65000
+            },
+            {
+              "text": " ",
+              "start": 65210
+            },
+            {
+              "text": "like",
+              "start": 65210
+            },
+            {
+              "text": " ",
+              "start": 65450
+            },
+            {
+              "text": "Paris",
+              "start": 65450
+            },
+            {
+              "text": " ",
+              "start": 66080
+            },
+            {
+              "text": "in",
+              "start": 66080
+            },
+            {
+              "text": " ",
+              "start": 66260
+            },
+            {
+              "text": "the",
+              "start": 66260
+            },
+            {
+              "text": " ",
+              "start": 66320
+            },
+            {
+              "text": "rain",
+              "start": 66320
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 67610,
+          "text": "When I’m with you",
+          "tokens": [
+            {
+              "text": "When",
+              "start": 67610
+            },
+            {
+              "text": " ",
+              "start": 67790
+            },
+            {
+              "text": "I",
+              "start": 67790
+            },
+            {
+              "text": "’",
+              "start": 67970
+            },
+            {
+              "text": "m",
+              "start": 68150
+            },
+            {
+              "text": " ",
+              "start": 68330
+            },
+            {
+              "text": "with",
+              "start": 68330
+            },
+            {
+              "text": " ",
+              "start": 68510
+            },
+            {
+              "text": "you",
+              "start": 68510
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 70370,
+          "text": "When I’m with you",
+          "tokens": [
+            {
+              "text": "When",
+              "start": 70370
+            },
+            {
+              "text": " ",
+              "start": 70640
+            },
+            {
+              "text": "I",
+              "start": 70640
+            },
+            {
+              "text": "’",
+              "start": 70670
+            },
+            {
+              "text": "m",
+              "start": 70700
+            },
+            {
+              "text": " ",
+              "start": 70790
+            },
+            {
+              "text": "with",
+              "start": 70790
+            },
+            {
+              "text": " ",
+              "start": 71180
+            },
+            {
+              "text": "you",
+              "start": 71180
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 73580,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 73580
+            },
+            {
+              "text": " ",
+              "start": 74240
+            },
+            {
+              "text": "in",
+              "start": 74240
+            },
+            {
+              "text": " ",
+              "start": 74450
+            },
+            {
+              "text": "the",
+              "start": 74450
+            },
+            {
+              "text": " ",
+              "start": 74510
+            },
+            {
+              "text": "rain",
+              "start": 74510
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 76310,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 76310
+            },
+            {
+              "text": " ",
+              "start": 76940
+            },
+            {
+              "text": "in",
+              "start": 76940
+            },
+            {
+              "text": " ",
+              "start": 77150
+            },
+            {
+              "text": "the",
+              "start": 77150
+            },
+            {
+              "text": " ",
+              "start": 77210
+            },
+            {
+              "text": "rain",
+              "start": 77210
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 79010,
+          "text": "I look at you now and I want this forever",
+          "tokens": [
+            {
+              "text": "I",
+              "start": 79010
+            },
+            {
+              "text": " ",
+              "start": 79220
+            },
+            {
+              "text": "look",
+              "start": 79220
+            },
+            {
+              "text": " ",
+              "start": 79550
+            },
+            {
+              "text": "at",
+              "start": 79550
+            },
+            {
+              "text": " ",
+              "start": 79760
+            },
+            {
+              "text": "you",
+              "start": 79760
+            },
+            {
+              "text": " ",
+              "start": 79880
+            },
+            {
+              "text": "now",
+              "start": 79880
+            },
+            {
+              "text": " ",
+              "start": 80220
+            },
+            {
+              "text": "and",
+              "start": 80220
+            },
+            {
+              "text": " ",
+              "start": 80490
+            },
+            {
+              "text": "I",
+              "start": 80490
+            },
+            {
+              "text": " ",
+              "start": 80570
+            },
+            {
+              "text": "want",
+              "start": 80570
+            },
+            {
+              "text": " ",
+              "start": 80870
+            },
+            {
+              "text": "this",
+              "start": 80870
+            },
+            {
+              "text": " ",
+              "start": 81140
+            },
+            {
+              "text": "forever",
+              "start": 81140
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 81840,
+          "text": "I might not deserve it but there's nothing better",
+          "tokens": [
+            {
+              "text": "I",
+              "start": 81840
+            },
+            {
+              "text": " ",
+              "start": 81900
+            },
+            {
+              "text": "might",
+              "start": 81900
+            },
+            {
+              "text": " ",
+              "start": 82250
+            },
+            {
+              "text": "not",
+              "start": 82250
+            },
+            {
+              "text": " ",
+              "start": 82490
+            },
+            {
+              "text": "deserve",
+              "start": 82490
+            },
+            {
+              "text": " ",
+              "start": 83030
+            },
+            {
+              "text": "it",
+              "start": 83030
+            },
+            {
+              "text": " ",
+              "start": 83150
+            },
+            {
+              "text": "but",
+              "start": 83150
+            },
+            {
+              "text": " ",
+              "start": 83330
+            },
+            {
+              "text": "there's",
+              "start": 83330
+            },
+            {
+              "text": " ",
+              "start": 83630
+            },
+            {
+              "text": "nothing",
+              "start": 83630
+            },
+            {
+              "text": " ",
+              "start": 83990
+            },
+            {
+              "text": "better",
+              "start": 83990
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 84500,
+          "text": "Don't know how I ever did it all without you",
+          "tokens": [
+            {
+              "text": "Don't",
+              "start": 84500
+            },
+            {
+              "text": " ",
+              "start": 84680
+            },
+            {
+              "text": "know",
+              "start": 84680
+            },
+            {
+              "text": " ",
+              "start": 84920
+            },
+            {
+              "text": "how",
+              "start": 84920
+            },
+            {
+              "text": " ",
+              "start": 85220
+            },
+            {
+              "text": "I",
+              "start": 85220
+            },
+            {
+              "text": " ",
+              "start": 85430
+            },
+            {
+              "text": "ever",
+              "start": 85430
+            },
+            {
+              "text": " ",
+              "start": 85850
+            },
+            {
+              "text": "did",
+              "start": 85850
+            },
+            {
+              "text": " ",
+              "start": 86180
+            },
+            {
+              "text": "it",
+              "start": 86180
+            },
+            {
+              "text": " ",
+              "start": 86390
+            },
+            {
+              "text": "all",
+              "start": 86390
+            },
+            {
+              "text": " ",
+              "start": 86570
+            },
+            {
+              "text": "without",
+              "start": 86570
+            },
+            {
+              "text": " ",
+              "start": 87080
+            },
+            {
+              "text": "you",
+              "start": 87080
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 87230,
+          "text": "My heart is about to about to jump out of my chest",
+          "tokens": [
+            {
+              "text": "My",
+              "start": 87230
+            },
+            {
+              "text": " ",
+              "start": 87440
+            },
+            {
+              "text": "heart",
+              "start": 87440
+            },
+            {
+              "text": " ",
+              "start": 87830
+            },
+            {
+              "text": "is",
+              "start": 87830
+            },
+            {
+              "text": " ",
+              "start": 88010
+            },
+            {
+              "text": "about",
+              "start": 88010
+            },
+            {
+              "text": " ",
+              "start": 88430
+            },
+            {
+              "text": "to",
+              "start": 88430
+            },
+            {
+              "text": " ",
+              "start": 88670
+            },
+            {
+              "text": "about",
+              "start": 88670
+            },
+            {
+              "text": " ",
+              "start": 89090
+            },
+            {
+              "text": "to",
+              "start": 89090
+            },
+            {
+              "text": " ",
+              "start": 89270
+            },
+            {
+              "text": "jump",
+              "start": 89270
+            },
+            {
+              "text": " ",
+              "start": 89600
+            },
+            {
+              "text": "out",
+              "start": 89600
+            },
+            {
+              "text": " ",
+              "start": 89840
+            },
+            {
+              "text": "of",
+              "start": 89840
+            },
+            {
+              "text": " ",
+              "start": 89960
+            },
+            {
+              "text": "my",
+              "start": 89960
+            },
+            {
+              "text": " ",
+              "start": 90110
+            },
+            {
+              "text": "chest",
+              "start": 90110
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 90800,
+          "text": "Feelings they come and they go that they do",
+          "tokens": [
+            {
+              "text": "Feelings",
+              "start": 90800
+            },
+            {
+              "text": " ",
+              "start": 91370
+            },
+            {
+              "text": "they",
+              "start": 91370
+            },
+            {
+              "text": " ",
+              "start": 91490
+            },
+            {
+              "text": "come",
+              "start": 91490
+            },
+            {
+              "text": " ",
+              "start": 91880
+            },
+            {
+              "text": "and",
+              "start": 91880
+            },
+            {
+              "text": " ",
+              "start": 92030
+            },
+            {
+              "text": "they",
+              "start": 92030
+            },
+            {
+              "text": " ",
+              "start": 92210
+            },
+            {
+              "text": "go",
+              "start": 92210
+            },
+            {
+              "text": " ",
+              "start": 92450
+            },
+            {
+              "text": "that",
+              "start": 92450
+            },
+            {
+              "text": " ",
+              "start": 92690
+            },
+            {
+              "text": "they",
+              "start": 92690
+            },
+            {
+              "text": " ",
+              "start": 92840
+            },
+            {
+              "text": "do",
+              "start": 92840
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 93290,
+          "text": "Feelings they come and they go not with you",
+          "tokens": [
+            {
+              "text": "Feelings",
+              "start": 93290
+            },
+            {
+              "text": " ",
+              "start": 94160
+            },
+            {
+              "text": "they",
+              "start": 94160
+            },
+            {
+              "text": " ",
+              "start": 94280
+            },
+            {
+              "text": "come",
+              "start": 94280
+            },
+            {
+              "text": " ",
+              "start": 94610
+            },
+            {
+              "text": "and",
+              "start": 94610
+            },
+            {
+              "text": " ",
+              "start": 94790
+            },
+            {
+              "text": "they",
+              "start": 94790
+            },
+            {
+              "text": " ",
+              "start": 94970
+            },
+            {
+              "text": "go",
+              "start": 94970
+            },
+            {
+              "text": " ",
+              "start": 95180
+            },
+            {
+              "text": "not",
+              "start": 95180
+            },
+            {
+              "text": " ",
+              "start": 95450
+            },
+            {
+              "text": "with",
+              "start": 95450
+            },
+            {
+              "text": " ",
+              "start": 95720
+            },
+            {
+              "text": "you",
+              "start": 95720
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 96230,
+          "text": "The late nights",
+          "tokens": [
+            {
+              "text": "The",
+              "start": 96230
+            },
+            {
+              "text": " ",
+              "start": 96410
+            },
+            {
+              "text": "late",
+              "start": 96410
+            },
+            {
+              "text": " ",
+              "start": 96590
+            },
+            {
+              "text": "nights",
+              "start": 96590
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 96860,
+          "text": "And the street lights",
+          "tokens": [
+            {
+              "text": "And",
+              "start": 96860
+            },
+            {
+              "text": " ",
+              "start": 97032
+            },
+            {
+              "text": "the",
+              "start": 97032
+            },
+            {
+              "text": " ",
+              "start": 97204
+            },
+            {
+              "text": "street",
+              "start": 97204
+            },
+            {
+              "text": " ",
+              "start": 97376
+            },
+            {
+              "text": "lights",
+              "start": 97376
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 97550,
+          "text": "And the people",
+          "tokens": [
+            {
+              "text": "And",
+              "start": 97550
+            },
+            {
+              "text": " ",
+              "start": 97760
+            },
+            {
+              "text": "the",
+              "start": 97760
+            },
+            {
+              "text": " ",
+              "start": 97970
+            },
+            {
+              "text": "people",
+              "start": 97970
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 98180,
+          "text": "Look at me girl",
+          "tokens": [
+            {
+              "text": "Look",
+              "start": 98180
+            },
+            {
+              "text": " ",
+              "start": 98340
+            },
+            {
+              "text": "at",
+              "start": 98340
+            },
+            {
+              "text": " ",
+              "start": 98430
+            },
+            {
+              "text": "me",
+              "start": 98430
+            },
+            {
+              "text": " ",
+              "start": 98600
+            },
+            {
+              "text": "girl",
+              "start": 98600
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 98900,
+          "text": "And the whole world could stop",
+          "tokens": [
+            {
+              "text": "And",
+              "start": 98900
+            },
+            {
+              "text": " ",
+              "start": 99150
+            },
+            {
+              "text": "the",
+              "start": 99150
+            },
+            {
+              "text": " ",
+              "start": 99400
+            },
+            {
+              "text": "whole",
+              "start": 99400
+            },
+            {
+              "text": " ",
+              "start": 99650
+            },
+            {
+              "text": "world",
+              "start": 99650
+            },
+            {
+              "text": " ",
+              "start": 99900
+            },
+            {
+              "text": "could",
+              "start": 99900
+            },
+            {
+              "text": " ",
+              "start": 100150
+            },
+            {
+              "text": "stop",
+              "start": 100150
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 100940,
+          "text": "Anywhere with you feels right",
+          "tokens": [
+            {
+              "text": "Anywhere",
+              "start": 100940
+            },
+            {
+              "text": " ",
+              "start": 101600
+            },
+            {
+              "text": "with",
+              "start": 101600
+            },
+            {
+              "text": " ",
+              "start": 101810
+            },
+            {
+              "text": "you",
+              "start": 101810
+            },
+            {
+              "text": " ",
+              "start": 102020
+            },
+            {
+              "text": "feels",
+              "start": 102020
+            },
+            {
+              "text": " ",
+              "start": 102470
+            },
+            {
+              "text": "right",
+              "start": 102470
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 103670,
+          "text": "Anywhere with you feels like",
+          "tokens": [
+            {
+              "text": "Anywhere",
+              "start": 103670
+            },
+            {
+              "text": " ",
+              "start": 104360
+            },
+            {
+              "text": "with",
+              "start": 104360
+            },
+            {
+              "text": " ",
+              "start": 104540
+            },
+            {
+              "text": "you",
+              "start": 104540
+            },
+            {
+              "text": " ",
+              "start": 104750
+            },
+            {
+              "text": "feels",
+              "start": 104750
+            },
+            {
+              "text": " ",
+              "start": 105230
+            },
+            {
+              "text": "like",
+              "start": 105230
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 106100,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 106100
+            },
+            {
+              "text": " ",
+              "start": 106970
+            },
+            {
+              "text": "in",
+              "start": 106970
+            },
+            {
+              "text": " ",
+              "start": 107150
+            },
+            {
+              "text": "the",
+              "start": 107150
+            },
+            {
+              "text": " ",
+              "start": 107240
+            },
+            {
+              "text": "rain",
+              "start": 107240
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 108980,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 108980
+            },
+            {
+              "text": " ",
+              "start": 109670
+            },
+            {
+              "text": "in",
+              "start": 109670
+            },
+            {
+              "text": " ",
+              "start": 109880
+            },
+            {
+              "text": "the",
+              "start": 109880
+            },
+            {
+              "text": " ",
+              "start": 109940
+            },
+            {
+              "text": "rain",
+              "start": 109940
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 111800,
+          "text": "We don't need a fancy town",
+          "tokens": [
+            {
+              "text": "We",
+              "start": 111800
+            },
+            {
+              "text": " ",
+              "start": 112220
+            },
+            {
+              "text": "don't",
+              "start": 112220
+            },
+            {
+              "text": " ",
+              "start": 112400
+            },
+            {
+              "text": "need",
+              "start": 112400
+            },
+            {
+              "text": " ",
+              "start": 112580
+            },
+            {
+              "text": "a",
+              "start": 112580
+            },
+            {
+              "text": " ",
+              "start": 112610
+            },
+            {
+              "text": "fancy",
+              "start": 112610
+            },
+            {
+              "text": " ",
+              "start": 113300
+            },
+            {
+              "text": "town",
+              "start": 113300
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 114410,
+          "text": "Or bottles that we can't pronounce",
+          "tokens": [
+            {
+              "text": "Or",
+              "start": 114410
+            },
+            {
+              "text": " ",
+              "start": 114530
+            },
+            {
+              "text": "bottles",
+              "start": 114530
+            },
+            {
+              "text": " ",
+              "start": 115130
+            },
+            {
+              "text": "that",
+              "start": 115130
+            },
+            {
+              "text": " ",
+              "start": 115310
+            },
+            {
+              "text": "we",
+              "start": 115310
+            },
+            {
+              "text": " ",
+              "start": 115370
+            },
+            {
+              "text": "can't",
+              "start": 115370
+            },
+            {
+              "text": " ",
+              "start": 115730
+            },
+            {
+              "text": "pronounce",
+              "start": 115730
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 117020,
+          "text": "Cause anywhere babe",
+          "tokens": [
+            {
+              "text": "Cause",
+              "start": 117020
+            },
+            {
+              "text": " ",
+              "start": 117350
+            },
+            {
+              "text": "anywhere",
+              "start": 117350
+            },
+            {
+              "text": " ",
+              "start": 118070
+            },
+            {
+              "text": "babe",
+              "start": 118070
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 119540,
+          "text": "Is like Paris in the rain",
+          "tokens": [
+            {
+              "text": "Is",
+              "start": 119540
+            },
+            {
+              "text": " ",
+              "start": 119750
+            },
+            {
+              "text": "like",
+              "start": 119750
+            },
+            {
+              "text": " ",
+              "start": 119990
+            },
+            {
+              "text": "Paris",
+              "start": 119990
+            },
+            {
+              "text": " ",
+              "start": 120620
+            },
+            {
+              "text": "in",
+              "start": 120620
+            },
+            {
+              "text": " ",
+              "start": 120800
+            },
+            {
+              "text": "the",
+              "start": 120800
+            },
+            {
+              "text": " ",
+              "start": 120860
+            },
+            {
+              "text": "rain",
+              "start": 120860
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 122120,
+          "text": "When I'm with you",
+          "tokens": [
+            {
+              "text": "When",
+              "start": 122120
+            },
+            {
+              "text": " ",
+              "start": 122480
+            },
+            {
+              "text": "I'm",
+              "start": 122480
+            },
+            {
+              "text": " ",
+              "start": 122630
+            },
+            {
+              "text": "with",
+              "start": 122630
+            },
+            {
+              "text": " ",
+              "start": 122990
+            },
+            {
+              "text": "you",
+              "start": 122990
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 124880,
+          "text": "When I’m with you",
+          "tokens": [
+            {
+              "text": "When",
+              "start": 124880
+            },
+            {
+              "text": " ",
+              "start": 125390
+            },
+            {
+              "text": "I",
+              "start": 125390
+            },
+            {
+              "text": "’",
+              "start": 125900
+            },
+            {
+              "text": "m",
+              "start": 126410
+            },
+            {
+              "text": " ",
+              "start": 126920
+            },
+            {
+              "text": "with",
+              "start": 126920
+            },
+            {
+              "text": " ",
+              "start": 127430
+            },
+            {
+              "text": "you",
+              "start": 127430
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 128150,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 128150
+            },
+            {
+              "text": " ",
+              "start": 128780
+            },
+            {
+              "text": "in",
+              "start": 128780
+            },
+            {
+              "text": " ",
+              "start": 128960
+            },
+            {
+              "text": "the",
+              "start": 128960
+            },
+            {
+              "text": " ",
+              "start": 129020
+            },
+            {
+              "text": "rain",
+              "start": 129020
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 130850,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 130850
+            },
+            {
+              "text": " ",
+              "start": 131480
+            },
+            {
+              "text": "in",
+              "start": 131480
+            },
+            {
+              "text": " ",
+              "start": 131690
+            },
+            {
+              "text": "the",
+              "start": 131690
+            },
+            {
+              "text": " ",
+              "start": 131750
+            },
+            {
+              "text": "rain",
+              "start": 131750
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 139250,
+          "text": "Girl when I'm not with you",
+          "tokens": [
+            {
+              "text": "Girl",
+              "start": 139250
+            },
+            {
+              "text": " ",
+              "start": 139490
+            },
+            {
+              "text": "when",
+              "start": 139490
+            },
+            {
+              "text": " ",
+              "start": 140030
+            },
+            {
+              "text": "I'm",
+              "start": 140030
+            },
+            {
+              "text": " ",
+              "start": 140210
+            },
+            {
+              "text": "not",
+              "start": 140210
+            },
+            {
+              "text": " ",
+              "start": 140660
+            },
+            {
+              "text": "with",
+              "start": 140660
+            },
+            {
+              "text": " ",
+              "start": 141380
+            },
+            {
+              "text": "you",
+              "start": 141380
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 142010,
+          "text": "All I do is miss you",
+          "tokens": [
+            {
+              "text": "All",
+              "start": 142010
+            },
+            {
+              "text": " ",
+              "start": 142340
+            },
+            {
+              "text": "I",
+              "start": 142340
+            },
+            {
+              "text": " ",
+              "start": 142670
+            },
+            {
+              "text": "do",
+              "start": 142670
+            },
+            {
+              "text": " ",
+              "start": 143000
+            },
+            {
+              "text": "is",
+              "start": 143000
+            },
+            {
+              "text": " ",
+              "start": 143420
+            },
+            {
+              "text": "miss",
+              "start": 143420
+            },
+            {
+              "text": " ",
+              "start": 144140
+            },
+            {
+              "text": "you",
+              "start": 144140
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 150170,
+          "text": "Come and set the mood right",
+          "tokens": [
+            {
+              "text": "Come",
+              "start": 150170
+            },
+            {
+              "text": " ",
+              "start": 150470
+            },
+            {
+              "text": "and",
+              "start": 150470
+            },
+            {
+              "text": " ",
+              "start": 150830
+            },
+            {
+              "text": "set",
+              "start": 150830
+            },
+            {
+              "text": " ",
+              "start": 151130
+            },
+            {
+              "text": "the",
+              "start": 151130
+            },
+            {
+              "text": " ",
+              "start": 151520
+            },
+            {
+              "text": "mood",
+              "start": 151520
+            },
+            {
+              "text": " ",
+              "start": 152270
+            },
+            {
+              "text": "right",
+              "start": 152270
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 152930,
+          "text": "Underneath the moonlight",
+          "tokens": [
+            {
+              "text": "Underneath",
+              "start": 152930
+            },
+            {
+              "text": " ",
+              "start": 153890
+            },
+            {
+              "text": "the",
+              "start": 153890
+            },
+            {
+              "text": " ",
+              "start": 154220
+            },
+            {
+              "text": "moonlight",
+              "start": 154220
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 156170,
+          "text": "（Days in Paris",
+          "tokens": [
+            {
+              "text": "（",
+              "start": 156170
+            },
+            {
+              "text": "Days",
+              "start": 156170
+            },
+            {
+              "text": " ",
+              "start": 156620
+            },
+            {
+              "text": "in",
+              "start": 156620
+            },
+            {
+              "text": " ",
+              "start": 157460
+            },
+            {
+              "text": "Paris",
+              "start": 157460
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 161120,
+          "text": "Paint you with my eyes closed",
+          "tokens": [
+            {
+              "text": "Paint",
+              "start": 161120
+            },
+            {
+              "text": " ",
+              "start": 161360
+            },
+            {
+              "text": "you",
+              "start": 161360
+            },
+            {
+              "text": " ",
+              "start": 161750
+            },
+            {
+              "text": "with",
+              "start": 161750
+            },
+            {
+              "text": " ",
+              "start": 162020
+            },
+            {
+              "text": "my",
+              "start": 162020
+            },
+            {
+              "text": " ",
+              "start": 162500
+            },
+            {
+              "text": "eyes",
+              "start": 162500
+            },
+            {
+              "text": " ",
+              "start": 163160
+            },
+            {
+              "text": "closed",
+              "start": 163160
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 163820,
+          "text": "Wonder where the time goes",
+          "tokens": [
+            {
+              "text": "Wonder",
+              "start": 163820
+            },
+            {
+              "text": " ",
+              "start": 164480
+            },
+            {
+              "text": "where",
+              "start": 164480
+            },
+            {
+              "text": " ",
+              "start": 164750
+            },
+            {
+              "text": "the",
+              "start": 164750
+            },
+            {
+              "text": " ",
+              "start": 165140
+            },
+            {
+              "text": "time",
+              "start": 165140
+            },
+            {
+              "text": " ",
+              "start": 165860
+            },
+            {
+              "text": "goes",
+              "start": 165860
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 166760,
+          "text": "（Yeah, Isn't it obvious",
+          "tokens": [
+            {
+              "text": "（",
+              "start": 166760
+            },
+            {
+              "text": "Yeah",
+              "start": 167600
+            },
+            {
+              "text": ",",
+              "start": 168530
+            },
+            {
+              "text": " ",
+              "start": 168560
+            },
+            {
+              "text": "Isn't",
+              "start": 168560
+            },
+            {
+              "text": " ",
+              "start": 169010
+            },
+            {
+              "text": "it",
+              "start": 169010
+            },
+            {
+              "text": " ",
+              "start": 169220
+            },
+            {
+              "text": "obvious",
+              "start": 169220
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 172070,
+          "text": "Come and set the mood right",
+          "tokens": [
+            {
+              "text": "Come",
+              "start": 172070
+            },
+            {
+              "text": " ",
+              "start": 172280
+            },
+            {
+              "text": "and",
+              "start": 172280
+            },
+            {
+              "text": " ",
+              "start": 172640
+            },
+            {
+              "text": "set",
+              "start": 172640
+            },
+            {
+              "text": " ",
+              "start": 172940
+            },
+            {
+              "text": "the",
+              "start": 172940
+            },
+            {
+              "text": " ",
+              "start": 173330
+            },
+            {
+              "text": "mood",
+              "start": 173330
+            },
+            {
+              "text": " ",
+              "start": 174050
+            },
+            {
+              "text": "right",
+              "start": 174050
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 174740,
+          "text": "Underneath the moonlight",
+          "tokens": [
+            {
+              "text": "Underneath",
+              "start": 174740
+            },
+            {
+              "text": " ",
+              "start": 175730
+            },
+            {
+              "text": "the",
+              "start": 175730
+            },
+            {
+              "text": " ",
+              "start": 176060
+            },
+            {
+              "text": "moonlight",
+              "start": 176060
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 177530,
+          "text": "Anywhere with you feel right",
+          "tokens": [
+            {
+              "text": "Anywhere",
+              "start": 177530
+            },
+            {
+              "text": " ",
+              "start": 178040
+            },
+            {
+              "text": "with",
+              "start": 178040
+            },
+            {
+              "text": " ",
+              "start": 178220
+            },
+            {
+              "text": "you",
+              "start": 178220
+            },
+            {
+              "text": " ",
+              "start": 178430
+            },
+            {
+              "text": "feel",
+              "start": 178430
+            },
+            {
+              "text": " ",
+              "start": 178940
+            },
+            {
+              "text": "right",
+              "start": 178940
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 180170,
+          "text": "Anywhere with you feels like",
+          "tokens": [
+            {
+              "text": "Anywhere",
+              "start": 180170
+            },
+            {
+              "text": " ",
+              "start": 180860
+            },
+            {
+              "text": "with",
+              "start": 180860
+            },
+            {
+              "text": " ",
+              "start": 181070
+            },
+            {
+              "text": "you",
+              "start": 181070
+            },
+            {
+              "text": " ",
+              "start": 181280
+            },
+            {
+              "text": "feels",
+              "start": 181280
+            },
+            {
+              "text": " ",
+              "start": 181790
+            },
+            {
+              "text": "like",
+              "start": 181790
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 182960,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 182960
+            },
+            {
+              "text": " ",
+              "start": 183590
+            },
+            {
+              "text": "in",
+              "start": 183590
+            },
+            {
+              "text": " ",
+              "start": 183740
+            },
+            {
+              "text": "the",
+              "start": 183740
+            },
+            {
+              "text": " ",
+              "start": 183860
+            },
+            {
+              "text": "rain",
+              "start": 183860
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 185690,
+          "text": "Paris in the rain",
+          "tokens": [
+            {
+              "text": "Paris",
+              "start": 185690
+            },
+            {
+              "text": " ",
+              "start": 186350
+            },
+            {
+              "text": "in",
+              "start": 186350
+            },
+            {
+              "text": " ",
+              "start": 186560
+            },
+            {
+              "text": "the",
+              "start": 186560
+            },
+            {
+              "text": " ",
+              "start": 186710
+            },
+            {
+              "text": "rain",
+              "start": 186710
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 188690,
+          "text": "Walking down an empty street",
+          "tokens": [
+            {
+              "text": "Walking",
+              "start": 188690
+            },
+            {
+              "text": " ",
+              "start": 189260
+            },
+            {
+              "text": "down",
+              "start": 189260
+            },
+            {
+              "text": " ",
+              "start": 189530
+            },
+            {
+              "text": "an",
+              "start": 189530
+            },
+            {
+              "text": " ",
+              "start": 189680
+            },
+            {
+              "text": "empty",
+              "start": 189680
+            },
+            {
+              "text": " ",
+              "start": 190190
+            },
+            {
+              "text": "street",
+              "start": 190190
+            }
+          ],
+          "credit": false
+        },
+        {
+          "start": 191810,
+          "text": "Puddles underneath our feet",
+          "tokens": [
+            {
+              "text": "Puddles",
+              "start": 191810
+            },
+            {
+              "text": " ",
+              "start": 192590
+            },
+            {
+              "text": "underneath",
+              "start": 192590
+            },
+            {
+              "text": " ",
+              "start": 193460
+            },
+            {
+              "text": "our",
+              "start": 193460
+            },
+            {
+              "text": " ",
+              "start": 193820
+            },
+            {
+              "text": "feet",
+              "start": 193820
+            }
+          ],
+          "credit": false
+        }
+      ],
+      "transport": {
+        "position": 132025,
+        "rate": 1
+      },
+      "manual": {
+        "lines": [],
+        "index": null,
+        "current": "",
+        "autoSeconds": 0
       }
     }
   }
