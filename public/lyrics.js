@@ -25,6 +25,7 @@ let renderFrame;
 let timelineRow = -2;
 let manualRow = null;
 let timelineTokens = [];
+let timelineText;
 
 for (const rate of RATES) $('rate').add(new Option(`${rate.toFixed(2)}×`, rate));
 
@@ -60,24 +61,50 @@ function renderList(id, lines, display, select) {
   const list = $(id);
   list.replaceChildren(...lines.map((line, index) => {
     const item = document.createElement('li');
-    const button = document.createElement('button');
+    const row = document.createElement(select ? 'button' : 'div');
+    row.className = 'lyric-row';
     const count = document.createElement('time');
     count.textContent = typeof line === 'string' ? String(index + 1) : timecode(line.start);
     const text = document.createElement('span');
-    text.textContent = display(line);
-    button.append(count, text);
-    button.onclick = () => select(line, index);
-    item.append(button);
+    text.className = 'lyric-line-text';
+    text.dataset.lineText = display(line);
+    text.textContent = text.dataset.lineText;
+    row.append(count, text);
+    if (select) row.onclick = () => select(line, index);
+    item.append(row);
     return item;
   }));
+  if (!lines.length) {
+    const empty = document.createElement('li');
+    empty.className = 'lyrics-empty';
+    empty.textContent = id === 'manual-list' ? '等待导入歌词或粘贴手动列表' : '等待导入歌词';
+    list.append(empty);
+  }
 }
 
 function markRow(id, oldIndex, newIndex, follow = false) {
-  const children = $(id).children;
-  children[oldIndex]?.firstChild.removeAttribute('aria-current');
-  const active = children[newIndex];
-  active?.firstChild.setAttribute('aria-current', 'true');
-  if (follow && active && !$(id).contains(document.activeElement)) active.scrollIntoView({ block: 'nearest' });
+  const list = $(id);
+  const children = list.children;
+  if (Number.isInteger(oldIndex) && oldIndex >= 0) {
+    for (let index = oldIndex - 2; index <= oldIndex + 2; index += 1) {
+      const row = children[index]?.firstElementChild;
+      row?.removeAttribute('aria-current');
+      row?.removeAttribute('data-distance');
+    }
+  }
+  const active = children[newIndex]?.firstElementChild;
+  list.classList.toggle('has-active', Boolean(active));
+  if (!active) return;
+  active.setAttribute('aria-current', 'true');
+  for (let index = newIndex - 2; index <= newIndex + 2; index += 1) {
+    const row = children[index]?.firstElementChild;
+    if (row) row.dataset.distance = Math.abs(index - newIndex);
+  }
+  if (follow && !list.contains(document.activeElement)) {
+    const target = children[newIndex];
+    const top = target.offsetTop - (list.clientHeight - target.offsetHeight) / 2;
+    list.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  }
 }
 
 function drawTimeline(position, state) {
@@ -85,22 +112,19 @@ function drawTimeline(position, state) {
   const line = clock.doc[index];
   if (index !== timelineRow) {
     markRow('timeline-list', timelineRow, index, true);
+    markRow('reference-list', timelineRow, index, true);
     timelineRow = index;
     timelineTokens = [];
-    const view = $('timeline-preview');
-    view.replaceChildren();
-    if (line?.tokens.length && !line.credit) {
+    if (timelineText) timelineText.textContent = timelineText.dataset.lineText;
+    timelineText = $('timeline-list').children[index]?.querySelector('.lyric-line-text');
+    if (timelineText && line?.tokens.length && !line.credit) {
       timelineTokens = line.tokens.map((token) => {
         const span = document.createElement('span');
+        span.className = 'lyric-syllable';
         span.textContent = token.text;
         return span;
       });
-      view.append(...timelineTokens);
-    } else {
-      const span = document.createElement('span');
-      span.className = 'is-line-level';
-      span.textContent = line?.text ?? (clock.doc.length ? '等待当前句' : '等待载入歌词');
-      view.append(span);
+      timelineText.replaceChildren(...timelineTokens);
     }
   }
   const lineEnd = clock.doc[index + 1]?.start ?? state.transport.end;
@@ -142,14 +166,17 @@ function updateOutput() {
 function renderState(state) {
   if (state.doc) {
     renderList('timeline-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''), (line) => transport('seek', line.start));
+    renderList('reference-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''));
     timelineRow = -2;
   }
-  if (state.manual.lines) {
+  if (Object.hasOwn(state.manual, 'lines')) {
     renderList('manual-list', clock.lines, (line) => line, (_line, index) => manual('select', index));
     manualRow = null;
   }
-  markRow('manual-list', manualRow, state.manual.index, true);
-  manualRow = state.manual.index;
+  if (manualRow !== state.manual.index || Object.hasOwn(state.manual, 'lines')) {
+    markRow('manual-list', manualRow, state.manual.index, true);
+    manualRow = state.manual.index;
+  }
   if (!draftDirty) $('draft').value = state.manual.current;
   $('manual-current').textContent = state.manual.current || '—';
   $('manual-next').textContent = state.manual.next || '—';

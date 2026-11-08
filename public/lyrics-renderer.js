@@ -2,17 +2,94 @@ import { animateModuleElement, createModuleLayer } from './module-layer.js';
 import { timelineIndex } from './lyrics-model.js';
 
 const STYLE_ID = 'yanzhou-lyrics-renderer-style';
+const ROW_HEIGHT = 56;
+const BOARD_HEIGHT = 290;
+const RADIUS = 2;
 const STYLES = `
-.lyrics-board .module-body { position: relative; width: 1440px; height: 146px; }
-.lyrics-board .lyrics-frame { position: absolute; inset: 0; display: grid; align-content: center; gap: 10px; text-align: center; color: var(--lyrics-text); text-shadow: 0 2px 12px rgba(0,0,0,.55); }
-.lyrics-board .lyrics-current, .lyrics-board .lyrics-next { min-width: 0; white-space: pre; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; }
-.lyrics-board .lyrics-current { font-size: 58px; min-height: 72.5px; }
-.lyrics-board .lyrics-next { font-size: 34.8px; min-height: 43.5px; opacity: .7; }
-.lyrics-board .lyrics-highlight { color: var(--lyrics-accent); }
-.lyrics-board .lyrics-token { position: relative; display: inline-block; transition: transform 150ms ease; }
+.lyrics-board .module-body { position: relative; width: 1440px; height: ${BOARD_HEIGHT}px; }
+.lyrics-board .lyrics-frame { position: absolute; inset: 0; overflow: hidden; color: var(--lyrics-text); text-shadow: 0 2px 12px rgba(0,0,0,.55); }
+.lyrics-board .lyrics-row { position: absolute; left: 0; right: 0; top: 50%; height: 66px; margin-top: -33px; display: grid; align-items: center; text-align: center; }
+.lyrics-board .lyrics-frame.is-scrolling .lyrics-row { transition: transform 220ms cubic-bezier(.2,.68,.28,1), opacity 200ms ease, filter 200ms ease; }
+.lyrics-board .lyrics-row[data-distance="0"] { opacity: 1; z-index: 1; }
+.lyrics-board .lyrics-row[data-distance="1"] { opacity: .57; filter: blur(.45px); }
+.lyrics-board .lyrics-row[data-distance="2"] { opacity: .33; filter: blur(1.2px); }
+.lyrics-board .lyrics-text { min-width: 0; white-space: pre; line-height: 1.18; overflow: hidden; text-overflow: ellipsis; font-weight: 650; }
+.lyrics-board .lyrics-token { position: relative; display: inline-block; opacity: .5; transition: transform 150ms ease; }
 .lyrics-board .lyrics-token.is-current { transform: scale(1.06); }
 .lyrics-board .lyrics-token-fill { position: absolute; inset: 0; color: transparent; text-shadow: none; background: linear-gradient(90deg, var(--lyrics-accent) var(--fill, 0%), transparent var(--fill, 0%)); background-clip: text; }
+.lyrics-board .lyrics-token.is-reached { opacity: 1; color: color-mix(in srgb, var(--lyrics-text) 55%, transparent); }
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-board .lyrics-frame.is-scrolling .lyrics-row, .lyrics-board .lyrics-token { transition: none; }
+}
 `;
+
+const DEMO = ['前一句歌词', '接近当前的一句', '歌词将在这里显示', '接下来的一句', '后续歌词'];
+
+function makeFrame() {
+  const node = document.createElement('div');
+  node.className = 'lyrics-frame';
+  return { node, rows: new Map(), items: null, index: null };
+}
+
+function makeRow() {
+  const node = document.createElement('div');
+  const text = document.createElement('div');
+  node.className = 'lyrics-row';
+  text.className = 'lyrics-text';
+  node.append(text);
+  return { node, text, value: null, tokens: null, spans: [], active: -1, lastPosition: -1 };
+}
+
+function writeRow(row, text, tokens, fontSize) {
+  if (row.value !== text || row.tokens !== tokens) {
+    row.value = text;
+    row.tokens = tokens;
+    row.active = -1;
+    row.lastPosition = -1;
+    row.spans = [];
+    if (!tokens?.length) row.text.textContent = text;
+    else {
+      for (const token of tokens) {
+        const span = document.createElement('span');
+        span.className = 'lyrics-token';
+        span.append(token.text);
+        const fill = document.createElement('span');
+        fill.className = 'lyrics-token-fill';
+        fill.setAttribute('aria-hidden', 'true');
+        fill.textContent = token.text;
+        span.append(fill);
+        row.spans.push(span);
+      }
+      row.text.replaceChildren(...row.spans);
+    }
+  }
+  row.text.style.fontSize = `${fontSize}px`;
+  const { scrollWidth, clientWidth } = row.text;
+  if (clientWidth && scrollWidth > clientWidth) {
+    row.text.style.fontSize = `${Math.max(16, Math.floor(fontSize * clientWidth / scrollWidth))}px`;
+  }
+}
+
+function updateTokens(row, position, lineEnd) {
+  if (!row?.spans.length || row.lastPosition === position) return;
+  let active = position < row.lastPosition ? -1 : row.active;
+  while (row.tokens[active + 1]?.start <= position) active += 1;
+  if (active !== row.active || row.lastPosition < 0) {
+    for (const [index, span] of row.spans.entries()) {
+      span.classList.toggle('is-current', index === active);
+      span.classList.toggle('is-reached', index <= active);
+      span.style.setProperty('--fill', index < active ? '100%' : '0%');
+    }
+  }
+  if (active >= 0) {
+    const start = row.tokens[active].start;
+    const end = row.tokens[active + 1]?.start ?? lineEnd;
+    const fraction = Math.min(1, (position - start) / Math.max(1, end - start));
+    row.spans[active].style.setProperty('--fill', `${fraction * 100}%`);
+  }
+  row.active = active;
+  row.lastPosition = position;
+}
 
 export function createLyricsRenderer(container, { sample = false } = {}) {
   if (!document.getElementById(STYLE_ID)) {
@@ -22,89 +99,78 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     document.head.append(style);
   }
   const layer = createModuleLayer(container, { className: 'lyrics-board' });
-  const sampleLine = { text: '歌词将在这里显示', tokens: [] };
+  layer.element.setAttribute('aria-label', '歌词字幕');
   let module;
   let clock;
   let frame;
   let source;
-  let current;
-  let next;
-  let spans = [];
-  let active = -1;
-  let previousPosition = -1;
   let raf;
-  let fadeUntil = 0;
 
-  function makeFrame() {
-    const node = document.createElement('div');
-    node.className = 'lyrics-frame';
-    const primary = document.createElement('div');
-    const secondary = document.createElement('div');
-    primary.className = 'lyrics-current';
-    secondary.className = 'lyrics-next';
-    node.append(primary, secondary);
-    return { node, primary, secondary };
-  }
-
-  function replaceFrame(crossfade, lineAnimation) {
+  function setSource(selected) {
+    if (frame && source === selected) return;
     const old = frame;
-    const oldOpacity = crossfade && getComputedStyle(old.node).opacity;
-    for (const node of [...layer.body.children]) {
-      if (node !== old?.node) node.remove();
-    }
+    const fade = Boolean(old && source && selected);
+    const oldOpacity = fade ? getComputedStyle(old.node).opacity : 1;
+    layer.body.replaceChildren();
     frame = makeFrame();
     layer.body.append(frame.node);
-    if (old && crossfade) {
-      fadeUntil = performance.now() + 300;
+    if (fade) {
       old.node.getAnimations().forEach((animation) => animation.cancel());
-      old.node.style.animation = 'none';
+      layer.body.prepend(old.node);
       const exit = old.node.animate([{ opacity: oldOpacity }, { opacity: 0 }], { duration: 300, fill: 'forwards' });
       exit.onfinish = () => old.node.remove();
       frame.node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, fill: 'backwards' });
-    } else {
-      fadeUntil = 0;
-      if (lineAnimation) {
-        animateModuleElement(frame.node, 'enter', module.animation);
-        if (module.animation.exit !== 'none') {
-          animateModuleElement(old.node, 'exit', module.animation);
-          old.node.addEventListener('animationend', () => old.node.remove(), { once: true });
-        } else old.node.remove();
-      } else old?.node.remove();
     }
+    source = selected;
   }
 
-  function fit(element, fontSize) {
-    element.style.fontSize = '';
-    if (element.clientWidth && element.scrollWidth > element.clientWidth) {
-      element.style.fontSize = `${Math.max(18, Math.floor(fontSize * element.clientWidth / element.scrollWidth))}px`;
-    }
-  }
+  function updateWindow(items, index, current, tokens) {
+    if (frame.items === items && frame.index === index && frame.current === current && frame.tokens === tokens) return;
+    const sameList = frame.items === items;
+    const moved = sameList && frame.index !== null && index !== null && Math.abs(frame.index - index) === 1;
+    const previous = frame.index;
+    frame.items = items;
+    frame.index = index;
+    frame.current = current;
+    frame.tokens = tokens;
+    frame.node.classList.toggle('is-scrolling', moved);
 
-  function writeFrame(line, following, timeline) {
-    spans = [];
-    active = -1;
-    previousPosition = -1;
-    frame.primary.replaceChildren();
-    frame.primary.classList.toggle('lyrics-highlight', Boolean(timeline && line && !line.credit && !line.tokens.length));
-    if (timeline && line?.tokens.length && !line.credit) {
-      const fragment = document.createDocumentFragment();
-      for (const token of line.tokens) {
-        const span = document.createElement('span');
-        span.className = 'lyrics-token';
-        span.append(token.text);
-        const fill = document.createElement('span');
-        fill.className = 'lyrics-token-fill';
-        fill.setAttribute('aria-hidden', 'true');
-        fill.textContent = token.text;
-        span.append(fill);
-        fragment.append(span);
-        spans.push(span);
+    if (!current || !sameList) {
+      frame.node.replaceChildren();
+      frame.rows.clear();
+    }
+    if (!current) return;
+
+    for (const [key, row] of frame.rows) {
+      if (index === null || key === null || Math.abs(key - index) > RADIUS) {
+        row.node.remove();
+        frame.rows.delete(key);
       }
-      frame.primary.append(fragment);
-    } else frame.primary.textContent = line?.text ?? '';
-    frame.secondary.textContent = following;
-    fit(frame.primary, 58);
-    fit(frame.secondary, 34.8);
+    }
+
+    const keys = index === null ? [null] : [];
+    if (index !== null) {
+      for (let key = Math.max(0, index - RADIUS); key <= Math.min(items.length - 1, index + RADIUS); key += 1) keys.push(key);
+    }
+    for (const key of keys) {
+      const offset = index === null ? 0 : key - index;
+      const distance = Math.abs(offset);
+      const active = offset === 0;
+      const row = frame.rows.get(key) ?? makeRow();
+      if (!frame.rows.has(key)) {
+        frame.rows.set(key, row);
+        frame.node.append(row.node);
+      }
+      row.node.dataset.distance = distance;
+      row.node.style.transform = `translateY(${offset * ROW_HEIGHT}px)`;
+      const item = items[key];
+      const text = active ? current : (typeof item === 'string' ? item : item.text);
+      writeRow(row, text, active ? tokens : null, active ? 52 : distance === 1 ? 36 : 29);
+      if (moved && previous !== null && key === previous) {
+        animateModuleElement(row.text, 'exit', module.animation);
+        row.text.addEventListener('animationend', () => { row.text.style.animation = ''; }, { once: true });
+      } else if (moved && active) animateModuleElement(row.text, 'enter', module.animation);
+    }
   }
 
   function draw() {
@@ -112,58 +178,31 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     if (!module) return;
     const state = clock?.state;
     const selected = state?.armed ? state.source : null;
-    const timeline = selected === 'timeline';
-    const position = clock?.position() ?? 0;
-    const index = timeline ? timelineIndex(clock.doc, position, state.transport.end) : -1;
-    const row = timeline ? clock.doc[index] : undefined;
-    const text = selected === 'manual' ? state.manual.current : '';
-    const line = sample ? sampleLine : row ?? (text ? { text, tokens: [] } : null);
-    const following = sample ? '下一句预览' : timeline ? clock.doc[index + 1]?.text ?? '' : selected === 'manual' ? state.manual.next : '';
-    const key = row ?? (sample ? sampleLine : text);
-    const sourceChanged = source !== selected;
-    if (!frame || sourceChanged || key !== current || following !== next) {
-      const crossfade = Boolean(source && selected && sourceChanged);
-      if (!frame || sourceChanged || performance.now() >= fadeUntil) {
-        replaceFrame(crossfade, Boolean(frame && !sourceChanged && row && current));
-      }
-      writeFrame(line, following, timeline);
-      source = selected;
-      current = key;
-      next = following;
+    setSource(selected);
+    if (sample) {
+      updateWindow(DEMO, 2, DEMO[2], null);
+      return;
     }
-    if (spans.length && position !== previousPosition) {
-      let indexOfToken = active;
-      const lineEnd = clock.doc[index + 1]?.start ?? state.transport.end;
-      if (position < previousPosition) indexOfToken = -1;
-      while (indexOfToken + 1 < spans.length && row.tokens[indexOfToken + 1].start <= position) indexOfToken += 1;
-      if (indexOfToken !== active || previousPosition < 0) {
-        for (const [tokenIndex, span] of spans.entries()) {
-          span.classList.toggle('is-current', tokenIndex === indexOfToken);
-          span.style.setProperty('--fill', tokenIndex < indexOfToken ? '100%' : '0%');
-        }
-      }
-      if (indexOfToken >= 0) {
-        const start = row.tokens[indexOfToken].start;
-        const end = row.tokens[indexOfToken + 1]?.start ?? lineEnd;
-        const fraction = Math.min(1, (position - start) / Math.max(1, end - start));
-        spans[indexOfToken].style.setProperty('--fill', `${fraction * 100}%`);
-      }
-      active = indexOfToken;
-      previousPosition = position;
-    }
-    if (!sample && timeline && state.transport.playing && position < state.transport.end && module.visible) {
-      raf = requestAnimationFrame(draw);
-    }
+    if (selected === 'timeline') {
+      const position = clock.position();
+      const index = timelineIndex(clock.doc, position, state.transport.end);
+      const line = clock.doc[index];
+      updateWindow(clock.doc, index, line?.text ?? '', line && !line.credit ? line.tokens : null);
+      updateTokens(frame.rows.get(index), position, clock.doc[index + 1]?.start ?? state.transport.end);
+      if (state.transport.playing && position < state.transport.end && module.visible) raf = requestAnimationFrame(draw);
+    } else if (selected === 'manual') {
+      updateWindow(clock.lines, state.manual.index, state.manual.current, null);
+    } else updateWindow(null, null, '', null);
   }
 
   return {
     ...layer,
     update(settings) {
       module = settings;
-      layer.update(settings);
+      const y = Math.min(settings.y, Math.max(0, 1080 - BOARD_HEIGHT * settings.scale));
+      layer.update({ ...settings, y });
       layer.element.style.setProperty('--lyrics-accent', settings.accentColor);
       layer.element.style.setProperty('--lyrics-text', settings.textColor);
-      layer.element.setAttribute('aria-label', '歌词字幕');
       draw();
     },
     updateLyrics(nextClock) { clock = nextClock; draw(); },

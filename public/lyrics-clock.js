@@ -2,17 +2,21 @@ export function createLyricsClock() {
   let state;
   let anchor;
   let doc = [];
-  let lines = [];
+  let manualSource = [];
+  let documentLines = [];
   return {
     get state() { return state; },
     get doc() { return doc; },
-    get lines() { return lines; },
+    get lines() { return manualSource ?? documentLines; },
     apply(message) {
       const transit = Math.max(0, Math.min(2000, Date.now() - message.serverTime));
       anchor = performance.now() - transit;
       state = message;
-      if (message.doc) doc = message.doc;
-      if (message.manual.lines) lines = message.manual.lines;
+      if (message.doc) {
+        doc = message.doc;
+        documentLines = doc.map((line) => line.text);
+      }
+      if (Object.hasOwn(message.manual, 'lines')) manualSource = message.manual.lines;
     },
     position(now = performance.now()) {
       if (!state) return 0;

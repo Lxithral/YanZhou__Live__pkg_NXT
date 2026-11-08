@@ -96,7 +96,7 @@ const FALLBACK_SETTINGS = {
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#D4AB78', textColor: '#F4F0E8', x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 1376, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    lyrics: { visible: true, accentColor: '#D4AB78', textColor: '#F4F0E8', x: 240, y: 850, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
+    lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 738, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
 };
 
@@ -740,32 +740,6 @@ function bindFields() {
   }
 }
 
-const THEME_KEY = 'yzb-theme';
-const systemLightQuery = matchMedia('(prefers-color-scheme: light)');
-
-function applyTheme() {
-  const pref = localStorage.getItem(THEME_KEY) || 'auto';
-  const light = pref === 'light' || (pref === 'auto' && systemLightQuery.matches);
-  document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
-  document.documentElement.style.colorScheme = light ? 'light' : 'dark';
-  for (const button of document.querySelectorAll('[data-theme-option]')) {
-    const active = button.dataset.themeOption === pref;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  }
-}
-
-function initThemeSwitch() {
-  for (const button of document.querySelectorAll('[data-theme-option]')) {
-    button.addEventListener('click', () => {
-      localStorage.setItem(THEME_KEY, button.dataset.themeOption);
-      applyTheme();
-    });
-  }
-  systemLightQuery.addEventListener('change', applyTheme);
-  applyTheme();
-}
-
 let drag = null;
 function bindDrag() {
   for (const moduleId of MODULE_ORDER) {
@@ -856,7 +830,6 @@ function bindGlobalControls() {
 }
 
 populateAnimationSelects();
-initThemeSwitch();
 bindPicker();
 bindFields();
 bindDrag();
