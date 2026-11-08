@@ -26,7 +26,7 @@
       <p class="eyebrow">WORKSPACE</p>
       <h2>直播包装</h2>
       <p class="sidebar-sub">每一处细节，实时呈现。</p>
-      <div class="nav-label">包装模块 <span>03</span></div>
+      <div class="nav-label">包装模块 <span>04</span></div>
       <div class="module-list" role="tablist" aria-label="包装模块列表">
         <button type="button" class="module-item active" data-module-button="logo" role="tab" aria-selected="true">
           <span class="module-index">01</span>
@@ -42,6 +42,11 @@
           <span class="module-index">03</span>
           <span class="module-copy"><strong>节目单</strong><small>正在演出与预告</small></span>
           <span class="module-flag" data-module-flag="program" hidden>隐藏</span>
+        </button>
+        <button type="button" class="module-item" data-module-button="lyrics" role="tab" aria-selected="false">
+          <span class="module-index">04</span>
+          <span class="module-copy"><strong>歌词字幕</strong><small>时间轴 · 手动</small></span>
+          <span class="module-flag" data-module-flag="lyrics" hidden>隐藏</span>
         </button>
       </div>
       <div class="sidebar-bottom">
@@ -233,6 +238,46 @@
               <div class="field"><label class="field-label" for="programEnter">出场动画</label><select class="select-input" id="programEnter"></select></div>
               <div class="field"><label class="field-label" for="programExit">退场动画</label><select class="select-input" id="programExit"></select></div>
               <div class="field field-wide"><label class="field-label" for="programDuration">动画时长</label><div class="slider-line"><input id="programDuration" class="range-input" type="range" min="200" max="2000" step="50"><div class="number-unit"><input id="programDurationNumber" type="number" min="200" max="2000" step="50" aria-label="动画时长毫秒"><span>ms</span></div></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="module-panel" data-module-panel="lyrics" hidden>
+          <div class="settings-section">
+            <h3><span>01</span>歌词控制</h3>
+            <a class="button" href="/lyrics.html" target="_blank" rel="noopener">打开独立歌词台</a>
+          </div>
+          <div class="settings-section">
+            <h3><span>02</span>外观</h3>
+            <div class="field-grid">
+              <div class="field"><label class="field-label" for="lyricsAccent">强调色</label><div class="color-control"><input id="lyricsAccent" type="color"><input id="lyricsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="lyricsTextColor">文字颜色</label><div class="color-control"><input id="lyricsTextColor" type="color"><input id="lyricsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="lyricsScale">整体大小</label><div class="slider-line"><input id="lyricsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="lyricsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
+              <div class="field"><label class="field-label" for="lyricsOpacity">不透明度</label><div class="slider-line"><input id="lyricsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="lyricsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <h3><span>03</span>位置</h3>
+            <div class="field-grid">
+              <div class="field">
+                <div class="field-line"><label class="field-label" for="lyricsX">水平 X</label><div class="number-unit"><input id="lyricsX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
+                <input id="lyricsXRange" class="range-input" type="range" min="0" max="1920" step="1">
+                <div class="range-caption"><span>0 px · 左</span><span id="lyricsXMax">1920 px · 右</span></div>
+              </div>
+              <div class="field">
+                <div class="field-line"><label class="field-label" for="lyricsY">垂直 Y</label><div class="number-unit"><input id="lyricsY" type="number" min="0" max="1080" step="1" aria-label="垂直 Y 像素"><span>px</span></div></div>
+                <input id="lyricsYRange" class="range-input" type="range" min="0" max="1080" step="1">
+                <div class="range-caption"><span>0 px · 上</span><span id="lyricsYMax">1080 px · 下</span></div>
+              </div>
+            </div>
+            <div class="position-presets" role="group" aria-label="快捷定位"><button type="button" data-position="top-left" title="定位到左上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 11V8h4"/></svg><span>左上</span></button><button type="button" data-position="top-right" title="定位到右上角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 8h4v3"/></svg><span>右上</span></button><button type="button" data-position="bottom-left" title="定位到左下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 13v3h4"/></svg><span>左下</span></button><button type="button" data-position="bottom-right" title="定位到右下角"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M13 16h4v-3"/></svg><span>右下</span></button></div>
+          </div>
+          <div class="settings-section">
+            <h3><span>04</span>出场 / 退场</h3>
+            <div class="field-grid">
+              <div class="field"><label class="field-label" for="lyricsEnter">出场动画</label><select class="select-input" id="lyricsEnter"></select></div>
+              <div class="field"><label class="field-label" for="lyricsExit">退场动画</label><select class="select-input" id="lyricsExit"></select></div>
+              <div class="field field-wide"><label class="field-label" for="lyricsDuration">动画时长</label><div class="slider-line"><input id="lyricsDuration" class="range-input" type="range" min="200" max="2000" step="50"><div class="number-unit"><input id="lyricsDurationNumber" type="number" min="200" max="2000" step="50" aria-label="动画时长毫秒"><span>ms</span></div></div></div>
             </div>
           </div>
         </div>

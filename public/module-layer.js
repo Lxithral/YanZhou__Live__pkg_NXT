@@ -27,6 +27,14 @@ function installStyles() {
   document.head.appendChild(style);
 }
 
+export function animateModuleElement(element, kind, animation) {
+  const preset = animation[kind];
+  if (!preset || preset === 'none') return;
+  element.style.animation = 'none';
+  void element.offsetWidth;
+  element.style.animation = `${kind}-${preset} ${animation.duration}ms cubic-bezier(0.22, 0.61, 0.36, 1) both`;
+}
+
 /**
  * Shared positioned layer used by every packaging module.
  * The outer element carries position / scale / opacity; the inner body runs
@@ -47,14 +55,6 @@ export function createModuleLayer(container, { className = '', bodyHTML = '' } =
   let shown = false;
   let animation = { enter: 'none', exit: 'none', duration: 600 };
   let hideTimer;
-
-  function play(kind) {
-    const preset = animation[kind];
-    if (!preset || preset === 'none') return;
-    body.style.animation = 'none';
-    void body.offsetWidth;
-    body.style.animation = `${kind}-${preset} ${animation.duration}ms cubic-bezier(0.22, 0.61, 0.36, 1) both`;
-  }
 
   return {
     element,
@@ -80,9 +80,9 @@ export function createModuleLayer(container, { className = '', bodyHTML = '' } =
       shown = nextShown;
       if (nextShown) {
         element.hidden = false;
-        play('enter');
+        animateModuleElement(body, 'enter', animation);
       } else if (animation.exit && animation.exit !== 'none') {
-        play('exit');
+        animateModuleElement(body, 'exit', animation);
         hideTimer = setTimeout(() => { element.hidden = true; }, animation.duration + 32);
       } else {
         element.hidden = true;
