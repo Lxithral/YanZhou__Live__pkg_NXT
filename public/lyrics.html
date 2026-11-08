@@ -17,7 +17,7 @@
     <label for="output-source">OBS 输出源</label>
     <select id="output-source" data-live disabled>
       <option value="">待推送</option><option value="timeline">时间轴</option>
-      <option value="manual">手动</option><option value="asr" disabled>语音识别 · 未接入</option>
+      <option value="manual">手动</option><option id="asr-option" value="asr" disabled>语音识别</option>
     </select>
       <div class="theme-switch" role="group" aria-label="界面主题">
         <button type="button" data-theme-option="auto" title="跟随系统" aria-label="跟随系统主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button>
@@ -43,7 +43,12 @@
           <label for="rate">速率</label><select id="rate" data-live disabled></select>
           <output id="position">00:00.000</output>
         </div>
-        <button id="open-import">导入 LRC</button>
+        <div class="tool-row">
+          <label for="song-select">曲库</label>
+          <select id="song-select" data-live disabled><option value="">曲库暂无歌曲</option></select>
+          <button id="song-load" data-live disabled>载入歌曲</button>
+          <button id="open-import">导入 LRC</button>
+        </div>
       </div>
       <ol id="timeline-list" class="lyric-list lyric-follow" aria-label="时间轴歌词列表"></ol>
     </section>
@@ -82,17 +87,29 @@
     <section class="lyric-column" aria-labelledby="asr-title">
       <header class="column-head">
         <h2 id="asr-title"><span>C</span> 语音识别</h2>
-        <button disabled>推送识别</button>
+        <span class="on-air" id="asr-air" hidden>ON AIR</span>
+        <button id="asr-push" data-push="asr" disabled>推送识别</button>
       </header>
       <div class="column-controls">
-        <p class="asr-status">未接入引擎</p>
+        <p class="asr-status" id="asr-status" role="status">正在检查离线引擎</p>
+        <div class="tool-row">
+          <label for="asr-model">识别模式</label>
+          <select id="asr-model"><option value="bilingual">普通话／英语</option><option value="trilingual">普通话／粤语／英语</option></select>
+        </div>
         <div class="tool-row">
           <label for="audio-source">音源</label>
-          <select id="audio-source"><option>麦克风</option><option>VB-CABLE</option><option>浏览器标签页音频</option></select>
-          <button disabled>启动</button><button disabled>停止</button>
+          <select id="audio-source"><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select>
+          <button id="asr-start" disabled>启动</button><button id="asr-stop" disabled>停止</button>
         </div>
-        <label><input type="checkbox" disabled> 时间轴自动纠偏</label>
-        <p class="muted">偏移量 — · 置信度 —</p>
+        <div class="tool-row"><label for="audio-device">输入设备</label><select id="audio-device"><option value="">系统默认麦克风</option></select></div>
+        <label><input id="asr-correct" type="checkbox" disabled> 时间轴自动纠偏</label>
+        <p class="muted" id="asr-alignment">偏移 — · 对齐置信度 —</p>
+        <details><summary>纠偏记录</summary><ol class="asr-events" id="asr-history"></ol></details>
+        <div class="asr-transcript">
+          <h3>临时识别</h3>
+          <p id="asr-partial">等待语音</p>
+          <details><summary>已确认的识别句</summary><ol class="asr-events" id="asr-finals"></ol></details>
+        </div>
       </div>
       <div class="reference-heading"><h3>参考歌词</h3><p>一次导入同步三列，参考进度跟随时间轴。</p></div>
       <ol id="reference-list" class="lyric-list lyric-follow" aria-label="语音识别参考歌词"></ol>
@@ -115,7 +132,13 @@
     </div>
     <p id="import-result" role="status">解析后可逐行编辑、删除或跳过。</p>
     <ol id="import-list" class="import-list" aria-label="导入逐行预览"></ol>
-    <div class="tool-row"><button id="load" data-live disabled>确认载入有效歌词</button></div>
+    <div class="tool-row">
+      <label for="song-title">歌名</label><input id="song-title" maxlength="100" placeholder="输入歌名">
+      <label id="replace-song-field" hidden>同名歌曲
+        <select id="replace-song"><option value="">保留已有版本，新建</option></select>
+      </label>
+      <button id="load" data-live disabled>保存并载入</button>
+    </div>
   </dialog>
 </body>
 </html>

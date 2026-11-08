@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,8 +13,8 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 
 // Register the message listener before opening completes: the server sends its
 // initial state immediately, and that message must remain available to tests.
-function openClient(url) {
-  const socket = new WebSocket(url);
+function openClient(url, options) {
+  const socket = new WebSocket(url, options);
   const queue = [];
   const waiters = new Set();
   socket.on('message', (data) => {
@@ -93,8 +93,8 @@ async function fixture(t, options = {}) {
       await app.close();
       applications.delete(app);
     },
-    async connect(wsUrl) {
-      const client = openClient(wsUrl);
+    async connect(wsUrl, options) {
+      const client = openClient(wsUrl, options);
       clients.add(client);
       await client.ready;
       return client;
@@ -509,11 +509,95 @@ test('an existing timeline-only import is available in manual without importing 
   const { wsUrl } = await setup.start();
   const client = await setup.connect(wsUrl);
   const initial = await client.waitFor((message) => message.type === 'lyrics:state');
+  const catalog = await client.waitFor((message) => message.type === 'lyrics:songs');
   const clock = createLyricsClock();
   clock.apply(initial);
   assert.deepEqual(clock.lines, demoDoc.map((line) => line.text));
+  assert.equal(catalog.songs.length, 1);
+  const config = path.join(setup.directory, 'config', 'lyrics');
+  assert.deepEqual(await readdir(config), [`${catalog.activeId}.json`]);
+  const persisted = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.deepEqual(persisted.modules.lyrics.doc, []);
+  const backup = JSON.parse(await readFile(`${setup.settingsPath}.pre-library.bak`, 'utf8'));
+  assert.deepEqual(backup.modules.lyrics.doc, demoDoc);
   const selected = await lyricCommand(client, 'lyrics:manual', { action: 'select', value: 1 });
   assert.equal(selected.manual.current, demoDoc[1].text);
+});
+
+test('song files survive restart, same titles coexist, and explicit replacement keeps the other version', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  const catalog = () => client.waitFor((message) => message.type === 'lyrics:songs');
+  await catalog();
+  const alternate = [{ start: 100, text: '另一版', tokens: [], credit: false }];
+  const saveKey = '1'.repeat(32);
+  await lyricCommand(client, 'lyrics:load', { title: '校园彩排', doc: demoDoc, saveKey }, 'save-first');
+  const firstSong = await catalog();
+  await lyricCommand(client, 'lyrics:load', { title: '校园彩排', doc: demoDoc, saveKey }, 'retry-first');
+  assert.deepEqual(await catalog(), firstSong);
+
+  await lyricCommand(client, 'lyrics:load', { title: '校园彩排', doc: alternate }, 'save-second');
+  const secondSong = await catalog();
+  assert.equal(secondSong.songs.length, 2);
+  assert.notEqual(secondSong.activeId, firstSong.activeId);
+  const config = path.join(setup.directory, 'config', 'lyrics');
+  const file = (id) => path.join(config, `${id}.json`);
+  assert.deepEqual(JSON.parse(await readFile(file(firstSong.activeId), 'utf8')).doc, demoDoc);
+
+  await lyricCommand(client, 'lyrics:load', {
+    title: '校园彩排', doc: alternate, replaceId: firstSong.activeId,
+  }, 'replace-first');
+  const replaced = await catalog();
+  assert.equal(replaced.songs.length, 2);
+  assert.equal(replaced.activeId, firstSong.activeId);
+  assert.deepEqual(JSON.parse(await readFile(file(secondSong.activeId), 'utf8')).doc, alternate);
+  await setup.stop(first.app);
+
+  const after = await setup.start();
+  const fresh = await setup.connect(after.wsUrl);
+  const savedCatalog = await fresh.waitFor((message) => message.type === 'lyrics:songs');
+  assert.equal(savedCatalog.activeId, firstSong.activeId);
+  assert.equal(savedCatalog.songs.length, 2);
+  const initial = await fresh.waitFor((message) => message.type === 'lyrics:state');
+  assert.deepEqual(initial.doc, alternate);
+  const loaded = await lyricCommand(fresh, 'lyrics:select-song', { id: secondSong.activeId });
+  assert.deepEqual(loaded.doc, alternate);
+  assert.deepEqual(loaded.transport, { position: 0, rate: 1, playing: false, end: 900 });
+  assert.equal((await lyricCommand(fresh, 'lyrics:select-song', { id: '../bad' })).type, 'error');
+  assert.equal(after.app.getState().settings.modules.lyrics.song.id, secondSong.activeId);
+});
+
+test('a failed song write does not replace the current timeline', async (t) => {
+  const setup = await fixture(t);
+  const { app, wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  await writeFile(path.join(setup.directory, 'config'), 'cannot create a lyrics folder here');
+  const initial = app.getState();
+  const result = await lyricCommand(client, 'lyrics:load', { title: '未能写入', doc: demoDoc });
+  assert.equal(result.type, 'error');
+  assert.deepEqual(app.getState(), initial);
+});
+
+test('reopening a replaced active song discards a checkpoint from the previous version', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await lyricCommand(client, 'lyrics:load', { title: '彩排曲', doc: demoDoc });
+  await lyricCommand(client, 'lyrics:transport', { action: 'seek', value: 12000 });
+  const { id } = first.app.getState().settings.modules.lyrics.song;
+  await setup.stop(first.app);
+
+  const file = path.join(setup.directory, 'config', 'lyrics', `${id}.json`);
+  const song = JSON.parse(await readFile(file, 'utf8'));
+  song.doc = [{ start: 0, text: '短版', tokens: [], credit: false }];
+  await writeFile(file, JSON.stringify(song));
+  const { wsUrl } = await setup.start();
+  const fresh = await setup.connect(wsUrl);
+  const state = await fresh.waitFor((message) => message.type === 'lyrics:state');
+  assert.equal(state.transport.position, 0);
+  assert.equal(state.manual.index, null);
+  assert.deepEqual(state.doc, song.doc);
 });
 
 test('timeline transport progresses independently of the selected output and sends lightweight deltas', async (t) => {
@@ -554,6 +638,22 @@ test('only a supported source is armed and a rejected payload does not change st
   assert.equal((await lyricCommand(client, 'lyrics:load', { doc: [] })).type, 'error');
   assert.equal((await lyricCommand(client, 'lyrics:manual', { action: 'select', value: -1 })).type, 'error');
   assert.deepEqual(app.getState(), state);
+});
+
+test('recognition capture is same-origin and missing models preserve existing playout', async (t) => {
+  const setup = await fixture(t);
+  const { url, wsUrl } = await setup.start({ asrModelRoot: setup.directory });
+  const client = await setup.connect(wsUrl);
+  const initial = await client.waitFor((message) => message.type === 'lyrics:asr');
+  assert.deepEqual(initial.available, { bilingual: false, trilingual: false });
+  const audio = wsUrl.replace('/ws', '/asr?mode=bilingual');
+  await assert.rejects(setup.connect(audio, { origin: 'https://other.invalid' }), /403/);
+  await assert.rejects(setup.connect(audio), /403/);
+  const capture = await setup.connect(audio, { origin: url });
+  const failed = await capture.waitFor((message) => message.type === 'error');
+  assert.match(failed.message, /模型未安装/);
+  const manual = await lyricCommand(client, 'lyrics:onair', { source: 'manual' });
+  assert.equal(manual.source, 'manual');
 });
 
 test('manual confirmation, stepping, and clear produce complete display states', async (t) => {

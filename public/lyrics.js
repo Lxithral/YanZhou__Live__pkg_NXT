@@ -1,10 +1,12 @@
 import { buildLyricDocument, LYRIC_BYTES, jsonBytes, parseLrc, RATES, timelineIndex } from './lyrics-model.js';
 import { createLyricsClock } from './lyrics-clock.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
+import { bindAsrControls } from './asr-controls.js';
 
 const $ = (id) => document.getElementById(id);
 const clock = createLyricsClock();
 const preview = createLyricsRenderer($('mini-canvas'));
+const asr = bindAsrControls({ correct: (enabled) => send('lyrics:correct', { enabled }), timecode });
 const liveControls = [...document.querySelectorAll('[data-live]')];
 const pending = new Map();
 const instance = crypto.randomUUID();
@@ -21,11 +23,17 @@ let draftDirty = false;
 let entries = [];
 let importDoc = [];
 let importFits = true;
+let importRequest;
+let importKey;
+let suggestedTitle = '';
+let songCatalog = [];
+let selectedSong = null;
 let renderFrame;
 let timelineRow = -2;
 let manualRow = null;
 let timelineTokens = [];
 let timelineText;
+let timelineFollowTimer;
 
 for (const rate of RATES) $('rate').add(new Option(`${rate.toFixed(2)}×`, rate));
 
@@ -36,7 +44,9 @@ function message(text = '') {
 function updateControls() {
   for (const control of liveControls) control.disabled = !ready;
   for (const id of ['play', 'back', 'forward', 'rate']) $(id).disabled = !ready || !clock.doc.length;
-  $('load').disabled = !ready || !importDoc.length || !importFits;
+  $('load').disabled = !ready || !importDoc.length || !importFits || !$('song-title').value.trim() || Boolean(importRequest);
+  $('song-select').disabled = !ready || !songCatalog.length;
+  $('song-load').disabled = !ready || !$('song-select').value;
   for (const button of document.querySelectorAll('.lyric-list button')) button.disabled = !ready;
   $('save-status').textContent = saveError || (savedRevision < revision ? '保存中' : '已保存');
 }
@@ -46,6 +56,7 @@ function send(type, payload, onAccepted) {
   const id = `${instance}-${++requestNumber}`;
   if (onAccepted) pending.set(id, onAccepted);
   socket.send(JSON.stringify({ type, id, payload }));
+  return id;
 }
 
 const transport = (action, value = null) => send('lyrics:transport', { action, value });
@@ -107,11 +118,38 @@ function markRow(id, oldIndex, newIndex, follow = false) {
   }
 }
 
+function followTimeline() {
+  const list = $('timeline-list');
+  const target = list.children[timelineRow];
+  if (!target) return;
+  list.scrollTop = target.offsetTop - (list.clientHeight - target.offsetHeight) / 2;
+}
+
+function pauseTimelineFollow() {
+  clearTimeout(timelineFollowTimer);
+  timelineFollowTimer = setTimeout(() => {
+    timelineFollowTimer = undefined;
+    followTimeline();
+  }, 3000);
+}
+
+const timelineList = $('timeline-list');
+timelineList.addEventListener('wheel', pauseTimelineFollow, { passive: true });
+timelineList.addEventListener('touchmove', pauseTimelineFollow, { passive: true });
+timelineList.addEventListener('pointerdown', (event) => {
+  if (event.target === timelineList && event.clientX >= timelineList.getBoundingClientRect().left + timelineList.clientWidth) {
+    pauseTimelineFollow();
+  }
+});
+timelineList.addEventListener('keydown', (event) => {
+  if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) pauseTimelineFollow();
+});
+
 function drawTimeline(position, state) {
   const index = timelineIndex(clock.doc, position, state.transport.end);
   const line = clock.doc[index];
   if (index !== timelineRow) {
-    markRow('timeline-list', timelineRow, index, true);
+    markRow('timeline-list', timelineRow, index);
     markRow('reference-list', timelineRow, index, true);
     timelineRow = index;
     timelineTokens = [];
@@ -126,6 +164,7 @@ function drawTimeline(position, state) {
       });
       timelineText.replaceChildren(...timelineTokens);
     }
+    if (!timelineFollowTimer) followTimeline();
   }
   const lineEnd = clock.doc[index + 1]?.start ?? state.transport.end;
   for (const [tokenIndex, span] of timelineTokens.entries()) {
@@ -158,13 +197,21 @@ function drawClock() {
 function updateOutput() {
   const selected = clock.state?.armed ? clock.state.source : '';
   $('output-source').value = selected;
-  for (const source of ['timeline', 'manual']) $(`${source}-air`).hidden = selected !== source || !lyricsVisible || !ready;
+  const asrLive = ready && clock.asr?.phase === 'listening';
+  $('asr-push').disabled = !asrLive;
+  $('asr-option').disabled = !asrLive;
+  for (const source of ['timeline', 'manual', 'asr']) {
+    $(`${source}-air`).hidden = selected !== source || !lyricsVisible || !ready || (source === 'asr' && !asrLive);
+  }
+  const names = { timeline: '时间轴', manual: '手动', asr: asrLive ? '语音识别' : '语音识别已停止' };
   $('output-status').textContent = !ready ? 'OBS 状态未确认' : !lyricsVisible ? 'OBS 歌词模块已隐藏' :
-    selected ? `OBS · ${selected === 'timeline' ? '时间轴' : '手动'}` : 'OBS 待推送';
+    selected ? `OBS · ${names[selected]}` : 'OBS 待推送';
 }
 
 function renderState(state) {
   if (state.doc) {
+    clearTimeout(timelineFollowTimer);
+    timelineFollowTimer = undefined;
     renderList('timeline-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''), (line) => transport('seek', line.start));
     renderList('reference-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''));
     timelineRow = -2;
@@ -218,12 +265,25 @@ function connect() {
         pending.delete(state.id);
       }
       renderState(state);
+    } else if (state.type === 'lyrics:songs') {
+      songCatalog = state.songs;
+      selectedSong = state.activeId;
+      renderSongs();
+    } else if (state.type === 'lyrics:asr') {
+      clock.applyAsr(state);
+      asr.update(state, ready);
+      preview.updateLyrics(clock);
+      updateOutput();
     } else if (state.type === 'saved') {
       savedRevision = state.revision;
       saveError = '';
       updateControls();
     } else if (state.type === 'error') {
       pending.delete(state.id);
+      if (state.id && state.id === importRequest) {
+        importRequest = undefined;
+        $('import-result').textContent = state.message;
+      }
       if (state.scope === 'save') saveError = state.message;
       else if (state.id?.startsWith(instance)) message(state.message);
       updateControls();
@@ -231,8 +291,13 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    asr.update(undefined, false);
     if (pending.size) message('部分操作未收到确认。重连后请核对当前状态。');
     pending.clear();
+    if (importRequest) {
+      importRequest = undefined;
+      $('import-result').textContent = '连接中断。重连后可以重试保存。';
+    }
     $('connection').textContent = '已断线 · 正在重连';
     updateControls();
     updateOutput();
@@ -242,7 +307,37 @@ function connect() {
   socket.addEventListener('error', () => socket.close());
 }
 
+const songNameKey = (name) => name.normalize('NFKC').trim().toLowerCase();
+const songVersionLabel = (song) => `${new Date(song.updatedAt).toLocaleString()} · ${song.id.slice(0, 6)}`;
+
+function renderReplaceChoices() {
+  const select = $('replace-song');
+  const previous = select.value;
+  const name = songNameKey($('song-title').value);
+  const matches = songCatalog.filter((song) => songNameKey(song.title) === name);
+  $('replace-song-field').hidden = !matches.length;
+  select.replaceChildren(new Option('保留已有版本，新建', ''), ...matches.map((song) =>
+    new Option(`替换 ${songVersionLabel(song)}`, song.id)));
+  if (matches.some((song) => song.id === previous)) select.value = previous;
+}
+
+function renderSongs() {
+  const counts = new Map();
+  for (const song of songCatalog) {
+    const name = songNameKey(song.title);
+    counts.set(name, (counts.get(name) ?? 0) + 1);
+  }
+  const select = $('song-select');
+  select.replaceChildren(new Option(songCatalog.length ? '选择歌曲' : '曲库暂无歌曲', ''),
+    ...songCatalog.map((song) => new Option(counts.get(songNameKey(song.title)) > 1
+      ? `${song.title} · ${songVersionLabel(song)}` : song.title, song.id)));
+  select.value = selectedSong ?? '';
+  renderReplaceChoices();
+  updateControls();
+}
+
 function syncImport() {
+  importKey = undefined;
   const result = buildLyricDocument(entries);
   importDoc = result.doc;
   importFits = jsonBytes(importDoc) <= LYRIC_BYTES;
@@ -259,12 +354,19 @@ function syncImport() {
   updateControls();
 }
 
-function prepareImport() {
+function prepareImport(filename = '') {
   const source = $('lrc-input').value;
   if (new TextEncoder().encode(source).length > LYRIC_BYTES) {
     invalidateImport();
     $('import-result').textContent = '输入文件超过 200 KiB。';
     return;
+  }
+  const fromMetadata = /^\s*\[ti:([^\]\r\n]+)\]/imu.exec(source)?.[1].trim();
+  const title = $('song-title');
+  if (!title.value.trim() || title.value === suggestedTitle) {
+    suggestedTitle = (fromMetadata || filename.replace(/\.[^.]+$/u, '')).slice(0, 100);
+    title.value = suggestedTitle;
+    renderReplaceChoices();
   }
   entries = parseLrc(source);
   $('import-list').replaceChildren(...entries.map((entry) => {
@@ -352,7 +454,20 @@ $('manual-column').addEventListener('keydown', (event) => {
 $('open-import').onclick = () => dialog.showModal();
 $('close-import').onclick = () => dialog.close();
 $('lrc-input').oninput = invalidateImport;
-$('parse').onclick = prepareImport;
+$('song-title').oninput = () => {
+  importKey = undefined;
+  renderReplaceChoices();
+  updateControls();
+};
+$('replace-song').onchange = () => { importKey = undefined; };
+$('song-select').onchange = updateControls;
+$('song-load').onclick = () => {
+  const select = $('song-select');
+  send('lyrics:select-song', { id: select.value }, () => {
+    message(`已载入《${songCatalog.find((song) => song.id === selectedSong)?.title ?? '歌曲'}》`);
+  });
+};
+$('parse').onclick = () => prepareImport();
 $('lrc-file').onchange = async ({ target }) => {
   const file = target.files[0];
   if (!file) return;
@@ -363,14 +478,28 @@ $('lrc-file').onchange = async ({ target }) => {
   }
   try {
     $('lrc-input').value = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
-    prepareImport();
+    prepareImport(file.name);
   } catch {
     invalidateImport();
     $('import-result').textContent = '无法读取文件，请选择 UTF-8 编码的 LRC。';
   }
 };
-$('load').onclick = () => send('lyrics:load', { doc: importDoc }, () => {
-  dialog.close();
-  message(`已载入 ${importDoc.length} 句时间轴歌词`);
-});
+$('load').onclick = () => {
+  const title = $('song-title').value.trim();
+  const replaceId = $('replace-song').value;
+  const count = importDoc.length;
+  importKey ??= crypto.randomUUID().replaceAll('-', '');
+  importRequest = send('lyrics:load', { doc: importDoc, title, saveKey: importKey, ...(replaceId && { replaceId }) }, () => {
+    importRequest = undefined;
+    dialog.close();
+    message(`已保存并载入《${title}》 · ${count} 句`);
+    $('song-title').value = '';
+    $('lrc-input').value = '';
+    $('lrc-file').value = '';
+    suggestedTitle = '';
+    invalidateImport();
+    renderReplaceChoices();
+  });
+  updateControls();
+};
 connect();
