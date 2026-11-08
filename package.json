@@ -1,0 +1,14 @@
+{
+  "name": "yanzhou-live-packaging",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local HTML broadcast graphics and live control panel",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}

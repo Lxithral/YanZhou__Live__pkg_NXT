@@ -1,0 +1,456 @@
+import http from 'node:http';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { readFile, stat, mkdir, open, rename } from 'node:fs/promises';
+import { WebSocket, WebSocketServer } from 'ws';
+
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+
+export const MODULE_IDS = ['logo', 'hosts', 'program'];
+const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];
+const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
+
+const FIELD_RULES = {
+  visible: { kind: 'boolean', label: '显示状态' },
+  title: { kind: 'text', max: 80, label: '主标题' },
+  subtitle: { kind: 'text', max: 120, label: '副标题' },
+  label: { kind: 'text', max: 40, label: '标签' },
+  names: { kind: 'text', max: 240, label: '名单' },
+  current: { kind: 'text', max: 80, label: '当前节目' },
+  next: { kind: 'text', max: 80, label: '下一个节目' },
+  nextLabel: { kind: 'text', max: 40, label: '下一个标签' },
+  color: { kind: 'color', label: '校徽颜色' },
+  textColor: { kind: 'color', label: '文字颜色' },
+  accentColor: { kind: 'color', label: '强调色' },
+  x: { kind: 'number', min: 0, max: 1920, label: '水平 X' },
+  y: { kind: 'number', min: 0, max: 1080, label: '垂直 Y' },
+  scale: { kind: 'number', min: 0.25, max: 3, label: '大小' },
+  opacity: { kind: 'number', min: 0, max: 100, label: '不透明度' },
+};
+
+const MODULE_FIELDS = {
+  logo: ['visible', 'title', 'subtitle', 'color', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  hosts: ['visible', 'label', 'names', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  program: ['visible', 'label', 'current', 'nextLabel', 'next', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+};
+
+const clone = (value) => structuredClone(value);
+
+export const DEFAULT_SETTINGS = {
+  version: 2,
+  canvas: { width: 1920, height: 1080 },
+  modules: {
+    logo: {
+      visible: true,
+      title: '中山市烟洲中学',
+      subtitle: 'YANZHOU · LIVE',
+      color: '#D4AB78',
+      textColor: '#F4F0E8',
+      x: 72,
+      y: 64,
+      scale: 1,
+      opacity: 100,
+      animation: clone(DEFAULT_ANIMATION),
+    },
+    hosts: {
+      visible: false,
+      label: '主持人',
+      names: '张三\n李四',
+      accentColor: '#D4AB78',
+      textColor: '#F4F0E8',
+      x: 96,
+      y: 912,
+      scale: 1,
+      opacity: 100,
+      animation: clone(DEFAULT_ANIMATION),
+    },
+    program: {
+      visible: false,
+      label: '正在演出',
+      current: '节目名称',
+      nextLabel: '接下来',
+      next: '下一个节目',
+      accentColor: '#D4AB78',
+      textColor: '#F4F0E8',
+      x: 1376,
+      y: 912,
+      scale: 1,
+      opacity: 100,
+      animation: clone(DEFAULT_ANIMATION),
+    },
+  },
+};
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.ttf': 'font/ttf',
+  '.ogg': 'audio/ogg',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+};
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateField(field, value) {
+  const rule = FIELD_RULES[field];
+  if (rule.kind === 'boolean') {
+    if (typeof value !== 'boolean') throw new Error(`${rule.label}必须是布尔值。`);
+    return value;
+  }
+  if (rule.kind === 'text') {
+    if (typeof value !== 'string') throw new Error(`${rule.label}必须是文本。`);
+    if ([...value].length > rule.max) throw new Error(`${rule.label}最多 ${rule.max} 个字符。`);
+    if (CONTROL_CHARS.test(value)) throw new Error(`${rule.label}包含不支持的控制字符。`);
+    return value;
+  }
+  if (rule.kind === 'color') {
+    if (typeof value !== 'string' || !/^#[\da-f]{6}$/i.test(value)) {
+      throw new Error('颜色需要使用六位 HEX 格式，例如 #D4AB78。');
+    }
+    return value.toUpperCase();
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < rule.min || value > rule.max) {
+    throw new Error(`${rule.label} 的有效范围是 ${rule.min}–${rule.max}。`);
+  }
+  return Math.round(value * 1000) / 1000;
+}
+
+function validateAnimationPreset(key, value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !ANIMATION_PRESETS.includes(value)) throw new Error('动画预设无效。');
+  return value;
+}
+
+function validateAnimationDuration(value) {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 100 || value > 3000) {
+    throw new Error('动画时长应为 100–3000 毫秒。');
+  }
+  return Math.round(value);
+}
+
+function validateAnimationPatch(patch) {
+  if (!isObject(patch) || Object.keys(patch).length === 0) throw new Error('动画设置不能为空。');
+  const result = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (key === 'enter' || key === 'exit') result[key] = validateAnimationPreset(key, value);
+    else if (key === 'duration') result.duration = validateAnimationDuration(value);
+    else throw new Error(`不支持的动画设置项：${key}`);
+  }
+  return result;
+}
+
+function validateAnimation(animation) {
+  if (!isObject(animation)) throw new Error('动画设置格式不正确。');
+  for (const key of Object.keys(animation)) {
+    if (!['enter', 'exit', 'duration'].includes(key)) throw new Error(`不支持的动画设置项：${key}`);
+  }
+  const enter = validateAnimationPreset('enter', animation.enter);
+  const exit = validateAnimationPreset('exit', animation.exit);
+  const duration = validateAnimationDuration(animation.duration);
+  if (enter === undefined || exit === undefined || duration === undefined) {
+    throw new Error('settings.json 缺少动画设置。');
+  }
+  return { enter, exit, duration };
+}
+
+function validateModulePatch(moduleId, patch) {
+  if (!isObject(patch) || Object.keys(patch).length === 0) throw new Error('修改内容不能为空。');
+  const allowed = new Set([...MODULE_FIELDS[moduleId], 'animation']);
+  const result = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (!allowed.has(key)) throw new Error(`不支持的设置项：${key}`);
+    result[key] = key === 'animation' ? validateAnimationPatch(value) : validateField(key, value);
+  }
+  return result;
+}
+
+function validateModule(moduleId, module) {
+  if (!isObject(module)) throw new Error(`settings.json 缺少模块：${moduleId}`);
+  const allowed = new Set([...MODULE_FIELDS[moduleId], 'animation']);
+  for (const key of Object.keys(module)) {
+    if (!allowed.has(key)) throw new Error(`不支持的设置项：${moduleId}.${key}`);
+  }
+  const result = {};
+  for (const field of MODULE_FIELDS[moduleId]) {
+    if (!Object.hasOwn(module, field)) throw new Error(`settings.json 缺少设置项：${moduleId}.${field}`);
+    result[field] = validateField(field, module[field]);
+  }
+  result.animation = validateAnimation(module.animation);
+  return result;
+}
+
+function validateSettings(settings) {
+  if (!isObject(settings) || settings.version !== 2) {
+    throw new Error('settings.json 格式不正确：版本应为 2。');
+  }
+  if (!isObject(settings.canvas) || settings.canvas.width !== 1920 || settings.canvas.height !== 1080) {
+    throw new Error('settings.json 格式不正确，画布应为 1920 × 1080。');
+  }
+  if (!isObject(settings.modules)) throw new Error('settings.json 缺少包装模块设置。');
+  for (const key of Object.keys(settings.modules)) {
+    if (!MODULE_IDS.includes(key)) throw new Error(`settings.json 包含未知模块：${key}`);
+  }
+  const modules = {};
+  for (const moduleId of MODULE_IDS) {
+    modules[moduleId] = validateModule(moduleId, settings.modules[moduleId] ?? clone(DEFAULT_SETTINGS.modules[moduleId]));
+  }
+  return { version: 2, canvas: { width: 1920, height: 1080 }, modules };
+}
+
+/** Upgrade a v1 (single Logo module) settings file to the v2 module schema. */
+export function migrateSettings(raw) {
+  if (!isObject(raw) || raw.version !== 1 || !isObject(raw.logo)) return raw;
+  const logo = clone(DEFAULT_SETTINGS.modules.logo);
+  for (const field of MODULE_FIELDS.logo) {
+    if (Object.hasOwn(raw.logo, field)) logo[field] = raw.logo[field];
+  }
+  return {
+    version: 2,
+    canvas: { width: 1920, height: 1080 },
+    modules: {
+      logo,
+      hosts: clone(DEFAULT_SETTINGS.modules.hosts),
+      program: clone(DEFAULT_SETTINGS.modules.program),
+    },
+  };
+}
+
+async function atomicWrite(settingsPath, settings) {
+  const tempPath = `${settingsPath}.tmp`;
+  const file = await open(tempPath, 'w');
+  try {
+    await file.writeFile(`${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  await rename(tempPath, settingsPath);
+}
+
+export async function createPackagingServer({
+  settingsPath = path.join(ROOT, 'settings.json'),
+  saveDelayMs = 120,
+  rootDir = ROOT,
+} = {}) {
+  let settings;
+  let savedAt;
+  try {
+    const raw = JSON.parse(await readFile(settingsPath, 'utf8'));
+    const migrated = migrateSettings(raw);
+    settings = validateSettings(migrated);
+    if (migrated !== raw) await atomicWrite(settingsPath, settings);
+    savedAt = (await stat(settingsPath)).mtime.toISOString();
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw new Error(`无法读取设置文件；原文件已保留。${error.message}`, { cause: error });
+    settings = clone(DEFAULT_SETTINGS);
+    await mkdir(path.dirname(settingsPath), { recursive: true });
+    await atomicWrite(settingsPath, settings);
+    savedAt = new Date().toISOString();
+  }
+
+  let revision = 0;
+  let savedRevision = 0;
+  let saveTimer;
+  let writeQueue = Promise.resolve();
+  let closing = false;
+  const clients = new Set();
+  const getState = () => ({ type: 'state', settings: clone(settings), revision, savedRevision, savedAt });
+  const send = (client, message) => {
+    if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify(message));
+  };
+  const broadcast = (message) => {
+    for (const client of clients) send(client, message);
+  };
+
+  function queueSave() {
+    clearTimeout(saveTimer);
+    saveTimer = undefined;
+    const snapshot = clone(settings);
+    const targetRevision = revision;
+    const task = writeQueue.catch(() => {}).then(async () => {
+      await atomicWrite(settingsPath, snapshot);
+      savedRevision = targetRevision;
+      savedAt = new Date().toISOString();
+      broadcast({ type: 'saved', revision: savedRevision, savedAt });
+    });
+    writeQueue = task;
+    task.catch((error) => {
+      console.error('设置保存失败：', error.message);
+      broadcast({ type: 'error', message: '本地设置保存失败，请检查文件是否可写。当前画面仍保持最新状态。' });
+    });
+    return task;
+  }
+
+  const server = http.createServer(async (req, res) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      res.writeHead(405, { Allow: 'GET, HEAD' });
+      res.end('Method not allowed');
+      return;
+    }
+    try {
+      const url = new URL(req.url, 'http://localhost');
+      const pathname = decodeURIComponent(url.pathname);
+      if (pathname === '/api/state' || pathname === '/health') {
+        const body = JSON.stringify(pathname === '/health' ? { ok: true } : getState());
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(req.method === 'HEAD' ? undefined : body);
+        return;
+      }
+      if (pathname.includes('\\') || pathname.includes('\0')) throw new Error('Invalid path');
+      const isAsset = pathname.startsWith('/assets/');
+      const base = path.resolve(rootDir, isAsset ? 'assets' : 'public');
+      const relative = isAsset ? pathname.slice('/assets/'.length) : (pathname === '/' ? 'control.html' : pathname.slice(1));
+      const target = path.resolve(base, relative);
+      if (!target.startsWith(`${base}${path.sep}`)) throw new Error('Invalid path');
+      const metadata = await stat(target);
+      if (!metadata.isFile()) throw new Error('Not a file');
+      const body = req.method === 'HEAD' ? undefined : await readFile(target);
+      res.writeHead(200, {
+        'Content-Type': MIME[path.extname(target).toLowerCase()] || 'application/octet-stream',
+        'Content-Length': metadata.size,
+        'Cache-Control': isAsset ? 'public, max-age=3600' : 'no-cache',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.end(body);
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(req.method === 'HEAD' ? undefined : '文件不存在');
+    }
+  });
+
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024, perMessageDeflate: false });
+  server.on('upgrade', (req, socket, head) => {
+    try {
+      const url = new URL(req.url, 'http://localhost');
+      if (url.pathname !== '/ws' || closing) {
+        socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      if (req.headers.origin) {
+        const origin = new URL(req.headers.origin);
+        const allowedHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
+        const currentPort = String(server.address()?.port);
+        if (!allowedHosts.has(origin.hostname) || origin.port !== currentPort) {
+          socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+          return;
+        }
+      }
+      wss.handleUpgrade(req, socket, head, (client) => wss.emit('connection', client));
+    } catch {
+      socket.destroy();
+    }
+  });
+
+  wss.on('connection', (client) => {
+    clients.add(client);
+    client.isAlive = true;
+    client.on('pong', () => { client.isAlive = true; });
+    client.on('close', () => clients.delete(client));
+    client.on('error', () => {});
+    send(client, getState());
+    client.on('message', (data, isBinary) => {
+      let id;
+      try {
+        if (closing) throw new Error('服务正在关闭。');
+        if (isBinary) throw new Error('只支持 JSON 文本消息。');
+        const message = JSON.parse(data.toString());
+        id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
+        if (message.type !== 'patch' || !isObject(message.patch) || !isObject(message.patch.modules)) {
+          throw new Error('只支持包装模块设置修改。');
+        }
+        const moduleIds = Object.keys(message.patch.modules);
+        if (moduleIds.length !== 1) throw new Error('每次只能修改一个包装模块。');
+        const moduleId = moduleIds[0];
+        if (!MODULE_IDS.includes(moduleId)) throw new Error(`未知模块：${moduleId}`);
+        const values = validateModulePatch(moduleId, message.patch.modules[moduleId]);
+        const current = settings.modules[moduleId];
+        const nextModule = { ...current };
+        for (const [key, value] of Object.entries(values)) {
+          if (key === 'animation') nextModule.animation = { ...current.animation, ...value };
+          else nextModule[key] = value;
+        }
+        if (JSON.stringify(nextModule) === JSON.stringify(current)) {
+          send(client, { ...getState(), id });
+          return;
+        }
+        settings = { ...settings, modules: { ...settings.modules, [moduleId]: nextModule } };
+        revision += 1;
+        broadcast({ ...getState(), id });
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(queueSave, saveDelayMs);
+      } catch (error) {
+        send(client, { type: 'error', message: error.message, id });
+      }
+    });
+  });
+
+  const heartbeat = setInterval(() => {
+    for (const client of clients) {
+      if (!client.isAlive) {
+        client.terminate();
+        continue;
+      }
+      client.isAlive = false;
+      client.ping();
+    }
+  }, 15000);
+  heartbeat.unref();
+
+  return {
+    server,
+    getState,
+    listen(port = 3000, host = '127.0.0.1') {
+      return new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(port, host, () => {
+          server.off('error', reject);
+          resolve({ port: server.address().port, host });
+        });
+      });
+    },
+    async close() {
+      if (closing) return;
+      closing = true;
+      clearInterval(heartbeat);
+      clearTimeout(saveTimer);
+      if (savedRevision < revision) await queueSave();
+      else await writeQueue;
+      for (const client of clients) client.terminate();
+      await new Promise((resolve) => wss.close(resolve));
+      if (server.listening) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    },
+  };
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  let app;
+  try {
+    app = await createPackagingServer();
+    const port = Number(process.env.PORT || 3000);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须为 1–65535 的整数。');
+    await app.listen(port);
+    console.log(`\n烟洲直播包装服务已启动\n控制面板：http://localhost:${port}/control.html\nOBS 浏览器来源：http://localhost:${port}/overlay.html\n设置文件：${path.join(ROOT, 'settings.json')}\n按 Ctrl+C 可保存设置并退出。\n`);
+    let shuttingDown = false;
+    const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      try { await app.close(); process.exitCode = 0; }
+      catch (error) { console.error('关闭时保存失败：', error.message); process.exitCode = 1; }
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+  } catch (error) {
+    console.error(`启动失败：${error.code === 'EADDRINUSE' ? '端口已被占用，请关闭该端口的旧服务或通过 PORT 指定其他端口。' : error.message}`);
+    if (app) await app.close().catch(() => {});
+    process.exitCode = 1;
+  }
+}

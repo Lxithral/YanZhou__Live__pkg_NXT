@@ -1,0 +1,59 @@
+{
+  "version": 2,
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "modules": {
+    "logo": {
+      "visible": true,
+      "title": "YZBTVS",
+      "subtitle": "",
+      "color": "#FFFFFF",
+      "textColor": "#FFAA00",
+      "x": 146,
+      "y": 98,
+      "scale": 0.67,
+      "opacity": 100,
+      "animation": {
+        "enter": "fade-up",
+        "exit": "fade-down",
+        "duration": 600
+      }
+    },
+    "hosts": {
+      "visible": true,
+      "label": "主持人",
+      "names": "张三\n李四\n王5\n2323",
+      "accentColor": "#D4AB78",
+      "textColor": "#F4F0E8",
+      "x": 96,
+      "y": 912,
+      "scale": 1,
+      "opacity": 100,
+      "animation": {
+        "enter": "fade-up",
+        "exit": "fade-down",
+        "duration": 600
+      }
+    },
+    "program": {
+      "visible": false,
+      "label": "正在演出",
+      "current": "节目名称",
+      "nextLabel": "接下来",
+      "next": "下一个节目",
+      "accentColor": "#D4AB78",
+      "textColor": "#F4F0E8",
+      "x": 1376,
+      "y": 912,
+      "scale": 1,
+      "opacity": 100,
+      "animation": {
+        "enter": "fade-up",
+        "exit": "fade-down",
+        "duration": 600
+      }
+    }
+  }
+}
