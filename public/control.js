@@ -41,6 +41,7 @@ const MODULES = {
     fields: [
       { key: 'label', id: 'hostsLabel', kind: 'text' },
       { key: 'names', id: 'hostsNames', kind: 'textarea' },
+      { key: 'slotCount', id: 'hostsSlotCount', numberId: 'hostsSlotCountNumber', kind: 'raw' },
       { key: 'accentColor', id: 'hostsAccent', hexId: 'hostsAccentHex', kind: 'color' },
       { key: 'textColor', id: 'hostsTextColor', hexId: 'hostsTextColorHex', kind: 'color' },
       { key: 'scale', id: 'hostsScale', numberId: 'hostsScaleNumber', kind: 'percent' },
@@ -49,7 +50,7 @@ const MODULES = {
     position: { x: 'hostsX', xRange: 'hostsXRange', xMax: 'hostsXMax', y: 'hostsY', yRange: 'hostsYRange', yMax: 'hostsYMax' },
     animation: { enter: 'hostsEnter', exit: 'hostsExit', duration: 'hostsDuration', durationNumber: 'hostsDurationNumber' },
     summary(module) {
-      const names = String(module.names || '').split(/\r?\n/).map((name) => name.trim()).filter(Boolean).join('  ');
+      const names = String(module.names || '').split(/\r?\n/).map((line) => line.split(/[｜|]/)[0].trim()).filter(Boolean).join('  ');
       return [module.label, names].filter(Boolean).join(' · ') || '主持字幕';
     },
   },
@@ -318,7 +319,7 @@ function renderControls() {
         const percent = Math.round(module[field.key] * 100);
         updateRange(field.id, percent);
         setInput(field.numberId, percent);
-      } else if (field.kind === 'opacity' || field.kind === 'weight') {
+      } else if (field.kind === 'opacity' || field.kind === 'weight' || field.kind === 'raw') {
         updateRange(field.id, module[field.key]);
         setInput(field.numberId, module[field.key]);
       } else {
@@ -707,7 +708,7 @@ function bindFields() {
         bindColorField(moduleId, field);
       } else if (field.kind === 'percent') {
         bindRangeField(moduleId, field, 100);
-      } else if (field.kind === 'opacity' || field.kind === 'weight') {
+      } else if (field.kind === 'opacity' || field.kind === 'weight' || field.kind === 'raw') {
         bindRangeField(moduleId, field, 1);
       }
     }

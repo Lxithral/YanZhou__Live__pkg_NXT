@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "canvas": {
     "width": 1920,
     "height": 1080
@@ -26,7 +26,8 @@
     "hosts": {
       "visible": true,
       "label": "主持人",
-      "names": "张三\n李四\n王5\n2323",
+      "names": "张三｜高三（2）班\n李四｜学生会",
+      "slotCount": 4,
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
       "x": 96,

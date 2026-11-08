@@ -29,18 +29,19 @@ const FIELD_RULES = {
   scale: { kind: 'number', min: 0.25, max: 3, label: '大小' },
   opacity: { kind: 'number', min: 0, max: 100, label: '不透明度' },
   weight: { kind: 'number', min: 150, max: 700, label: '字重' },
+  slotCount: { kind: 'number', min: 1, max: 4, label: '槽位数量' },
 };
 
 const MODULE_FIELDS = {
   logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
-  hosts: ['visible', 'label', 'names', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  hosts: ['visible', 'label', 'names', 'slotCount', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
 
 const clone = (value) => structuredClone(value);
 
 export const DEFAULT_SETTINGS = {
-  version: 4,
+  version: 5,
   canvas: { width: 1920, height: 1080 },
   modules: {
     logo: {
@@ -61,8 +62,9 @@ export const DEFAULT_SETTINGS = {
       visible: false,
       label: '主持人',
       names: '张三\n李四',
+      slotCount: 2,
       accentColor: '#D4AB78',
-      textColor: '#F4F0E8',
+      textColor: '#2C2C2E',
       x: 96,
       y: 912,
       scale: 1,
@@ -193,8 +195,8 @@ function validateModule(moduleId, module) {
 }
 
 function validateSettings(settings) {
-  if (!isObject(settings) || settings.version !== 4) {
-    throw new Error('settings.json 格式不正确：版本应为 4。');
+  if (!isObject(settings) || settings.version !== 5) {
+    throw new Error('settings.json 格式不正确：版本应为 5。');
   }
   if (!isObject(settings.canvas) || settings.canvas.width !== 1920 || settings.canvas.height !== 1080) {
     throw new Error('settings.json 格式不正确，画布应为 1920 × 1080。');
@@ -207,11 +209,11 @@ function validateSettings(settings) {
   for (const moduleId of MODULE_IDS) {
     modules[moduleId] = validateModule(moduleId, settings.modules[moduleId] ?? clone(DEFAULT_SETTINGS.modules[moduleId]));
   }
-  return { version: 4, canvas: { width: 1920, height: 1080 }, modules };
+  return { version: 5, canvas: { width: 1920, height: 1080 }, modules };
 }
 
 /** Upgrade older settings files stepwise to the current schema
- *  (v3 added logo.showMark, v4 added logo.weight). */
+ *  (v3 added logo.showMark, v4 logo.weight, v5 hosts.slotCount). */
 export function migrateSettings(raw) {
   if (!isObject(raw)) return raw;
   let settings = raw;
@@ -240,6 +242,16 @@ export function migrateSettings(raw) {
     const modules = clone(settings.modules);
     if (isObject(modules.logo) && !Object.hasOwn(modules.logo, 'weight')) modules.logo.weight = 500;
     settings = { ...settings, version: 4, modules };
+  }
+  if (settings.version === 4 && isObject(settings.modules)) {
+    const modules = clone(settings.modules);
+    // The legacy caption bar is white: a name in the old default near-white
+    // would be unreadable, so only untouched defaults move to the dark ink.
+    if (isObject(modules.hosts)) {
+      if (!Object.hasOwn(modules.hosts, 'slotCount')) modules.hosts.slotCount = 2;
+      if (modules.hosts.textColor === '#F4F0E8') modules.hosts.textColor = '#2C2C2E';
+    }
+    settings = { ...settings, version: 5, modules };
   }
   return settings;
 }
