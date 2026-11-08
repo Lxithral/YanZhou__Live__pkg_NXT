@@ -1,13 +1,17 @@
 import { createLogoRenderer } from './logo-renderer.js';
 import { createHostsRenderer } from './hosts-renderer.js';
 import { createProgramRenderer } from './program-renderer.js';
+import { createLyricsRenderer } from './lyrics-renderer.js';
+import { createLyricsClock } from './lyrics-clock.js';
 
 const canvas = document.getElementById('overlay-canvas');
 const RENDERERS = {
   logo: createLogoRenderer(canvas),
   hosts: createHostsRenderer(canvas),
   program: createProgramRenderer(canvas),
+  lyrics: createLyricsRenderer(canvas),
 };
+const lyricsClock = createLyricsClock();
 
 let disposed = false;
 let reconnectAttempt = 0;
@@ -31,6 +35,9 @@ function connect() {
     if (message.type === 'state') {
       reconnectAttempt = 0;
       applyState(message.settings);
+    } else if (message.type === 'lyrics:state') {
+      lyricsClock.apply(message);
+      RENDERERS.lyrics.updateLyrics(lyricsClock);
     }
   });
   socket.addEventListener('close', () => {

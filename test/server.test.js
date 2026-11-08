@@ -6,6 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { createPackagingServer } from '../server.js';
+import { buildLyricDocument, jsonBytes, LYRIC_BYTES, parseLrc, timelineIndex } from '../public/lyrics-model.js';
+import { createLyricsClock } from '../public/lyrics-clock.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -108,11 +110,8 @@ test('a control change immediately reaches another client and is saved on disk',
   const initial = await controller.waitFor((message) => message.type === 'state');
   const overlayInitial = await overlay.waitFor((message) => message.type === 'state');
   assert.deepEqual(overlayInitial.settings, initial.settings);
-  assert.equal(initial.settings.version, 5);
-  assert.equal(initial.settings.modules.logo.showMark, true);
-  assert.equal(initial.settings.modules.logo.weight, 500);
-  assert.equal(initial.settings.modules.hosts.slotCount, 2);
-  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program']);
+  assert.equal(initial.settings.version, 2);
+  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
     title: '校园开放日', subtitle: 'LIVE · 2026', color: '#123456', textColor: '#abcdef',
@@ -404,4 +403,185 @@ test('settings with unknown modules or incomplete module data are rejected witho
   await writeFile(setup.settingsPath, missingAnimation);
   await assert.rejects(setup.start());
   assert.equal(await readFile(setup.settingsPath, 'utf8'), missingAnimation);
+});
+
+const demoDoc = [
+  { start: 0, text: '开场', tokens: [{ start: 0, text: '开' }, { start: 750, text: '场' }], credit: false },
+  { start: 3000, text: '下一句', tokens: [], credit: false },
+  { start: 12000, text: '最后一句', tokens: [], credit: false },
+];
+
+function lyricCommand(client, type, payload, id = type) {
+  client.send({ type, payload, id });
+  return client.waitFor((message) => message.id === id);
+}
+
+test('LRC preview accepts mixed scripts and timestamps while reporting bad rows', () => {
+  const entries = parseLrc('\uFEFF[ti:彩排]\r\n[00:00]编曲：测试\n错误行\n[00:01.20]<00:01.200>烟洲 <00:02.000>live again\n[00:03.50]普通歌词\n[00:03.50]重复\n[00:04.00]<00:03.00>逆序');
+  assert.equal(entries[1].number, 3);
+  assert.match(entries[1].error, /行时间戳/);
+  assert.match(entries.at(-1).error, /顺序/);
+  const { doc, errors } = buildLyricDocument(entries);
+  assert.equal(doc.length, 3);
+  assert.equal(errors.length, 1);
+  assert.equal(doc[0].credit, true);
+  assert.deepEqual(doc[1].tokens.filter((token) => token.text.trim()).map((token) => token.text), ['烟', '洲', 'live', 'again']);
+  assert.equal(doc[2].tokens.length, 0);
+  assert.equal(timelineIndex(doc, 1200), 1);
+  assert.equal(timelineIndex(doc, 4300), doc.length);
+  const overlaps = buildLyricDocument(parseLrc('[00:01]<00:02.50>越界\n[00:01]重复\n[00:02]有效'));
+  assert.deepEqual(overlaps.doc.map((line) => line.text), ['有效']);
+  assert.equal(overlaps.errors.length, 2);
+  entries[2].skip = true;
+  assert.equal(buildLyricDocument(entries).doc.some((line) => line.start === 1200), false);
+});
+
+test('lyrics load enforces the exact UTF-8 document boundary and retains prior data on error', async (t) => {
+  const setup = await fixture(t);
+  const { wsUrl, app } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  const observer = await setup.connect(wsUrl);
+  const doc = [];
+  let size = jsonBytes(doc);
+  for (let index = 0; size < LYRIC_BYTES; index += 1) {
+    const line = { start: index * 1000, text: '', tokens: [], credit: false };
+    const overhead = jsonBytes(line) + Number(index > 0);
+    const length = Math.min(500, LYRIC_BYTES - size - overhead);
+    if (length < 1) {
+      doc.at(-1).text += 'x'.repeat(LYRIC_BYTES - size);
+      break;
+    }
+    line.text = '字'.repeat(Math.floor(length / 3)) + 'x'.repeat(length % 3);
+    doc.push(line);
+    size += overhead + length;
+  }
+  assert.equal(jsonBytes(doc), LYRIC_BYTES);
+  const accepted = await lyricCommand(client, 'lyrics:load', { doc }, 'load-boundary');
+  assert.equal(accepted.type, 'lyrics:state');
+  assert.deepEqual((await observer.waitFor((message) => message.id === accepted.id)).doc, doc);
+  doc.at(-1).text += 'x';
+  const rejected = await lyricCommand(client, 'lyrics:load', { doc }, 'load-over');
+  assert.equal(rejected.type, 'error');
+  assert.match(rejected.message, /200 KiB/);
+  assert.equal(jsonBytes(app.getState().settings.modules.lyrics.doc), LYRIC_BYTES);
+});
+
+test('timeline transport progresses independently of the selected output and sends lightweight deltas', async (t) => {
+  const setup = await fixture(t);
+  const { wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  const send = (type, payload) => lyricCommand(client, `lyrics:${type}`, payload);
+  await send('load', { doc: demoDoc });
+  await send('onair', { source: 'timeline' });
+  await send('transport', { action: 'seek', value: 3000 });
+  const rate = await send('transport', { action: 'rate', value: 1.1 });
+  assert.deepEqual(rate.transport, { position: 3000, rate: 1.1, playing: false, end: 12800 });
+  assert.equal(Object.hasOwn(rate, 'doc'), false);
+  const play = await send('transport', { action: 'play', value: null });
+  assert.equal(play.transport.playing, true);
+  const manual = await send('onair', { source: 'manual' });
+  assert.equal(manual.source, 'manual');
+  assert.equal(manual.transport.playing, true);
+  const paused = await send('transport', { action: 'pause', value: null });
+  assert.equal(paused.transport.playing, false);
+  const nudged = await send('transport', { action: 'nudge', value: -500 });
+  assert.equal(nudged.transport.position, paused.transport.position - 500);
+});
+
+test('only a supported source is armed and a rejected payload does not change state', async (t) => {
+  const setup = await fixture(t);
+  const { app, wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  const initial = await client.waitFor((message) => message.type === 'lyrics:state');
+  assert.equal(initial.armed, false);
+  const pushed = await lyricCommand(client, 'lyrics:onair', { source: 'manual' });
+  assert.equal(pushed.armed, true);
+  assert.equal(pushed.source, 'manual');
+  const state = app.getState();
+  assert.equal((await lyricCommand(client, 'lyrics:onair', { source: 'asr' })).type, 'error');
+  assert.equal((await lyricCommand(client, 'lyrics:transport', { action: 'rate', value: 1.03 })).type, 'error');
+  assert.equal((await lyricCommand(client, 'lyrics:load', { doc: [demoDoc[1], demoDoc[0]] })).type, 'error');
+  assert.equal((await lyricCommand(client, 'lyrics:load', { doc: [] })).type, 'error');
+  assert.equal((await lyricCommand(client, 'lyrics:manual', { action: 'select', value: -1 })).type, 'error');
+  assert.deepEqual(app.getState(), state);
+});
+
+test('manual confirmation, stepping, and clear produce complete display states', async (t) => {
+  const setup = await fixture(t);
+  const { wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  const manual = (action, value = null) => lyricCommand(client, 'lyrics:manual', { action, value });
+  const loaded = await manual('load', ['第一句', '第二句']);
+  assert.equal(loaded.manual.current, '第一句');
+  assert.equal(loaded.manual.next, '第二句');
+  const edited = await manual('commit', '<b>改字</b>');
+  assert.equal(edited.manual.current, '<b>改字</b>');
+  assert.equal(edited.manual.next, '第二句');
+  assert.equal(Object.hasOwn(edited.manual, 'lines'), false);
+  assert.equal((await manual('step', 1)).manual.current, '第二句');
+  const cleared = await manual('clear');
+  assert.deepEqual(cleared.manual, { current: '', next: '', index: null, autoSeconds: 0, remaining: null });
+});
+
+test('manual auto timer stays independent of source and stops at the last line', async (t) => {
+  const setup = await fixture(t);
+  const { wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  await lyricCommand(client, 'lyrics:manual', { action: 'load', value: ['one', 'two'] });
+  const scheduled = await lyricCommand(client, 'lyrics:manual', { action: 'auto', value: 5 });
+  assert.ok(scheduled.manual.remaining > 4900);
+  await lyricCommand(client, 'lyrics:onair', { source: 'timeline' });
+  const result = await client.waitFor((message) => message.type === 'lyrics:state' && message.manual.current === 'two', 6500);
+  assert.equal(result.source, 'timeline');
+  assert.equal(result.manual.remaining, null);
+  assert.equal(result.manual.next, '');
+});
+
+test('reconnect gets full state and restart keeps the paused checkpoint disarmed', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await lyricCommand(client, 'lyrics:load', { doc: demoDoc });
+  await lyricCommand(client, 'lyrics:manual', { action: 'load', value: ['手动', '下一句'] });
+  await lyricCommand(client, 'lyrics:manual', { action: 'commit', value: '已确认' });
+  await lyricCommand(client, 'lyrics:transport', { action: 'seek', value: 3000 });
+  await lyricCommand(client, 'lyrics:onair', { source: 'timeline' });
+  await lyricCommand(client, 'lyrics:transport', { action: 'play', value: null });
+  client.close();
+  const reconnected = await setup.connect(first.wsUrl);
+  const live = await reconnected.waitFor((message) => message.type === 'lyrics:state');
+  assert.equal(live.armed, true);
+  assert.equal(live.transport.playing, true);
+  assert.deepEqual(live.doc, demoDoc);
+  assert.deepEqual(live.manual.lines, ['手动', '下一句']);
+  const clock = createLyricsClock();
+  clock.apply(live);
+  assert.equal(clock.position(performance.now() + 60000), live.transport.end);
+  await setup.stop(first.app);
+  const next = await setup.start();
+  const nextClient = await setup.connect(next.wsUrl);
+  const restarted = await nextClient.waitFor((message) => message.type === 'lyrics:state');
+  assert.equal(restarted.armed, false);
+  assert.equal(restarted.source, 'timeline');
+  assert.equal(restarted.transport.playing, false);
+  assert.ok(restarted.transport.position >= live.transport.position);
+  assert.equal(restarted.manual.current, '已确认');
+  assert.deepEqual(restarted.doc, demoDoc);
+});
+
+test('v2 settings get a backup before lyrics migration and malformed lyrics preserve the file', async (t) => {
+  const setup = await fixture(t);
+  const original = await readFile(path.join(projectRoot, 'settings.json'), 'utf8');
+  await writeFile(setup.settingsPath, original);
+  const { app } = await setup.start();
+  const migrated = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.equal(await readFile(`${setup.settingsPath}.pre-lyrics.bak`, 'utf8'), original);
+  assert.deepEqual(migrated.modules.lyrics.doc, []);
+  for (const id of ['logo', 'hosts', 'program']) assert.deepEqual(migrated.modules[id], JSON.parse(original).modules[id]);
+  await setup.stop(app);
+  migrated.modules.lyrics.transport.rate = 2;
+  const corrupt = JSON.stringify(migrated);
+  await writeFile(setup.settingsPath, corrupt);
+  await assert.rejects(setup.start(), /速率/);
+  assert.equal(await readFile(setup.settingsPath, 'utf8'), corrupt);
 });

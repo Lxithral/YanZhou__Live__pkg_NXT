@@ -1,12 +1,14 @@
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFile, stat, mkdir, open, rename } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { readFile, stat, mkdir, open, rename, copyFile } from 'node:fs/promises';
 import { WebSocket, WebSocketServer } from 'ws';
+import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSettings } from './lyrics-session.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
-export const MODULE_IDS = ['logo', 'hosts', 'program'];
+export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics'];
 const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
@@ -36,6 +38,7 @@ const MODULE_FIELDS = {
   logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
   hosts: ['visible', 'label', 'names', 'slotCount', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
 
 const clone = (value) => structuredClone(value);
@@ -84,6 +87,12 @@ export const DEFAULT_SETTINGS = {
       scale: 1,
       opacity: 100,
       animation: clone(DEFAULT_ANIMATION),
+    },
+    lyrics: {
+      visible: true, accentColor: '#D4AB78', textColor: '#F4F0E8',
+      x: 240, y: 850, scale: 1, opacity: 100,
+      animation: { enter: 'none', exit: 'none', duration: 200 },
+      ...clone(DEFAULT_LYRICS),
     },
   },
 };
@@ -182,6 +191,7 @@ function validateModulePatch(moduleId, patch) {
 function validateModule(moduleId, module) {
   if (!isObject(module)) throw new Error(`settings.json 缺少模块：${moduleId}`);
   const allowed = new Set([...MODULE_FIELDS[moduleId], 'animation']);
+  if (moduleId === 'lyrics') Object.keys(DEFAULT_LYRICS).forEach((key) => allowed.add(key));
   for (const key of Object.keys(module)) {
     if (!allowed.has(key)) throw new Error(`不支持的设置项：${moduleId}.${key}`);
   }
@@ -191,7 +201,7 @@ function validateModule(moduleId, module) {
     result[field] = validateField(field, module[field]);
   }
   result.animation = validateAnimation(module.animation);
-  return result;
+  return moduleId === 'lyrics' ? { ...result, ...validateLyricSettings(module) } : result;
 }
 
 function validateSettings(settings) {
@@ -207,7 +217,8 @@ function validateSettings(settings) {
   }
   const modules = {};
   for (const moduleId of MODULE_IDS) {
-    modules[moduleId] = validateModule(moduleId, settings.modules[moduleId] ?? clone(DEFAULT_SETTINGS.modules[moduleId]));
+    const module = Object.hasOwn(settings.modules, moduleId) ? settings.modules[moduleId] : clone(DEFAULT_SETTINGS.modules[moduleId]);
+    modules[moduleId] = validateModule(moduleId, module);
   }
   return { version: 5, canvas: { width: 1920, height: 1080 }, modules };
 }
@@ -275,14 +286,24 @@ export async function createPackagingServer({
 } = {}) {
   let settings;
   let savedAt;
+  let hasSettings = false;
   try {
-    const raw = JSON.parse(await readFile(settingsPath, 'utf8'));
+    const contents = await readFile(settingsPath, 'utf8');
+    hasSettings = true;
+    const raw = JSON.parse(contents);
     const migrated = migrateSettings(raw);
     settings = validateSettings(migrated);
-    if (migrated !== raw) await atomicWrite(settingsPath, settings);
+    if (migrated !== raw || !Object.hasOwn(raw.modules, 'lyrics')) {
+      try {
+        await copyFile(settingsPath, `${settingsPath}.pre-lyrics.bak`, constants.COPYFILE_EXCL);
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+      }
+      await atomicWrite(settingsPath, settings);
+    }
     savedAt = (await stat(settingsPath)).mtime.toISOString();
   } catch (error) {
-    if (error.code !== 'ENOENT') throw new Error(`无法读取设置文件；原文件已保留。${error.message}`, { cause: error });
+    if (hasSettings || error.code !== 'ENOENT') throw new Error(`无法读取设置文件；原文件已保留。${error.message}`, { cause: error });
     settings = clone(DEFAULT_SETTINGS);
     await mkdir(path.dirname(settingsPath), { recursive: true });
     await atomicWrite(settingsPath, settings);
@@ -296,12 +317,51 @@ export async function createPackagingServer({
   let closing = false;
   const clients = new Set();
   const getState = () => ({ type: 'state', settings: clone(settings), revision, savedRevision, savedAt });
+  const getWireState = () => {
+    const { doc, manual, ...module } = settings.modules.lyrics;
+    const { lines, ...manualState } = manual;
+    return {
+      type: 'state', revision, savedRevision, savedAt,
+      settings: {
+        ...settings,
+        modules: {
+          ...settings.modules,
+          lyrics: { ...module, ...(!doc.length && { doc }), manual: lines.length ? manualState : manual },
+        },
+      },
+    };
+  };
   const send = (client, message) => {
     if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify(message));
   };
   const broadcast = (message) => {
     for (const client of clients) send(client, message);
   };
+  const lyrics = createLyricsSession(settings.modules.lyrics, () => publishLyrics());
+  const lyricState = (include, id) => ({ type: 'lyrics:state', ...lyrics.snapshot(include), revision, savedRevision, id });
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(queueSave, saveDelayMs);
+  }
+
+  function checkpointLyrics() {
+    settings.modules.lyrics = { ...settings.modules.lyrics, ...lyrics.persisted() };
+    revision += 1;
+  }
+
+  function publishLyrics(include, id) {
+    checkpointLyrics();
+    broadcast(lyricState(include, id));
+    scheduleSave();
+  }
+
+  const lyricHeartbeat = setInterval(() => broadcast(lyricState()), 2000);
+  const lyricCheckpoint = setInterval(() => {
+    if (lyrics.checkpointNeeded()) publishLyrics();
+  }, 5000);
+  lyricHeartbeat.unref();
+  lyricCheckpoint.unref();
 
   function queueSave() {
     clearTimeout(saveTimer);
@@ -317,7 +377,7 @@ export async function createPackagingServer({
     writeQueue = task;
     task.catch((error) => {
       console.error('设置保存失败：', error.message);
-      broadcast({ type: 'error', message: '本地设置保存失败，请检查文件是否可写。当前画面仍保持最新状态。' });
+      broadcast({ type: 'error', scope: 'save', message: '本地设置保存失败，请检查文件是否可写。当前画面仍保持最新状态。' });
     });
     return task;
   }
@@ -359,7 +419,7 @@ export async function createPackagingServer({
     }
   });
 
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024, perMessageDeflate: false });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: 256 * 1024, perMessageDeflate: false });
   server.on('upgrade', (req, socket, head) => {
     try {
       const url = new URL(req.url, 'http://localhost');
@@ -388,7 +448,8 @@ export async function createPackagingServer({
     client.on('pong', () => { client.isAlive = true; });
     client.on('close', () => clients.delete(client));
     client.on('error', () => {});
-    send(client, getState());
+    send(client, getWireState());
+    send(client, lyricState({ doc: true, lines: true }));
     client.on('message', (data, isBinary) => {
       let id;
       try {
@@ -396,6 +457,14 @@ export async function createPackagingServer({
         if (isBinary) throw new Error('只支持 JSON 文本消息。');
         const message = JSON.parse(data.toString());
         id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
+        if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
+        if (LYRIC_COMMANDS.includes(message.type)) {
+          if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) {
+            throw new Error('歌词消息包含未知字段。');
+          }
+          publishLyrics(lyrics.apply(message.type, message.payload), id);
+          return;
+        }
         if (message.type !== 'patch' || !isObject(message.patch) || !isObject(message.patch.modules)) {
           throw new Error('只支持包装模块设置修改。');
         }
@@ -411,14 +480,13 @@ export async function createPackagingServer({
           else nextModule[key] = value;
         }
         if (JSON.stringify(nextModule) === JSON.stringify(current)) {
-          send(client, { ...getState(), id });
+          send(client, { ...getWireState(), id });
           return;
         }
         settings = { ...settings, modules: { ...settings.modules, [moduleId]: nextModule } };
         revision += 1;
-        broadcast({ ...getState(), id });
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(queueSave, saveDelayMs);
+        broadcast({ ...getWireState(), id });
+        scheduleSave();
       } catch (error) {
         send(client, { type: 'error', message: error.message, id });
       }
@@ -453,6 +521,10 @@ export async function createPackagingServer({
       if (closing) return;
       closing = true;
       clearInterval(heartbeat);
+      clearInterval(lyricHeartbeat);
+      clearInterval(lyricCheckpoint);
+      lyrics.close();
+      if (lyrics.checkpointNeeded()) checkpointLyrics();
       clearTimeout(saveTimer);
       if (savedRevision < revision) await queueSave();
       else await writeQueue;
@@ -470,7 +542,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const port = Number(process.env.PORT || 3000);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须为 1–65535 的整数。');
     await app.listen(port);
-    console.log(`\n烟洲直播包装服务已启动\n控制面板：http://localhost:${port}/control.html\nOBS 浏览器来源：http://localhost:${port}/overlay.html\n设置文件：${path.join(ROOT, 'settings.json')}\n按 Ctrl+C 可保存设置并退出。\n`);
+    console.log(`\n烟洲直播包装服务已启动\n控制面板：http://localhost:${port}/control.html\n歌词控制台：http://localhost:${port}/lyrics.html\nOBS 浏览器来源：http://localhost:${port}/overlay.html\n设置文件：${path.join(ROOT, 'settings.json')}\n按 Ctrl+C 可保存设置并退出。\n`);
     let shuttingDown = false;
     const shutdown = async () => {
       if (shuttingDown) return;

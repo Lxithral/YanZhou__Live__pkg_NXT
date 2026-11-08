@@ -1,9 +1,12 @@
 import { createLogoRenderer } from './logo-renderer.js';
 import { createHostsRenderer } from './hosts-renderer.js';
 import { createProgramRenderer } from './program-renderer.js';
+import { createLyricsRenderer } from './lyrics-renderer.js';
+import { createLyricsClock } from './lyrics-clock.js';
 
 const $ = (id) => document.getElementById(id);
-const MODULE_ORDER = ['logo', 'hosts', 'program'];
+const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics'];
+const lyricsClock = createLyricsClock();
 const ANIMATION_OPTIONS = [
   ['none', '无动画'],
   ['fade', '淡入淡出'],
@@ -71,6 +74,19 @@ const MODULES = {
     animation: { enter: 'programEnter', exit: 'programExit', duration: 'programDuration', durationNumber: 'programDurationNumber' },
     summary(module) { return [module.label, module.current].filter(Boolean).join(' · ') || '节目单'; },
   },
+  lyrics: {
+    name: '歌词字幕',
+    create: createLyricsRenderer,
+    fields: [
+      { key: 'accentColor', id: 'lyricsAccent', hexId: 'lyricsAccentHex', kind: 'color' },
+      { key: 'textColor', id: 'lyricsTextColor', hexId: 'lyricsTextColorHex', kind: 'color' },
+      { key: 'scale', id: 'lyricsScale', numberId: 'lyricsScaleNumber', kind: 'percent' },
+      { key: 'opacity', id: 'lyricsOpacity', numberId: 'lyricsOpacityNumber', kind: 'opacity' },
+    ],
+    position: { x: 'lyricsX', xRange: 'lyricsXRange', xMax: 'lyricsXMax', y: 'lyricsY', yRange: 'lyricsYRange', yMax: 'lyricsYMax' },
+    animation: { enter: 'lyricsEnter', exit: 'lyricsExit', duration: 'lyricsDuration', durationNumber: 'lyricsDurationNumber' },
+    summary() { return '歌词字幕'; },
+  },
 };
 
 const FALLBACK_SETTINGS = {
@@ -80,6 +96,7 @@ const FALLBACK_SETTINGS = {
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#D4AB78', textColor: '#F4F0E8', x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 1376, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    lyrics: { visible: true, accentColor: '#D4AB78', textColor: '#F4F0E8', x: 240, y: 850, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
 };
 
@@ -380,7 +397,7 @@ function fitFocus() {
 
 function rebuildFocus() {
   $('focusCanvas').replaceChildren();
-  focusRenderer = MODULES[activeModule].create($('focusCanvas'));
+  focusRenderer = MODULES[activeModule].create($('focusCanvas'), { sample: activeModule === 'lyrics' });
   fitFocus();
 }
 
@@ -404,6 +421,7 @@ function selectModule(moduleId) {
 function applyServerState(message) {
   if (!message.settings?.modules || !message.settings?.canvas) return;
   settings = structuredClone(message.settings);
+  settings.modules.lyrics ??= structuredClone(FALLBACK_SETTINGS.modules.lyrics);
   if (message.id) sentPatches.delete(message.id);
   for (const [path, intent] of localIntent) {
     if (readValue(intent.module, intent.key) === intent.value) localIntent.delete(path);
@@ -429,6 +447,11 @@ function connect() {
     try { message = JSON.parse(event.data); } catch { return; }
     if (message.type === 'state') {
       applyServerState(message);
+    } else if (message.type === 'lyrics:state') {
+      lyricsClock.apply(message);
+      previewRenderers.lyrics.updateLyrics(lyricsClock);
+      revision = message.revision ?? revision;
+      updateSaveStatus();
     } else if (message.type === 'saved') {
       savedRevision = Math.max(savedRevision, message.revision ?? 0);
       savedAt = message.savedAt ?? savedAt;
