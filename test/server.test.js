@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
-import { createPackagingServer } from '../server.js';
+import { createPackagingServer, DEFAULT_SETTINGS } from '../server.js';
 import { buildLyricDocument, jsonBytes, LYRIC_BYTES, parseLrc, timelineIndex } from '../public/lyrics-model.js';
 import { createLyricsClock } from '../public/lyrics-clock.js';
 
@@ -619,15 +619,17 @@ test('reconnect gets full state and restart keeps the paused checkpoint disarmed
   assert.deepEqual(restarted.doc, demoDoc);
 });
 
-test('v2 settings get a backup before lyrics migration and malformed lyrics preserve the file', async (t) => {
+test('settings without a lyrics module get a backup before lyrics migration and malformed lyrics preserve the file', async (t) => {
   const setup = await fixture(t);
-  const original = await readFile(path.join(projectRoot, 'settings.json'), 'utf8');
+  const base = structuredClone(DEFAULT_SETTINGS);
+  delete base.modules.lyrics;
+  const original = JSON.stringify(base, null, 2);
   await writeFile(setup.settingsPath, original);
   const { app } = await setup.start();
   const migrated = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
   assert.equal(await readFile(`${setup.settingsPath}.pre-lyrics.bak`, 'utf8'), original);
   assert.deepEqual(migrated.modules.lyrics.doc, []);
-  for (const id of ['logo', 'hosts', 'program']) assert.deepEqual(migrated.modules[id], JSON.parse(original).modules[id]);
+  for (const id of ['logo', 'hosts', 'program']) assert.deepEqual(migrated.modules[id], base.modules[id]);
   await setup.stop(app);
   migrated.modules.lyrics.transport.rate = 2;
   const corrupt = JSON.stringify(migrated);
