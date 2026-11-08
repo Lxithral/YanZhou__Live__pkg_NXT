@@ -6,9 +6,15 @@
   "description": "Local HTML broadcast graphics and live control panel",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "asr:setup": "node tools/setup-asr.js"
   },
   "dependencies": {
+    "opencc-js": "1.4.2",
+    "pinyin-pro": "3.29.5",
     "ws": "^8.18.3"
+  },
+  "optionalDependencies": {
+    "sherpa-onnx-node": "2.0.1"
   }
 }

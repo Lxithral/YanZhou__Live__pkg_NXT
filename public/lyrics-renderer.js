@@ -14,12 +14,11 @@ const STYLES = `
 .lyrics-board .lyrics-row[data-distance="1"] { opacity: .57; filter: blur(.45px); }
 .lyrics-board .lyrics-row[data-distance="2"] { opacity: .33; filter: blur(1.2px); }
 .lyrics-board .lyrics-text { min-width: 0; white-space: pre; line-height: 1.18; overflow: hidden; text-overflow: ellipsis; font-weight: 650; }
-.lyrics-board .lyrics-token { position: relative; display: inline-block; opacity: .5; transition: transform 150ms ease; }
-.lyrics-board .lyrics-token.is-current { transform: scale(1.06); }
+.lyrics-board .lyrics-token { position: relative; display: inline-block; opacity: .5; }
 .lyrics-board .lyrics-token-fill { position: absolute; inset: 0; color: transparent; text-shadow: none; background: linear-gradient(90deg, var(--lyrics-accent) var(--fill, 0%), transparent var(--fill, 0%)); background-clip: text; }
 .lyrics-board .lyrics-token.is-reached { opacity: 1; color: color-mix(in srgb, var(--lyrics-text) 55%, transparent); }
 @media (prefers-reduced-motion: reduce) {
-  .lyrics-board .lyrics-frame.is-scrolling .lyrics-row, .lyrics-board .lyrics-token { transition: none; }
+  .lyrics-board .lyrics-frame.is-scrolling .lyrics-row { transition: none; }
 }
 `;
 
@@ -76,7 +75,6 @@ function updateTokens(row, position, lineEnd) {
   while (row.tokens[active + 1]?.start <= position) active += 1;
   if (active !== row.active || row.lastPosition < 0) {
     for (const [index, span] of row.spans.entries()) {
-      span.classList.toggle('is-current', index === active);
       span.classList.toggle('is-reached', index <= active);
       span.style.setProperty('--fill', index < active ? '100%' : '0%');
     }
@@ -179,7 +177,7 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     const state = clock?.state;
     const selected = state?.armed ? state.source : null;
     setSource(selected);
-    if (sample && !clock?.state?.armed) {
+    if (sample && !state?.armed) {
       updateWindow(DEMO, 2, DEMO[2], null);
       return;
     }
@@ -189,9 +187,14 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
       const line = clock.doc[index];
       updateWindow(clock.doc, index, line?.text ?? '', line && !line.credit ? line.tokens : null);
       updateTokens(frame.rows.get(index), position, clock.doc[index + 1]?.start ?? state.transport.end);
-      if (state.transport.playing && position < state.transport.end && module.visible) raf = requestAnimationFrame(draw);
+      if (state.transport.playing && position < state.transport.end && module.visible && layer.element.isConnected) {
+        raf = requestAnimationFrame(draw);
+      }
     } else if (selected === 'manual') {
       updateWindow(clock.lines, state.manual.index, state.manual.current, null);
+    } else if (selected === 'asr' && clock.asr?.phase === 'listening') {
+      const lines = clock.asrLines;
+      updateWindow(lines, lines.length - 1, lines.at(-1) ?? '', null);
     } else updateWindow(null, null, '', null);
   }
 

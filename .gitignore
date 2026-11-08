@@ -1,4 +1,7 @@
 node_modules/
+.asr-models/
+/config/lyrics/
+settings.json.pre-library.bak
 settings.json.tmp
 settings.json.pre-lyrics.bak
 *.log

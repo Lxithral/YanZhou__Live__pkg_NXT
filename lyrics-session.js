@@ -1,8 +1,9 @@
 import { performance } from 'node:perf_hooks';
 import { documentEnd, isLine, jsonBytes, RATES, validateDocument } from './public/lyrics-model.js';
+import { indexLyrics, matchLyric } from './asr-match.js';
 
-export const LYRIC_COMMANDS = ['lyrics:load', 'lyrics:transport', 'lyrics:manual', 'lyrics:onair'];
-const SOURCES = ['timeline', 'manual'];
+export const LYRIC_COMMANDS = ['lyrics:load', 'lyrics:transport', 'lyrics:manual', 'lyrics:onair', 'lyrics:correct'];
+const SOURCES = ['timeline', 'manual', 'asr'];
 const AUTO_SECONDS = [0, 5, 10];
 const MANUAL_BYTES = 15 * 1024;
 
@@ -55,10 +56,16 @@ export function createLyricsSession(initial, onChange) {
   let armed = false;
   let deadline = null;
   let autoTimer;
+  let adjustment;
+  let lyricIndex;
+  let lastAdjustment = -Infinity;
+  let lastObservation = -Infinity;
+  let correction = { enabled: false, offset: null, confidence: null, estimated: false, history: [] };
 
   function position(now) {
     const elapsed = startedAt === null ? 0 : (now - startedAt) * transport.rate;
-    return Math.min(end, Math.round(transport.position + elapsed));
+    const progress = adjustment ? Math.min(1, Math.max(0, (now - adjustment.start) / 500)) : 0;
+    return Math.min(end, Math.max(0, Math.round(transport.position + elapsed + (adjustment?.delta ?? 0) * progress)));
   }
 
   function manualLines() {
@@ -118,6 +125,7 @@ export function createLyricsSession(initial, onChange) {
     }
     transport = { position: nextPosition, rate };
     startedAt = playing && nextPosition < end ? now : null;
+    adjustment = undefined;
   }
 
   function applyManual(action, value) {
@@ -165,6 +173,9 @@ export function createLyricsSession(initial, onChange) {
           end = documentEnd(doc);
           transport = { ...transport, position: 0 };
           startedAt = null;
+          adjustment = undefined;
+          lyricIndex = undefined;
+          correction = { ...correction, offset: null, confidence: null, history: [] };
           if (armed && source === 'manual') manual = { ...manual, lines: null, index: null };
           else manual = { ...manual, lines: null, index: 0, current: documentLines[0] };
           clearTimeout(autoTimer);
@@ -184,14 +195,56 @@ export function createLyricsSession(initial, onChange) {
           source = payload.source;
           armed = true;
           return {};
+        case 'lyrics:correct':
+          requireFields(payload, ['enabled']);
+          if (typeof payload.enabled !== 'boolean') throw new Error('纠偏开关无效。');
+          correction = { ...correction, enabled: payload.enabled, offset: null, confidence: null };
+          return {};
       }
+    },
+    disarmAsr() {
+      if (!armed || source !== 'asr') return false;
+      armed = false;
+      return true;
+    },
+    correction() { return correction; },
+    correct(event, wall = Date.now(), now = performance.now()) {
+      if (!correction.enabled || !armed || source !== 'timeline' || startedAt === null || !doc.length) return false;
+      const age = wall - event.at;
+      if (age < 0 || age > 2500 || now - age < startedAt || event.at <= lastObservation) return false;
+      lastObservation = event.at;
+      const from = position(now);
+      if (from >= end) return false;
+      lyricIndex ??= indexLyrics(doc);
+      const observed = position(now - age);
+      const match = matchLyric(lyricIndex, event.text, observed);
+      const delta = match ? match.position - observed : null;
+      correction = { ...correction, offset: delta, confidence: match?.confidence ?? null, estimated: event.estimated };
+      if (!match || Math.abs(delta) < 800 || now - lastAdjustment < 3000) return false;
+      const to = Math.max(0, Math.min(end, from + delta));
+      if (from === to) return false;
+      const smooth = Math.abs(delta) <= 1500;
+      lastAdjustment = now;
+      startedAt = now;
+      transport = { ...transport, position: smooth ? from : to };
+      adjustment = smooth ? { start: now, delta: to - from } : undefined;
+      correction = {
+        ...correction,
+        history: [{ at: wall, from, to, smooth, confidence: match.confidence, estimated: event.estimated },
+          ...correction.history].slice(0, 12),
+      };
+      return true;
     },
     snapshot({ doc: includeDoc, lines: includeLines } = {}) {
       const now = performance.now();
       const head = position(now);
+      const duration = adjustment ? Math.max(0, 500 - (now - adjustment.start)) : 0;
       return {
         source, armed, serverTime: Date.now(),
-        transport: { position: head, rate: transport.rate, playing: startedAt !== null && head < end, end },
+        transport: {
+          position: head, rate: transport.rate, playing: startedAt !== null && head < end, end,
+          ...(duration > 0 && { adjustment: { duration, delta: adjustment.delta * duration / 500 } }),
+        },
         manual: {
           index: manual.index, current: manual.current, next: nextLine(), autoSeconds: manual.autoSeconds,
           remaining: deadline === null ? null : Math.max(0, Math.round(deadline - now)),

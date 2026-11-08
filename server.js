@@ -2,9 +2,11 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { constants } from 'node:fs';
-import { readFile, stat, mkdir, open, rename, copyFile } from 'node:fs/promises';
+import { readFile, stat, mkdir, copyFile } from 'node:fs/promises';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSettings } from './lyrics-session.js';
+import { createAsrCapture } from './asr-capture.js';
+import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-library.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -191,7 +193,10 @@ function validateModulePatch(moduleId, patch) {
 function validateModule(moduleId, module) {
   if (!isObject(module)) throw new Error(`settings.json 缺少模块：${moduleId}`);
   const allowed = new Set([...MODULE_FIELDS[moduleId], 'animation']);
-  if (moduleId === 'lyrics') Object.keys(DEFAULT_LYRICS).forEach((key) => allowed.add(key));
+  if (moduleId === 'lyrics') {
+    Object.keys(DEFAULT_LYRICS).forEach((key) => allowed.add(key));
+    allowed.add('song');
+  }
   for (const key of Object.keys(module)) {
     if (!allowed.has(key)) throw new Error(`不支持的设置项：${moduleId}.${key}`);
   }
@@ -201,7 +206,10 @@ function validateModule(moduleId, module) {
     result[field] = validateField(field, module[field]);
   }
   result.animation = validateAnimation(module.animation);
-  return moduleId === 'lyrics' ? { ...result, ...validateLyricSettings(module) } : result;
+  if (moduleId !== 'lyrics') return result;
+  return { ...result, ...validateLyricSettings(module), ...(module.song !== undefined && {
+    song: validateSongReference(module.song),
+  }) };
 }
 
 function validateSettings(settings) {
@@ -267,39 +275,57 @@ export function migrateSettings(raw) {
   return settings;
 }
 
-async function atomicWrite(settingsPath, settings) {
-  const tempPath = `${settingsPath}.tmp`;
-  const file = await open(tempPath, 'w');
-  try {
-    await file.writeFile(`${JSON.stringify(settings, null, 2)}\n`, 'utf8');
-    await file.sync();
-  } finally {
-    await file.close();
-  }
-  await rename(tempPath, settingsPath);
+function settingsForDisk(settings) {
+  const lyrics = settings.modules.lyrics;
+  if (!lyrics.song) return settings;
+  return { ...settings, modules: { ...settings.modules, lyrics: { ...lyrics, doc: [] } } };
 }
 
 export async function createPackagingServer({
   settingsPath = path.join(ROOT, 'settings.json'),
   saveDelayMs = 120,
   rootDir = ROOT,
+  asrModelRoot,
 } = {}) {
   let settings;
   let savedAt;
   let hasSettings = false;
+  const library = await openLyricLibrary(path.join(path.dirname(settingsPath), 'config', 'lyrics'));
   try {
     const contents = await readFile(settingsPath, 'utf8');
     hasSettings = true;
     const raw = JSON.parse(contents);
     const migrated = migrateSettings(raw);
+    const previousLyrics = migrated?.modules?.lyrics;
+    let updatedSong = false;
+    if (previousLyrics?.song !== undefined) {
+      const reference = validateSongReference(previousLyrics.song);
+      const song = await library.load(reference.id);
+      previousLyrics.doc = song.doc;
+      if (reference.version !== song.version) {
+        previousLyrics.song = { id: song.id, version: song.version };
+        previousLyrics.transport = { ...previousLyrics.transport, position: 0 };
+        if (previousLyrics.manual?.lines === null) {
+          previousLyrics.manual = { ...previousLyrics.manual, index: null, current: '' };
+        }
+        updatedSong = true;
+      }
+    }
     settings = validateSettings(migrated);
-    if (migrated !== raw || !Object.hasOwn(raw.modules, 'lyrics')) {
+    const currentLyrics = settings.modules.lyrics;
+    const legacyDoc = !currentLyrics.song && currentLyrics.doc.length > 0;
+    if (legacyDoc) {
+      const song = await library.migrate(currentLyrics.doc);
+      currentLyrics.song = { id: song.id, version: song.version };
+    }
+    if (legacyDoc || updatedSong || migrated !== raw || !Object.hasOwn(raw.modules, 'lyrics')) {
       try {
-        await copyFile(settingsPath, `${settingsPath}.pre-lyrics.bak`, constants.COPYFILE_EXCL);
+        const backup = legacyDoc || updatedSong ? 'pre-library' : 'pre-lyrics';
+        await copyFile(settingsPath, `${settingsPath}.${backup}.bak`, constants.COPYFILE_EXCL);
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
       }
-      await atomicWrite(settingsPath, settings);
+      await atomicWrite(settingsPath, settingsForDisk(settings));
     }
     savedAt = (await stat(settingsPath)).mtime.toISOString();
   } catch (error) {
@@ -314,6 +340,7 @@ export async function createPackagingServer({
   let savedRevision = 0;
   let saveTimer;
   let writeQueue = Promise.resolve();
+  let songQueue = Promise.resolve();
   let closing = false;
   const clients = new Set();
   const getState = () => ({ type: 'state', settings: clone(settings), revision, savedRevision, savedAt });
@@ -339,6 +366,50 @@ export async function createPackagingServer({
   };
   const lyrics = createLyricsSession(settings.modules.lyrics, () => publishLyrics());
   const lyricState = (include, id) => ({ type: 'lyrics:state', ...lyrics.snapshot(include), revision, savedRevision, id });
+  const songState = () => ({
+    type: 'lyrics:songs', songs: library.list(), activeId: settings.modules.lyrics.song?.id ?? null,
+  });
+
+  async function changeSong(type, payload, id) {
+    const keys = type === 'lyrics:load' ? ['doc', 'title', 'replaceId', 'saveKey'] : ['id'];
+    if (!isObject(payload) || Object.keys(payload).some((key) => !keys.includes(key)) ||
+        (type === 'lyrics:load' && payload.replaceId !== undefined && typeof payload.title !== 'string')) {
+      throw new Error('歌曲操作格式无效。');
+    }
+    const song = type === 'lyrics:load'
+      ? await library.save(payload.title === undefined ? '未命名歌曲' : payload.title, payload.doc, payload.replaceId, payload.saveKey)
+      : await library.load(payload.id);
+    const include = lyrics.apply('lyrics:load', { doc: song.doc });
+    settings.modules.lyrics.song = { id: song.id, version: song.version };
+    broadcast(songState());
+    publishLyrics(include, id);
+    broadcast(asrState());
+  }
+  let recognition = { phase: 'idle', mode: null, message: '', partial: '', finals: [] };
+  const capture = await createAsrCapture({
+    modelRoot: asrModelRoot,
+    onStatus(status) {
+      recognition = {
+        ...recognition, ...status, partial: '',
+        ...(status.phase === 'loading' && { finals: [] }),
+      };
+      if ((status.phase === 'idle' || status.phase === 'error') && lyrics.disarmAsr()) broadcast(lyricState());
+      broadcast(asrState());
+    },
+    onResult(event) {
+      if (event.final) {
+        recognition = {
+          ...recognition, partial: '',
+          finals: [...recognition.finals, { text: event.text, at: Date.now() }].slice(-20),
+        };
+      } else recognition = { ...recognition, partial: event.text };
+      if (lyrics.correct(event)) publishLyrics();
+      broadcast(asrState());
+    },
+  });
+  const asrState = () => ({
+    type: 'lyrics:asr', ...recognition, available: capture.available, correction: lyrics.correction(),
+  });
 
   function scheduleSave() {
     clearTimeout(saveTimer);
@@ -366,7 +437,7 @@ export async function createPackagingServer({
   function queueSave() {
     clearTimeout(saveTimer);
     saveTimer = undefined;
-    const snapshot = clone(settings);
+    const snapshot = clone(settingsForDisk(settings));
     const targetRevision = revision;
     const task = writeQueue.catch(() => {}).then(async () => {
       await atomicWrite(settingsPath, snapshot);
@@ -423,34 +494,41 @@ export async function createPackagingServer({
   server.on('upgrade', (req, socket, head) => {
     try {
       const url = new URL(req.url, 'http://localhost');
-      if (url.pathname !== '/ws' || closing) {
+      const audio = url.pathname === '/asr';
+      if ((!audio && url.pathname !== '/ws') || closing) {
         socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
         return;
       }
-      if (req.headers.origin) {
-        const origin = new URL(req.headers.origin);
+      if (req.headers.origin || audio) {
+        const origin = req.headers.origin ? new URL(req.headers.origin) : null;
         const allowedHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
         const currentPort = String(server.address()?.port);
-        if (!allowedHosts.has(origin.hostname) || origin.port !== currentPort) {
+        if (!origin || !allowedHosts.has(origin.hostname) || origin.port !== currentPort) {
           socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
           return;
         }
       }
-      wss.handleUpgrade(req, socket, head, (client) => wss.emit('connection', client));
+      wss.handleUpgrade(req, socket, head, (client) => wss.emit('connection', client, url));
     } catch {
       socket.destroy();
     }
   });
 
-  wss.on('connection', (client) => {
-    clients.add(client);
+  wss.on('connection', (client, url) => {
     client.isAlive = true;
     client.on('pong', () => { client.isAlive = true; });
-    client.on('close', () => clients.delete(client));
     client.on('error', () => {});
+    if (url.pathname === '/asr') {
+      capture.attach(client, url.searchParams.get('mode'));
+      return;
+    }
+    clients.add(client);
+    client.on('close', () => clients.delete(client));
     send(client, getWireState());
     send(client, lyricState({ doc: true, lines: true }));
-    client.on('message', (data, isBinary) => {
+    send(client, songState());
+    send(client, asrState());
+    client.on('message', async (data, isBinary) => {
       let id;
       try {
         if (closing) throw new Error('服务正在关闭。');
@@ -458,11 +536,24 @@ export async function createPackagingServer({
         const message = JSON.parse(data.toString());
         id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
         if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
-        if (LYRIC_COMMANDS.includes(message.type)) {
+        if (LYRIC_COMMANDS.includes(message.type) || message.type === 'lyrics:select-song') {
           if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) {
             throw new Error('歌词消息包含未知字段。');
           }
-          publishLyrics(lyrics.apply(message.type, message.payload), id);
+          const task = songQueue.then(async () => {
+            if (closing) throw new Error('服务正在关闭。');
+            if (message.type === 'lyrics:onair' && message.payload?.source === 'asr' && recognition.phase !== 'listening') {
+              throw new Error('请先启动语音识别。');
+            }
+            if (message.type === 'lyrics:load' || message.type === 'lyrics:select-song') {
+              await changeSong(message.type, message.payload, id);
+            } else {
+              publishLyrics(lyrics.apply(message.type, message.payload), id);
+              if (message.type === 'lyrics:correct') broadcast(asrState());
+            }
+          });
+          songQueue = task.catch(() => {});
+          await task;
           return;
         }
         if (message.type !== 'patch' || !isObject(message.patch) || !isObject(message.patch.modules)) {
@@ -494,7 +585,7 @@ export async function createPackagingServer({
   });
 
   const heartbeat = setInterval(() => {
-    for (const client of clients) {
+    for (const client of wss.clients) {
       if (!client.isAlive) {
         client.terminate();
         continue;
@@ -523,12 +614,14 @@ export async function createPackagingServer({
       clearInterval(heartbeat);
       clearInterval(lyricHeartbeat);
       clearInterval(lyricCheckpoint);
+      capture.close();
+      await songQueue;
       lyrics.close();
       if (lyrics.checkpointNeeded()) checkpointLyrics();
       clearTimeout(saveTimer);
       if (savedRevision < revision) await queueSave();
       else await writeQueue;
-      for (const client of clients) client.terminate();
+      for (const client of wss.clients) client.terminate();
       await new Promise((resolve) => wss.close(resolve));
       if (server.listening) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     },

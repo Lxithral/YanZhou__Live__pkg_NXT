@@ -454,6 +454,10 @@ function connect() {
       focusRenderer?.updateLyrics?.(lyricsClock);
       revision = message.revision ?? revision;
       updateSaveStatus();
+    } else if (message.type === 'lyrics:asr') {
+      lyricsClock.applyAsr(message);
+      previewRenderers.lyrics.updateLyrics(lyricsClock);
+      focusRenderer?.updateLyrics?.(lyricsClock);
     } else if (message.type === 'saved') {
       savedRevision = Math.max(savedRevision, message.revision ?? 0);
       savedAt = message.savedAt ?? savedAt;

@@ -38,6 +38,9 @@ function connect() {
     } else if (message.type === 'lyrics:state') {
       lyricsClock.apply(message);
       RENDERERS.lyrics.updateLyrics(lyricsClock);
+    } else if (message.type === 'lyrics:asr') {
+      lyricsClock.applyAsr(message);
+      RENDERERS.lyrics.updateLyrics(lyricsClock);
     }
   });
   socket.addEventListener('close', () => {
