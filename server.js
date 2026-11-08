@@ -13,6 +13,7 @@ const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 
 const FIELD_RULES = {
   visible: { kind: 'boolean', label: '显示状态' },
+  showMark: { kind: 'boolean', label: '显示校徽' },
   title: { kind: 'text', max: 80, label: '主标题' },
   subtitle: { kind: 'text', max: 120, label: '副标题' },
   label: { kind: 'text', max: 40, label: '标签' },
@@ -30,7 +31,7 @@ const FIELD_RULES = {
 };
 
 const MODULE_FIELDS = {
-  logo: ['visible', 'title', 'subtitle', 'color', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'x', 'y', 'scale', 'opacity'],
   hosts: ['visible', 'label', 'names', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
@@ -38,11 +39,12 @@ const MODULE_FIELDS = {
 const clone = (value) => structuredClone(value);
 
 export const DEFAULT_SETTINGS = {
-  version: 2,
+  version: 3,
   canvas: { width: 1920, height: 1080 },
   modules: {
     logo: {
       visible: true,
+      showMark: true,
       title: '中山市烟洲中学',
       subtitle: 'YANZHOU · LIVE',
       color: '#D4AB78',
@@ -189,8 +191,8 @@ function validateModule(moduleId, module) {
 }
 
 function validateSettings(settings) {
-  if (!isObject(settings) || settings.version !== 2) {
-    throw new Error('settings.json 格式不正确：版本应为 2。');
+  if (!isObject(settings) || settings.version !== 3) {
+    throw new Error('settings.json 格式不正确：版本应为 3。');
   }
   if (!isObject(settings.canvas) || settings.canvas.width !== 1920 || settings.canvas.height !== 1080) {
     throw new Error('settings.json 格式不正确，画布应为 1920 × 1080。');
@@ -203,25 +205,35 @@ function validateSettings(settings) {
   for (const moduleId of MODULE_IDS) {
     modules[moduleId] = validateModule(moduleId, settings.modules[moduleId] ?? clone(DEFAULT_SETTINGS.modules[moduleId]));
   }
-  return { version: 2, canvas: { width: 1920, height: 1080 }, modules };
+  return { version: 3, canvas: { width: 1920, height: 1080 }, modules };
 }
 
-/** Upgrade a v1 (single Logo module) settings file to the v2 module schema. */
+/** Upgrade older settings files to the current schema (v3 adds logo.showMark). */
 export function migrateSettings(raw) {
-  if (!isObject(raw) || raw.version !== 1 || !isObject(raw.logo)) return raw;
-  const logo = clone(DEFAULT_SETTINGS.modules.logo);
-  for (const field of MODULE_FIELDS.logo) {
-    if (Object.hasOwn(raw.logo, field)) logo[field] = raw.logo[field];
+  if (!isObject(raw)) return raw;
+  let settings = raw;
+  if (settings.version === 1 && isObject(settings.logo)) {
+    const logo = clone(DEFAULT_SETTINGS.modules.logo);
+    for (const field of MODULE_FIELDS.logo) {
+      if (field === 'showMark') continue;
+      if (Object.hasOwn(settings.logo, field)) logo[field] = settings.logo[field];
+    }
+    settings = {
+      version: 2,
+      canvas: { width: 1920, height: 1080 },
+      modules: {
+        logo,
+        hosts: clone(DEFAULT_SETTINGS.modules.hosts),
+        program: clone(DEFAULT_SETTINGS.modules.program),
+      },
+    };
   }
-  return {
-    version: 2,
-    canvas: { width: 1920, height: 1080 },
-    modules: {
-      logo,
-      hosts: clone(DEFAULT_SETTINGS.modules.hosts),
-      program: clone(DEFAULT_SETTINGS.modules.program),
-    },
-  };
+  if (settings.version === 2 && isObject(settings.modules)) {
+    const modules = clone(settings.modules);
+    if (isObject(modules.logo)) modules.logo = { showMark: true, ...modules.logo };
+    settings = { ...settings, version: 3, modules };
+  }
+  return settings;
 }
 
 async function atomicWrite(settingsPath, settings) {

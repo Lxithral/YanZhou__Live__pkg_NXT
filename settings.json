@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "canvas": {
     "width": 1920,
     "height": 1080
@@ -7,7 +7,8 @@
   "modules": {
     "logo": {
       "visible": true,
-      "title": "YZBTVS",
+      "showMark": true,
+      "title": "YZBTVSS",
       "subtitle": "",
       "color": "#FFFFFF",
       "textColor": "#FFAA00",

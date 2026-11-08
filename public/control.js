@@ -24,6 +24,7 @@ const MODULES = {
     fields: [
       { key: 'title', id: 'logoTitle', kind: 'text' },
       { key: 'subtitle', id: 'logoSubtitle', kind: 'text' },
+      { key: 'showMark', id: 'logoShowMark', kind: 'boolean' },
       { key: 'color', id: 'logoColor', hexId: 'logoColorHex', kind: 'color' },
       { key: 'textColor', id: 'logoTextColor', hexId: 'logoTextColorHex', kind: 'color' },
       { key: 'scale', id: 'logoScale', numberId: 'logoScaleNumber', kind: 'percent' },
@@ -74,7 +75,7 @@ const FALLBACK_SETTINGS = {
   version: 2,
   canvas: { width: 1920, height: 1080 },
   modules: {
-    logo: { visible: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#D4AB78', textColor: '#F4F0E8', x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#D4AB78', textColor: '#F4F0E8', x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 1376, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
   },
@@ -311,6 +312,8 @@ function renderControls() {
       if (field.kind === 'color') {
         setInput(field.id, module[field.key]);
         setInput(field.hexId, module[field.key].toUpperCase());
+      } else if (field.kind === 'boolean') {
+        $(field.id).checked = Boolean(module[field.key]);
       } else if (field.kind === 'percent') {
         const percent = Math.round(module[field.key] * 100);
         updateRange(field.id, percent);
@@ -581,6 +584,8 @@ function bindFields() {
       if (field.kind === 'text' || field.kind === 'textarea') {
         $(field.id).addEventListener('input', (event) => edit(moduleId, { [field.key]: event.target.value }));
         $(field.id).addEventListener('blur', render);
+      } else if (field.kind === 'boolean') {
+        $(field.id).addEventListener('change', (event) => edit(moduleId, { [field.key]: event.target.checked }));
       } else if (field.kind === 'color') {
         bindColorField(moduleId, field);
       } else if (field.kind === 'percent') {
