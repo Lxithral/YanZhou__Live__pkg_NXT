@@ -594,6 +594,32 @@ function bindFields() {
   }
 }
 
+const THEME_KEY = 'yzb-theme';
+const systemLightQuery = matchMedia('(prefers-color-scheme: light)');
+
+function applyTheme() {
+  const pref = localStorage.getItem(THEME_KEY) || 'auto';
+  const light = pref === 'light' || (pref === 'auto' && systemLightQuery.matches);
+  document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+  document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+  for (const button of document.querySelectorAll('[data-theme-option]')) {
+    const active = button.dataset.themeOption === pref;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+}
+
+function initThemeSwitch() {
+  for (const button of document.querySelectorAll('[data-theme-option]')) {
+    button.addEventListener('click', () => {
+      localStorage.setItem(THEME_KEY, button.dataset.themeOption);
+      applyTheme();
+    });
+  }
+  systemLightQuery.addEventListener('change', applyTheme);
+  applyTheme();
+}
+
 let drag = null;
 function bindDrag() {
   for (const moduleId of MODULE_ORDER) {
@@ -695,6 +721,7 @@ function bindGlobalControls() {
 }
 
 populateAnimationSelects();
+initThemeSwitch();
 bindFields();
 bindDrag();
 bindGlobalControls();
