@@ -110,7 +110,10 @@ test('a control change immediately reaches another client and is saved on disk',
   const initial = await controller.waitFor((message) => message.type === 'state');
   const overlayInitial = await overlay.waitFor((message) => message.type === 'state');
   assert.deepEqual(overlayInitial.settings, initial.settings);
-  assert.equal(initial.settings.version, 2);
+  assert.equal(initial.settings.version, 5);
+  assert.equal(initial.settings.modules.logo.showMark, true);
+  assert.equal(initial.settings.modules.logo.weight, 500);
+  assert.equal(initial.settings.modules.hosts.slotCount, 2);
   assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
