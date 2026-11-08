@@ -181,6 +181,11 @@ test('invalid patches are rejected atomically and leave saved settings unchanged
     { modules: { logo: { title: 'x'.repeat(1000) } } },
     { modules: { logo: { color: 'red' } } },
     { modules: { logo: { visible: 'yes' } } },
+    { modules: { logo: { showMark: 'yes' } } },
+    { modules: { logo: { weight: 100 } } },
+    { modules: { logo: { weight: 'bold' } } },
+    { modules: { hosts: { slotCount: 0 } } },
+    { modules: { hosts: { slotCount: 5 } } },
     { modules: { logo: {} } },
     { modules: { hosts: { names: 'y'.repeat(400) } } },
     { modules: { hosts: { accentColor: '#12345' } } },
@@ -262,20 +267,69 @@ test('a version 1 settings file is migrated to the module format in place', asyn
   const { app } = await setup.start();
 
   const state = app.getState();
-  assert.equal(state.settings.version, 2);
+  assert.equal(state.settings.version, 5);
   assert.equal(state.settings.modules.logo.title, 'YZBTVS');
   assert.equal(state.settings.modules.logo.color, '#FFFFFF');
   assert.equal(state.settings.modules.logo.x, 146);
+  assert.equal(state.settings.modules.logo.showMark, true);
+  assert.equal(state.settings.modules.logo.weight, 500);
   assert.deepEqual(state.settings.modules.logo.animation, { enter: 'fade-up', exit: 'fade-down', duration: 600 });
   assert.equal(state.settings.modules.hosts.visible, false);
   assert.equal(state.settings.modules.program.visible, false);
   assert.equal(state.settings.modules.program.current, '节目名称');
 
   const persisted = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
-  assert.equal(persisted.version, 2);
+  assert.equal(persisted.version, 5);
   assert.equal(persisted.modules.logo.title, 'YZBTVS');
+  assert.equal(persisted.modules.logo.showMark, true);
+  assert.equal(persisted.modules.logo.weight, 500);
   assert.equal(persisted.modules.hosts.label, '主持人');
   assert.equal(persisted.modules.program.label, '正在演出');
+});
+
+test('a version 2 settings file gains the logo mark and weight flags and keeps every other value', async (t) => {
+  const setup = await fixture(t);
+  const v2 = {
+    version: 2,
+    canvas: { width: 1920, height: 1080 },
+    modules: {
+      logo: {
+        visible: true, showMark: undefined, title: 'YZBTVS', subtitle: '',
+        color: '#FFFFFF', textColor: '#FFAA00', x: 146, y: 98, scale: 0.67, opacity: 100,
+        animation: { enter: 'fade-up', exit: 'fade-down', duration: 600 },
+      },
+      hosts: {
+        visible: true, label: '主持', names: '张三', accentColor: '#D4AB78', textColor: '#F4F0E8',
+        x: 96, y: 912, scale: 1, opacity: 100,
+        animation: { enter: 'fade-up', exit: 'fade-down', duration: 600 },
+      },
+      program: {
+        visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目',
+        accentColor: '#D4AB78', textColor: '#F4F0E8', x: 1376, y: 912, scale: 1, opacity: 100,
+        animation: { enter: 'fade-up', exit: 'fade-down', duration: 600 },
+      },
+    },
+  };
+  delete v2.modules.logo.showMark;
+  await writeFile(setup.settingsPath, JSON.stringify(v2));
+  const { wsUrl } = await setup.start();
+  const controller = await setup.connect(wsUrl);
+  const initial = await controller.waitFor((message) => message.type === 'state');
+
+  assert.equal(initial.settings.version, 5);
+  assert.equal(initial.settings.modules.logo.showMark, true);
+  assert.equal(initial.settings.modules.logo.weight, 500);
+  assert.equal(initial.settings.modules.hosts.slotCount, 2);
+  assert.equal(initial.settings.modules.logo.title, 'YZBTVS');
+  assert.equal(initial.settings.modules.hosts.names, '张三');
+
+  controller.send({ type: 'patch', id: 'hide-mark', patch: { modules: { logo: { showMark: false } } } });
+  const hidden = await controller.waitFor((message) => message.type === 'state' && message.settings.modules.logo.showMark === false);
+  await controller.waitFor((message) => message.type === 'saved' && message.revision >= hidden.revision);
+  const persisted = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.equal(persisted.version, 5);
+  assert.equal(persisted.modules.logo.showMark, false);
+  assert.equal(persisted.modules.logo.title, 'YZBTVS');
 });
 
 test('the hosts and program modules sync their content, style and animation to every client', async (t) => {

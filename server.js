@@ -15,6 +15,7 @@ const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 
 const FIELD_RULES = {
   visible: { kind: 'boolean', label: '显示状态' },
+  showMark: { kind: 'boolean', label: '显示校徽' },
   title: { kind: 'text', max: 80, label: '主标题' },
   subtitle: { kind: 'text', max: 120, label: '副标题' },
   label: { kind: 'text', max: 40, label: '标签' },
@@ -29,11 +30,13 @@ const FIELD_RULES = {
   y: { kind: 'number', min: 0, max: 1080, label: '垂直 Y' },
   scale: { kind: 'number', min: 0.25, max: 3, label: '大小' },
   opacity: { kind: 'number', min: 0, max: 100, label: '不透明度' },
+  weight: { kind: 'number', min: 150, max: 700, label: '字重' },
+  slotCount: { kind: 'number', min: 1, max: 4, label: '槽位数量' },
 };
 
 const MODULE_FIELDS = {
-  logo: ['visible', 'title', 'subtitle', 'color', 'textColor', 'x', 'y', 'scale', 'opacity'],
-  hosts: ['visible', 'label', 'names', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
+  hosts: ['visible', 'label', 'names', 'slotCount', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
@@ -41,15 +44,17 @@ const MODULE_FIELDS = {
 const clone = (value) => structuredClone(value);
 
 export const DEFAULT_SETTINGS = {
-  version: 2,
+  version: 5,
   canvas: { width: 1920, height: 1080 },
   modules: {
     logo: {
       visible: true,
+      showMark: true,
       title: '中山市烟洲中学',
       subtitle: 'YANZHOU · LIVE',
-      color: '#D4AB78',
-      textColor: '#F4F0E8',
+      color: '#FFFFFF',
+      textColor: '#772B2C',
+      weight: 500,
       x: 72,
       y: 64,
       scale: 1,
@@ -60,8 +65,9 @@ export const DEFAULT_SETTINGS = {
       visible: false,
       label: '主持人',
       names: '张三\n李四',
+      slotCount: 2,
       accentColor: '#D4AB78',
-      textColor: '#F4F0E8',
+      textColor: '#2C2C2E',
       x: 96,
       y: 912,
       scale: 1,
@@ -199,8 +205,8 @@ function validateModule(moduleId, module) {
 }
 
 function validateSettings(settings) {
-  if (!isObject(settings) || settings.version !== 2) {
-    throw new Error('settings.json 格式不正确：版本应为 2。');
+  if (!isObject(settings) || settings.version !== 5) {
+    throw new Error('settings.json 格式不正确：版本应为 5。');
   }
   if (!isObject(settings.canvas) || settings.canvas.width !== 1920 || settings.canvas.height !== 1080) {
     throw new Error('settings.json 格式不正确，画布应为 1920 × 1080。');
@@ -214,25 +220,51 @@ function validateSettings(settings) {
     const module = Object.hasOwn(settings.modules, moduleId) ? settings.modules[moduleId] : clone(DEFAULT_SETTINGS.modules[moduleId]);
     modules[moduleId] = validateModule(moduleId, module);
   }
-  return { version: 2, canvas: { width: 1920, height: 1080 }, modules };
+  return { version: 5, canvas: { width: 1920, height: 1080 }, modules };
 }
 
-/** Upgrade a v1 (single Logo module) settings file to the v2 module schema. */
+/** Upgrade older settings files stepwise to the current schema
+ *  (v3 added logo.showMark, v4 logo.weight, v5 hosts.slotCount). */
 export function migrateSettings(raw) {
-  if (!isObject(raw) || raw.version !== 1 || !isObject(raw.logo)) return raw;
-  const logo = clone(DEFAULT_SETTINGS.modules.logo);
-  for (const field of MODULE_FIELDS.logo) {
-    if (Object.hasOwn(raw.logo, field)) logo[field] = raw.logo[field];
+  if (!isObject(raw)) return raw;
+  let settings = raw;
+  if (settings.version === 1 && isObject(settings.logo)) {
+    const logo = clone(DEFAULT_SETTINGS.modules.logo);
+    for (const field of MODULE_FIELDS.logo) {
+      if (field === 'showMark' || field === 'weight') continue;
+      if (Object.hasOwn(settings.logo, field)) logo[field] = settings.logo[field];
+    }
+    settings = {
+      version: 2,
+      canvas: { width: 1920, height: 1080 },
+      modules: {
+        logo,
+        hosts: clone(DEFAULT_SETTINGS.modules.hosts),
+        program: clone(DEFAULT_SETTINGS.modules.program),
+      },
+    };
   }
-  return {
-    version: 2,
-    canvas: { width: 1920, height: 1080 },
-    modules: {
-      logo,
-      hosts: clone(DEFAULT_SETTINGS.modules.hosts),
-      program: clone(DEFAULT_SETTINGS.modules.program),
-    },
-  };
+  if (settings.version === 2 && isObject(settings.modules)) {
+    const modules = clone(settings.modules);
+    if (isObject(modules.logo)) modules.logo = { showMark: true, ...modules.logo };
+    settings = { ...settings, version: 3, modules };
+  }
+  if (settings.version === 3 && isObject(settings.modules)) {
+    const modules = clone(settings.modules);
+    if (isObject(modules.logo) && !Object.hasOwn(modules.logo, 'weight')) modules.logo.weight = 500;
+    settings = { ...settings, version: 4, modules };
+  }
+  if (settings.version === 4 && isObject(settings.modules)) {
+    const modules = clone(settings.modules);
+    // The legacy caption bar is white: a name in the old default near-white
+    // would be unreadable, so only untouched defaults move to the dark ink.
+    if (isObject(modules.hosts)) {
+      if (!Object.hasOwn(modules.hosts, 'slotCount')) modules.hosts.slotCount = 2;
+      if (modules.hosts.textColor === '#F4F0E8') modules.hosts.textColor = '#2C2C2E';
+    }
+    settings = { ...settings, version: 5, modules };
+  }
+  return settings;
 }
 
 async function atomicWrite(settingsPath, settings) {

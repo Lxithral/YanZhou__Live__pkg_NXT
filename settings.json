@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 5,
   "canvas": {
     "width": 1920,
     "height": 1080
@@ -7,13 +7,15 @@
   "modules": {
     "logo": {
       "visible": true,
+      "showMark": true,
       "title": "YZBTVS",
       "subtitle": "",
       "color": "#FFFFFF",
-      "textColor": "#FFAA00",
+      "textColor": "#772B2C",
+      "weight": 500,
       "x": 146,
       "y": 98,
-      "scale": 0.67,
+      "scale": 2.09,
       "opacity": 100,
       "animation": {
         "enter": "fade-up",
@@ -24,7 +26,8 @@
     "hosts": {
       "visible": true,
       "label": "主持人",
-      "names": "张三\n李四\n王5\n2323",
+      "names": "张三｜高三（2）班\n李四｜学生会",
+      "slotCount": 4,
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
       "x": 96,
