@@ -93,7 +93,7 @@ const FALLBACK_SETTINGS = {
     logo: { visible: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#D4AB78', textColor: '#F4F0E8', x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 1376, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    lyrics: { visible: true, accentColor: '#D4AB78', textColor: '#F4F0E8', x: 240, y: 850, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
+    lyrics: { visible: true, accentColor: '#D4AB78', textColor: '#F4F0E8', x: 240, y: 850, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
 };
 

@@ -85,7 +85,7 @@ export const DEFAULT_SETTINGS = {
     lyrics: {
       visible: true, accentColor: '#D4AB78', textColor: '#F4F0E8',
       x: 240, y: 850, scale: 1, opacity: 100,
-      animation: { enter: 'fade', exit: 'fade', duration: 200 },
+      animation: { enter: 'none', exit: 'none', duration: 200 },
       ...clone(DEFAULT_LYRICS),
     },
   },
