@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <script src="/theme.js"></script>
-  <title>烟洲 · 直播歌词台</title>
+  <title>歌词台</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23D4AB78'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/control.css">
   <link rel="stylesheet" href="/lyrics.css">
@@ -13,7 +13,7 @@
 </head>
 <body class="lyric-page">
   <header class="lyric-header">
-    <h1>烟洲 · 直播歌词台</h1>
+    <h1>歌词台</h1>
     <label for="output-source">OBS 输出源</label>
     <select id="output-source" data-live disabled>
       <option value="">待推送</option><option value="timeline">时间轴</option>
@@ -27,7 +27,11 @@
     <span id="connection" role="status">连接中</span>
     <a href="/control.html" target="_blank" rel="noopener">打开主控台</a>
   </header>
-  <p class="compact-hint">紧凑布局 · 建议浏览器缩放保持 100%</p>
+  <div class="now-playing">
+    <span>当前歌曲</span>
+    <strong id="current-song">尚未载入歌曲</strong>
+    <span id="current-artist"></span>
+  </div>
   <main class="lyric-columns">
     <section class="lyric-column" aria-labelledby="timeline-title">
       <header class="column-head">
@@ -37,7 +41,7 @@
       </header>
       <div class="column-controls">
         <div class="tool-row">
-          <button id="play" data-live disabled>播放</button>
+          <button id="play" data-play data-live disabled>播放</button>
           <button id="back" data-live disabled>−0.5 秒</button>
           <button id="forward" data-live disabled>+0.5 秒</button>
           <label for="rate">速率</label><select id="rate" data-live disabled></select>
@@ -60,27 +64,17 @@
         <button data-push="manual" data-live disabled>推送手动</button>
       </header>
       <div class="column-controls">
-        <label for="draft">当前句草稿</label>
+        <p class="line-preview">手动当前句 <span id="manual-current">—</span></p>
+        <p class="line-preview">手动下一句 <span id="manual-next">—</span></p>
         <div class="tool-row">
-          <input id="draft" maxlength="500" autocomplete="off" placeholder="输入后确认上屏">
-          <button id="commit" data-live disabled>更新当前句</button>
-        </div>
-        <p class="line-preview">已提交 <span id="manual-current">—</span></p>
-        <p class="line-preview">下一句 <span id="manual-next">—</span></p>
-        <div class="tool-row">
+          <button id="manual-play" data-play data-live disabled>播放</button>
           <button id="previous" data-live disabled>上一句</button>
           <button id="next" data-live disabled>下一句</button>
           <button id="clear" data-live disabled>清屏</button>
           <label for="auto">自动</label>
           <select id="auto" data-live disabled><option value="0">关闭</option><option value="5">5 秒</option><option value="10">10 秒</option></select>
         </div>
-        <details>
-          <summary>整段粘贴导入</summary>
-          <label for="manual-paste" class="sr-only">手动歌词，每行一句</label>
-          <textarea id="manual-paste" rows="3" placeholder="每行一句"></textarea>
-          <button id="manual-import" data-live disabled>载入手动列表</button>
-        </details>
-        <div id="manual-hotkeys" class="hotkey-area" tabindex="0">聚焦此处启用切句热键</div>
+        <div id="manual-hotkeys" class="hotkey-area" tabindex="0" title="Enter / → / 空格 下一句，← 上一句，Esc 清屏">切句热键</div>
       </div>
       <ol id="manual-list" class="lyric-list lyric-follow" aria-label="手动歌词列表"></ol>
     </section>
@@ -111,8 +105,19 @@
           <details><summary>已确认的识别句</summary><ol class="asr-events" id="asr-finals"></ol></details>
         </div>
       </div>
-      <div class="reference-heading"><h3>参考歌词</h3><p>一次导入同步三列，参考进度跟随时间轴。</p></div>
+      <div class="reference-heading"><h3>参考歌词</h3></div>
       <ol id="reference-list" class="lyric-list lyric-follow" aria-label="语音识别参考歌词"></ol>
+    </section>
+    <section class="lyric-column" id="up-next" aria-labelledby="up-next-title" aria-hidden="true" inert>
+      <header class="column-head">
+        <h2 id="up-next-title"><span>D</span> 下一首歌词</h2>
+        <button id="load-next" data-live disabled>载入下一首</button>
+      </header>
+      <div class="column-controls">
+        <strong id="next-song"></strong>
+        <p class="muted" id="next-artist"></p>
+      </div>
+      <ol id="up-next-list" class="lyric-list" aria-label="下一首歌词"></ol>
     </section>
   </main>
   <footer class="lyric-footer">
@@ -120,7 +125,6 @@
     <span id="output-status">OBS 待推送</span>
     <span id="save-status" role="status">正在读取设置</span>
     <span id="message" role="status"></span>
-    <span class="footer-hotkeys">Enter / → / 空格 下一句 · ← 上一句 · Esc 清屏</span>
   </footer>
   <dialog id="import-dialog" aria-labelledby="import-title">
     <div class="dialog-head"><h2 id="import-title">导入 LRC 歌词</h2><button id="close-import" aria-label="关闭导入窗口">关闭</button></div>
@@ -134,6 +138,7 @@
     <ol id="import-list" class="import-list" aria-label="导入逐行预览"></ol>
     <div class="tool-row">
       <label for="song-title">歌名</label><input id="song-title" maxlength="100" placeholder="输入歌名">
+      <label for="song-artist">歌手</label><input id="song-artist" maxlength="100" placeholder="选填">
       <label id="replace-song-field" hidden>同名歌曲
         <select id="replace-song"><option value="">保留已有版本，新建</option></select>
       </label>

@@ -191,6 +191,10 @@ export function createLyricsSession(initial, onChange) {
           return { lines: payload.action === 'load' };
         case 'lyrics:onair':
           requireFields(payload, ['source']);
+          if (payload.source === null) {
+            armed = false;
+            return {};
+          }
           if (!SOURCES.includes(payload.source)) throw new Error('该歌词输出源不可用。');
           source = payload.source;
           armed = true;

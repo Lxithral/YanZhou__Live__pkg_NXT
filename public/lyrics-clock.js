@@ -1,3 +1,8 @@
+export function timecode(position) {
+  const ms = Math.floor(position);
+  return `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
+}
+
 export function createLyricsClock() {
   let state;
   let anchor;
@@ -10,6 +15,7 @@ export function createLyricsClock() {
     get state() { return state; },
     get doc() { return doc; },
     get lines() { return manualSource ?? documentLines; },
+    get usesDocument() { return manualSource === null; },
     get asr() { return asr; },
     get asrLines() { return asrLines; },
     applyAsr(message) {

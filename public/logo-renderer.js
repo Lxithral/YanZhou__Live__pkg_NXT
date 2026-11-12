@@ -7,7 +7,7 @@ const STYLES = `
 .logo-emblem { display: block; flex: 0 0 88px; width: 88px; height: 88px; background: var(--logo-color); -webkit-mask: url('/assets/logo-mask.png') center / contain no-repeat; mask: url('/assets/logo-mask.png') center / contain no-repeat; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.28)); }
 .logo-copy { display: flex; flex-direction: column; justify-content: center; gap: 11px; color: var(--logo-text-color); white-space: pre; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.38); font-weight: var(--logo-weight, 500); }
 .logo-copy.is-stretched { height: 88px; justify-content: space-between; gap: 0; }
-.logo-copy[hidden], .logo-title[hidden], .logo-subtitle[hidden] { display: none; }
+.logo-emblem[hidden], .logo-copy[hidden], .logo-title[hidden], .logo-subtitle[hidden] { display: none; }
 .logo-title { font-size: calc(30px * var(--logo-fit, 1)); font-weight: inherit; line-height: 1.2; letter-spacing: 1px; }
 .logo-subtitle { font-size: calc(13px * var(--logo-fit, 1)); font-weight: inherit; line-height: 1.2; letter-spacing: 2.4px; }
 `;

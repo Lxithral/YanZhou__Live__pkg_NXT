@@ -25,6 +25,7 @@ const FIELD_RULES = {
   current: { kind: 'text', max: 80, label: '当前节目' },
   next: { kind: 'text', max: 80, label: '下一个节目' },
   nextLabel: { kind: 'text', max: 40, label: '下一个标签' },
+  queue: { kind: 'text', max: 2000, label: '后续节目' },
   color: { kind: 'color', label: '校徽颜色' },
   textColor: { kind: 'color', label: '文字颜色' },
   accentColor: { kind: 'color', label: '强调色' },
@@ -39,7 +40,7 @@ const FIELD_RULES = {
 const MODULE_FIELDS = {
   logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
   hosts: ['visible', 'label', 'names', 'slotCount', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
-  program: ['visible', 'label', 'current', 'nextLabel', 'next', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  program: ['visible', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
 
@@ -68,7 +69,7 @@ export const DEFAULT_SETTINGS = {
       label: '主持人',
       names: '张三\n李四',
       slotCount: 2,
-      accentColor: '#D4AB78',
+      accentColor: '#71C4DE',
       textColor: '#2C2C2E',
       x: 96,
       y: 912,
@@ -82,17 +83,17 @@ export const DEFAULT_SETTINGS = {
       current: '节目名称',
       nextLabel: '接下来',
       next: '下一个节目',
-      accentColor: '#D4AB78',
+      accentColor: '#A69AF5',
       textColor: '#F4F0E8',
       x: 1376,
-      y: 912,
+      y: 64,
       scale: 1,
       opacity: 100,
       animation: clone(DEFAULT_ANIMATION),
     },
     lyrics: {
       visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8',
-      x: 240, y: 738, scale: 1, opacity: 100,
+      x: 240, y: 678, scale: 1, opacity: 100,
       animation: { enter: 'none', exit: 'none', duration: 200 },
       ...clone(DEFAULT_LYRICS),
     },
@@ -126,11 +127,14 @@ function validateField(field, value) {
     if (typeof value !== 'string') throw new Error(`${rule.label}必须是文本。`);
     if ([...value].length > rule.max) throw new Error(`${rule.label}最多 ${rule.max} 个字符。`);
     if (CONTROL_CHARS.test(value)) throw new Error(`${rule.label}包含不支持的控制字符。`);
+    if (field === 'queue' && value.split(/\r?\n/u).some((line) => [...line.trim()].length > FIELD_RULES.next.max)) {
+      throw new Error('后续节目每行最多 80 个字符。');
+    }
     return value;
   }
   if (rule.kind === 'color') {
     if (typeof value !== 'string' || !/^#[\da-f]{6}$/i.test(value)) {
-      throw new Error('颜色需要使用六位 HEX 格式，例如 #D4AB78。');
+      throw new Error('颜色需要使用六位 HEX 格式，例如 #71C4DE。');
     }
     return value.toUpperCase();
   }
@@ -196,20 +200,28 @@ function validateModule(moduleId, module) {
   if (moduleId === 'lyrics') {
     Object.keys(DEFAULT_LYRICS).forEach((key) => allowed.add(key));
     allowed.add('song');
+    allowed.add('songOrder');
   }
   for (const key of Object.keys(module)) {
     if (!allowed.has(key)) throw new Error(`不支持的设置项：${moduleId}.${key}`);
   }
   const result = {};
   for (const field of MODULE_FIELDS[moduleId]) {
+    if (field === 'queue' && !Object.hasOwn(module, field)) continue;
     if (!Object.hasOwn(module, field)) throw new Error(`settings.json 缺少设置项：${moduleId}.${field}`);
     result[field] = validateField(field, module[field]);
   }
   result.animation = validateAnimation(module.animation);
   if (moduleId !== 'lyrics') return result;
+  const { songOrder } = module;
+  if (songOrder !== undefined && (!Array.isArray(songOrder) ||
+      songOrder.some((id) => typeof id !== 'string' || !/^[0-9a-f]{32}$/u.test(id)) ||
+      new Set(songOrder).size !== songOrder.length)) {
+    throw new Error('歌曲播放顺序无效。');
+  }
   return { ...result, ...validateLyricSettings(module), ...(module.song !== undefined && {
     song: validateSongReference(module.song),
-  }) };
+  }), ...(songOrder !== undefined && { songOrder }) };
 }
 
 function validateSettings(settings) {
@@ -345,7 +357,7 @@ export async function createPackagingServer({
   const clients = new Set();
   const getState = () => ({ type: 'state', settings: clone(settings), revision, savedRevision, savedAt });
   const getWireState = () => {
-    const { doc, manual, ...module } = settings.modules.lyrics;
+    const { doc, manual, songOrder, ...module } = settings.modules.lyrics;
     const { lines, ...manualState } = manual;
     return {
       type: 'state', revision, savedRevision, savedAt,
@@ -365,21 +377,54 @@ export async function createPackagingServer({
     for (const client of clients) send(client, message);
   };
   const lyrics = createLyricsSession(settings.modules.lyrics, () => publishLyrics());
-  const lyricState = (include, id) => ({ type: 'lyrics:state', ...lyrics.snapshot(include), revision, savedRevision, id });
+  const activeSongId = () => settings.modules.lyrics.song?.id ?? null;
+  const lyricState = (include, id) => ({
+    type: 'lyrics:state', ...lyrics.snapshot(include), songId: activeSongId(), revision, savedRevision, id,
+  });
+  function orderedSongs() {
+    const songs = new Map(library.list().map((song) => [song.id, song]));
+    const ordered = [];
+    for (const id of settings.modules.lyrics.songOrder ?? []) {
+      if (songs.has(id)) ordered.push(songs.get(id));
+      songs.delete(id);
+    }
+    return [...ordered, ...songs.values()];
+  }
   const songState = () => ({
-    type: 'lyrics:songs', songs: library.list(), activeId: settings.modules.lyrics.song?.id ?? null,
+    type: 'lyrics:songs', songs: orderedSongs(), activeId: activeSongId(),
   });
 
+  function moveSong(payload, id) {
+    if (!isObject(payload) || Object.keys(payload).length !== 2 ||
+        typeof payload.id !== 'string' || ![-1, 1].includes(payload.direction)) {
+      throw new Error('歌曲排序操作无效。');
+    }
+    const order = orderedSongs().map((song) => song.id);
+    const from = order.indexOf(payload.id);
+    if (from < 0) throw new Error('曲库中找不到这首歌。');
+    const to = from + payload.direction;
+    if (to < 0 || to >= order.length) return;
+    order.splice(from, 1);
+    order.splice(to, 0, payload.id);
+    settings.modules.lyrics.songOrder = order;
+    broadcast(songState());
+    publishLyrics(undefined, id);
+  }
+
   async function changeSong(type, payload, id) {
-    const keys = type === 'lyrics:load' ? ['doc', 'title', 'replaceId', 'saveKey'] : ['id'];
+    const keys = type === 'lyrics:load' ? ['doc', 'title', 'artist', 'replaceId', 'saveKey'] : ['id'];
     if (!isObject(payload) || Object.keys(payload).some((key) => !keys.includes(key)) ||
         (type === 'lyrics:load' && payload.replaceId !== undefined && typeof payload.title !== 'string')) {
       throw new Error('歌曲操作格式无效。');
     }
+    const order = orderedSongs().map((song) => song.id);
     const song = type === 'lyrics:load'
-      ? await library.save(payload.title === undefined ? '未命名歌曲' : payload.title, payload.doc, payload.replaceId, payload.saveKey)
+      ? await library.save(payload.title === undefined ? '未命名歌曲' : payload.title, payload.doc, payload.replaceId, payload.saveKey, payload.artist)
       : await library.load(payload.id);
     const include = lyrics.apply('lyrics:load', { doc: song.doc });
+    if (!order.includes(song.id)) {
+      settings.modules.lyrics.songOrder = [...order, song.id];
+    }
     settings.modules.lyrics.song = { id: song.id, version: song.version };
     broadcast(songState());
     publishLyrics(include, id);
@@ -468,6 +513,12 @@ export async function createPackagingServer({
         res.end(req.method === 'HEAD' ? undefined : body);
         return;
       }
+      if (pathname === '/api/lyrics/song') {
+        const lines = await library.preview(url.searchParams.get('id'));
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(req.method === 'HEAD' ? undefined : JSON.stringify(lines));
+        return;
+      }
       if (pathname.includes('\\') || pathname.includes('\0')) throw new Error('Invalid path');
       const isAsset = pathname.startsWith('/assets/');
       const base = path.resolve(rootDir, isAsset ? 'assets' : 'public');
@@ -536,7 +587,7 @@ export async function createPackagingServer({
         const message = JSON.parse(data.toString());
         id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
         if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
-        if (LYRIC_COMMANDS.includes(message.type) || message.type === 'lyrics:select-song') {
+        if (LYRIC_COMMANDS.includes(message.type) || ['lyrics:select-song', 'lyrics:move-song'].includes(message.type)) {
           if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) {
             throw new Error('歌词消息包含未知字段。');
           }
@@ -547,6 +598,8 @@ export async function createPackagingServer({
             }
             if (message.type === 'lyrics:load' || message.type === 'lyrics:select-song') {
               await changeSong(message.type, message.payload, id);
+            } else if (message.type === 'lyrics:move-song') {
+              moveSong(message.payload, id);
             } else {
               publishLyrics(lyrics.apply(message.type, message.payload), id);
               if (message.type === 'lyrics:correct') broadcast(asrState());

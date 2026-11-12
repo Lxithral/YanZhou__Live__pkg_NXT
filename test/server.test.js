@@ -193,6 +193,7 @@ test('invalid patches are rejected atomically and leave saved settings unchanged
     { modules: { program: { animation: { duration: 50 } } } },
     { modules: { program: { animation: {} } } },
     { modules: { program: { current: 'z'.repeat(200) } } },
+    { modules: { program: { queue: '长'.repeat(81) } } },
     { modules: { nope: { x: 1 } } },
     { modules: { logo: { x: 1 }, hosts: { x: 1 } } },
     { modules: { logo: { x: 1 }, unknown: { x: 1 } } },
@@ -568,6 +569,34 @@ test('song files survive restart, same titles coexist, and explicit replacement 
   assert.equal(after.app.getState().settings.modules.lyrics.song.id, secondSong.activeId);
 });
 
+test('moving a song persists the order without interrupting the current lyrics', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  const catalog = () => client.waitFor((message) => message.type === 'lyrics:songs');
+  await catalog();
+  await lyricCommand(client, 'lyrics:load', { title: '下一首', artist: '歌手甲', doc: demoDoc });
+  const { activeId: nextId } = await catalog();
+  await lyricCommand(client, 'lyrics:load', { title: '当前歌曲', doc: demoDoc });
+  const { activeId } = await catalog();
+  await lyricCommand(client, 'lyrics:transport', { action: 'seek', value: demoDoc[0].start });
+
+  const moved = await lyricCommand(client, 'lyrics:move-song', { id: nextId, direction: 1 });
+  assert.equal(moved.songId, activeId);
+  assert.equal(moved.transport.position, demoDoc[0].start);
+  const ordered = await catalog();
+  assert.deepEqual(ordered.songs.map(({ id }) => id), [activeId, nextId]);
+  assert.equal(ordered.songs[1].artist, '歌手甲');
+  const preview = await fetch(`${first.url}/api/lyrics/song?id=${nextId}`);
+  assert.equal(preview.status, 200);
+  assert.deepEqual(await preview.json(), demoDoc.map(({ text }) => text));
+  await setup.stop(first.app);
+
+  const after = await setup.start();
+  const fresh = await setup.connect(after.wsUrl);
+  assert.deepEqual(await fresh.waitFor((message) => message.type === 'lyrics:songs'), ordered);
+});
+
 test('a failed song write does not replace the current timeline', async (t) => {
   const setup = await fixture(t);
   const { app, wsUrl } = await setup.start();
@@ -638,6 +667,9 @@ test('only a supported source is armed and a rejected payload does not change st
   assert.equal((await lyricCommand(client, 'lyrics:load', { doc: [] })).type, 'error');
   assert.equal((await lyricCommand(client, 'lyrics:manual', { action: 'select', value: -1 })).type, 'error');
   assert.deepEqual(app.getState(), state);
+  const stopped = await lyricCommand(client, 'lyrics:onair', { source: null });
+  assert.equal(stopped.armed, false);
+  assert.deepEqual(stopped.manual, pushed.manual);
 });
 
 test('recognition capture is same-origin and missing models preserve existing playout', async (t) => {

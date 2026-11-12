@@ -2,7 +2,7 @@ import { createLogoRenderer } from './logo-renderer.js';
 import { createHostsRenderer } from './hosts-renderer.js';
 import { createProgramRenderer } from './program-renderer.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
-import { createLyricsClock } from './lyrics-clock.js';
+import { createLyricsClock, timecode } from './lyrics-clock.js';
 
 const $ = (id) => document.getElementById(id);
 const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics'];
@@ -18,7 +18,7 @@ const ANIMATION_OPTIONS = [
 ];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
 const GEOMETRY_KEYS = new Set(['x', 'y', 'scale']);
-const NO_CLAMP_KEYS = new Set(['x', 'y', 'scale', 'opacity', 'visible', 'animation']);
+const NO_CLAMP_KEYS = new Set(['x', 'y', 'scale', 'opacity', 'visible', 'animation', 'color', 'textColor', 'accentColor', 'queue']);
 
 const MODULES = {
   logo: {
@@ -39,7 +39,7 @@ const MODULES = {
     summary(module) { return module.title || 'Logo 挂角'; },
   },
   hosts: {
-    name: '主持字幕',
+    name: '人物信息条',
     create: createHostsRenderer,
     fields: [
       { key: 'label', id: 'hostsLabel', kind: 'text' },
@@ -54,7 +54,7 @@ const MODULES = {
     animation: { enter: 'hostsEnter', exit: 'hostsExit', duration: 'hostsDuration', durationNumber: 'hostsDurationNumber' },
     summary(module) {
       const names = String(module.names || '').split(/\r?\n/).map((line) => line.split(/[｜|]/)[0].trim()).filter(Boolean).join('  ');
-      return [module.label, names].filter(Boolean).join(' · ') || '主持字幕';
+      return [module.label, names].filter(Boolean).join(' · ') || '人物信息条';
     },
   },
   program: {
@@ -65,6 +65,7 @@ const MODULES = {
       { key: 'current', id: 'programCurrent', kind: 'text' },
       { key: 'nextLabel', id: 'programNextLabel', kind: 'text' },
       { key: 'next', id: 'programNext', kind: 'text' },
+      { key: 'queue', id: 'programQueue', kind: 'textarea' },
       { key: 'accentColor', id: 'programAccent', hexId: 'programAccentHex', kind: 'color' },
       { key: 'textColor', id: 'programTextColor', hexId: 'programTextColorHex', kind: 'color' },
       { key: 'scale', id: 'programScale', numberId: 'programScaleNumber', kind: 'percent' },
@@ -93,10 +94,10 @@ const FALLBACK_SETTINGS = {
   version: 2,
   canvas: { width: 1920, height: 1080 },
   modules: {
-    logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#D4AB78', textColor: '#F4F0E8', x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    hosts: { visible: false, label: '主持人', names: '张三\n李四', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#D4AB78', textColor: '#F4F0E8', x: 1376, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 738, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
+    logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#FFFFFF', textColor: '#F4F0E8', weight: 500, x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1376, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 678, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
 };
 
@@ -105,7 +106,6 @@ let socket;
 let ready = false;
 let revision = 0;
 let savedRevision = -1;
-let savedAt = null;
 let saveError = '';
 let reconnectTimer;
 let reconnectDelay = 700;
@@ -117,11 +117,15 @@ const pendingPatches = new Map();
 const localIntent = new Map();
 const sentPatches = new Map();
 const previewRenderers = {};
+const measureRenderers = new Map();
+const measureStage = document.createElement('div');
+measureStage.className = 'measure-stage';
+measureStage.setAttribute('aria-hidden', 'true');
+document.body.append(measureStage);
 for (const moduleId of MODULE_ORDER) previewRenderers[moduleId] = MODULES[moduleId].create($('previewCanvas'));
 let focusRenderer = null;
-
-const outputUrl = new URL('/overlay.html', location.href).href;
-$('obsAddress').textContent = outputUrl;
+let lyricsProgressTimer;
+let playlistRequest = 0;
 
 function setInput(id, value) {
   const input = $(id);
@@ -192,25 +196,32 @@ function clampPosition(moduleId, patch) {
   if (!touchesGeometry && !touchesContent) return patch;
 
   const current = settings.modules[moduleId];
-  const renderer = previewRenderers[moduleId];
-  const prospective = { ...current };
-  for (const [key, value] of Object.entries(patch)) {
-    if (key === 'animation') prospective.animation = { ...current.animation, ...value };
-    else prospective[key] = value;
+  let renderer = previewRenderers[moduleId];
+  if (touchesContent || patch.scale !== undefined) {
+    if (!measureRenderers.has(moduleId)) {
+      measureRenderers.set(moduleId, MODULES[moduleId].create(measureStage));
+    }
+    renderer = measureRenderers.get(moduleId);
+    renderer.update({ ...current, ...patch, visible: true, animation: current.animation }, { animate: false, constrain: false });
   }
-  renderer.update(prospective);
-  const bounds = renderer.getBounds();
-  renderer.update(current);
 
-  const maxX = Math.max(0, Math.floor(settings.canvas.width - bounds.width));
-  const maxY = Math.max(0, Math.floor(settings.canvas.height - bounds.height));
-  if (patch.x !== undefined) patch.x = Math.round(Math.min(maxX, Math.max(0, patch.x)));
-  if (patch.y !== undefined) patch.y = Math.round(Math.min(maxY, Math.max(0, patch.y)));
+  const { minX, maxX, minY, maxY } = positionLimits(renderer);
+  if (patch.x !== undefined) patch.x = Math.round(Math.min(maxX, Math.max(minX, patch.x)));
+  if (patch.y !== undefined) patch.y = Math.round(Math.min(maxY, Math.max(minY, patch.y)));
   if (patch.scale !== undefined || touchesContent) {
-    if (current.x > maxX) patch.x = maxX;
-    if (current.y > maxY) patch.y = maxY;
+    if (current.x > maxX || current.x < minX) patch.x = Math.min(maxX, Math.max(minX, current.x));
+    if (current.y > maxY || current.y < minY) patch.y = Math.min(maxY, Math.max(minY, current.y));
   }
   return patch;
+}
+
+function positionLimits(renderer) {
+  if (renderer.getPositionLimits) return renderer.getPositionLimits();
+  const bounds = renderer.getBounds();
+  return {
+    minX: 0, maxX: Math.max(0, Math.floor(settings.canvas.width - bounds.width)),
+    minY: 0, maxY: Math.max(0, Math.floor(settings.canvas.height - bounds.height)),
+  };
 }
 
 function edit(moduleId, patch) {
@@ -267,16 +278,14 @@ function updateSaveStatus() {
   } else if (!ready) {
     status.classList.add('offline');
     $('saveText').textContent = localIntent.size ? '连接断开 · 改动待同步' : '正在连接本地服务';
-    $('saveDetail').textContent = localIntent.size ? '保留当前改动，连接恢复后自动同步' : '设置由本地服务保存到 settings.json';
+    $('saveDetail').textContent = '';
   } else if (localIntent.size || hasPendingChanges() || savedRevision < revision) {
     status.classList.add('saving');
     $('saveText').textContent = '正在保存设置';
-    $('saveDetail').textContent = '画面已更新，正在写入 settings.json';
+    $('saveDetail').textContent = '';
   } else {
-    $('saveText').textContent = '所有设置已保存';
-    const date = savedAt ? new Date(savedAt) : null;
-    const time = date && Number.isFinite(date.getTime()) ? date.toLocaleTimeString('zh-CN', { hour12: false }) : '';
-    $('saveDetail').textContent = 'settings.json' + (time ? ' · ' + time : ' · 下次启动自动恢复');
+    $('saveText').textContent = '已保存';
+    $('saveDetail').textContent = '';
   }
 }
 
@@ -284,6 +293,7 @@ function updateConnection(state) {
   $('connectionStatus').className = 'connection-status ' + state;
   $('connectionText').textContent = state === 'connected' ? '服务已连接' : state === 'disconnected' ? '连接已断开' : '正在连接';
   $('previewOffline').hidden = state === 'connected';
+  updateProgramAdvance();
   updateSaveStatus();
 }
 
@@ -295,7 +305,9 @@ function updateActiveUI() {
   for (const button of document.querySelectorAll('[data-module-button]')) {
     const active = button.dataset.moduleButton === activeModule;
     button.classList.toggle('active', active);
+    button.closest('.module-card').classList.toggle('active', active);
     button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
   }
   for (const panel of document.querySelectorAll('[data-module-panel]')) {
     panel.hidden = panel.dataset.modulePanel !== activeModule;
@@ -305,20 +317,20 @@ function updateActiveUI() {
 function updatePositionControls(moduleId) {
   const module = settings.modules[moduleId];
   const position = MODULES[moduleId].position;
-  const bounds = previewRenderers[moduleId].getBounds();
-  const limits = {
-    x: Math.max(0, Math.floor(settings.canvas.width - bounds.width)),
-    y: Math.max(0, Math.floor(settings.canvas.height - bounds.height)),
-  };
+  const limits = positionLimits(previewRenderers[moduleId]);
   for (const axis of ['x', 'y']) {
-    const max = limits[axis];
+    const min = limits[axis === 'x' ? 'minX' : 'minY'];
+    const max = limits[axis === 'x' ? 'maxX' : 'maxY'];
     const range = $(axis === 'x' ? position.xRange : position.yRange);
     const number = $(axis === 'x' ? position.x : position.y);
     range.max = String(max);
-    range.disabled = max === 0;
+    range.min = String(min);
+    range.disabled = max === min;
     number.max = String(max);
+    number.min = String(min);
     updateRange(range.id, module[axis]);
     setInput(number.id, module[axis]);
+    range.nextElementSibling.firstElementChild.textContent = `${min} px · ${axis === 'x' ? '左' : '上'}`;
     $(axis === 'x' ? position.xMax : position.yMax).textContent = `${max} px · ${axis === 'x' ? '右' : '下'}`;
   }
 }
@@ -340,7 +352,7 @@ function renderControls() {
         updateRange(field.id, module[field.key]);
         setInput(field.numberId, module[field.key]);
       } else {
-        setInput(field.id, module[field.key]);
+        setInput(field.id, module[field.key] ?? '');
       }
     }
     const animation = MODULES[moduleId].animation;
@@ -349,14 +361,26 @@ function renderControls() {
     updateRange(animation.duration, module.animation.duration);
     setInput(animation.durationNumber, module.animation.duration);
     updatePositionControls(moduleId);
-    const flag = document.querySelector(`[data-module-flag="${moduleId}"]`);
-    if (flag) flag.hidden = module.visible;
+    const toggle = document.querySelector(`[data-module-visibility="${moduleId}"]`);
+    toggle.textContent = module.visible ? '隐藏' : '显示';
+    toggle.setAttribute('aria-label', `${module.visible ? '隐藏' : '显示'}${MODULES[moduleId].name}`);
+    toggle.setAttribute('aria-pressed', String(module.visible));
     document.querySelector(`[data-module-button="${moduleId}"]`)?.classList.toggle('is-off', !module.visible);
   }
   const active = settings.modules[activeModule];
   $('moduleVisible').checked = active.visible;
   $('moduleVisible').setAttribute('aria-label', `显示 ${MODULES[activeModule].name}`);
   $('visibilityTitle').textContent = `显示 ${MODULES[activeModule].name}`;
+  updateProgramAdvance();
+}
+
+function upcomingPrograms() {
+  const { next, queue = '' } = settings.modules.program;
+  return [next, ...queue.split(/\r?\n/u)].map((name) => name.trim()).filter(Boolean);
+}
+
+function updateProgramAdvance() {
+  $('programAdvance').disabled = !ready || !upcomingPrograms().length;
 }
 
 function updateSummary() {
@@ -381,7 +405,7 @@ function fitFocus() {
   const stage = $('focusStage');
   const canvas = $('focusCanvas');
   const module = settings.modules[activeModule];
-  focusRenderer.update({ ...module, x: 0, y: 0, visible: true, opacity: 100 });
+  focusRenderer.update({ ...module, x: 0, y: 0, visible: true, opacity: 100 }, { constrain: false });
   const bounds = focusRenderer.getBounds();
   const zoom = Math.max(0.01, Math.min(
     (stage.clientWidth - 64) / Math.max(bounds.width, 1),
@@ -415,8 +439,17 @@ function render() {
 function selectModule(moduleId) {
   if (!MODULES[moduleId] || moduleId === activeModule) return;
   activeModule = moduleId;
+  document.body.dataset.module = moduleId;
+  closePicker();
   rebuildFocus();
   render();
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const panel = document.querySelector(`[data-module-panel="${moduleId}"]`);
+    for (const element of [panel, $('focusStage')]) {
+      element.getAnimations().forEach((animation) => animation.cancel());
+      element.animate([{ opacity: .5 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
+    }
+  }
 }
 
 function applyServerState(message) {
@@ -430,13 +463,65 @@ function applyServerState(message) {
   }
   revision = message.revision ?? revision;
   savedRevision = message.savedRevision ?? savedRevision;
-  savedAt = message.savedAt ?? savedAt;
   ready = true;
   reconnectDelay = 700;
   saveError = '';
   updateConnection('connected');
   render();
+  edit('hosts', { x: settings.modules.hosts.x, y: settings.modules.hosts.y });
   queueFlush();
+}
+
+function renderLyricsPlaylist({ songs, activeId }) {
+  const list = $('lyricsPlaylist');
+  const focused = list.contains(document.activeElement) ? document.activeElement.dataset : undefined;
+  let focusTarget;
+  list.replaceChildren(...songs.map((song, index) => {
+    const item = document.createElement('li');
+    if (song.id === activeId) item.setAttribute('aria-current', 'true');
+    const name = document.createElement('span');
+    name.textContent = `${song.title}${song.artist ? ` · ${song.artist}` : ''}`;
+    item.append(name);
+    for (const direction of [-1, 1]) {
+      const button = document.createElement('button');
+      const label = direction < 0 ? '上移' : '下移';
+      button.type = 'button';
+      button.textContent = direction < 0 ? '↑' : '↓';
+      button.setAttribute('aria-label', `${label}《${song.title}》`);
+      button.dataset.songId = song.id;
+      button.dataset.direction = direction;
+      button.disabled = !songs[index + direction];
+      button.onclick = () => {
+        if (!ready || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({
+          type: 'lyrics:move-song',
+          id: `playlist-${++playlistRequest}`,
+          payload: { id: song.id, direction },
+        }));
+      };
+      if (focused?.songId === song.id && !button.disabled &&
+          (!focusTarget || Number(focused.direction) === direction)) focusTarget = button;
+      item.append(button);
+    }
+    return item;
+  }));
+  if (!songs.length) {
+    const empty = document.createElement('li');
+    empty.textContent = '曲库暂无歌曲';
+    list.append(empty);
+  }
+  focusTarget?.focus({ preventScroll: true });
+}
+
+function updateLyricsProgress() {
+  clearTimeout(lyricsProgressTimer);
+  const transport = lyricsClock.state?.transport;
+  const end = transport?.end ?? 0;
+  const position = lyricsClock.position();
+  $('lyricsProgress').max = end || 1;
+  $('lyricsProgress').value = position;
+  $('lyricsProgressTime').value = end ? `${timecode(position).slice(0, -4)} / ${timecode(end).slice(0, -4)}` : '—';
+  if (ready && transport?.playing && position < end) lyricsProgressTimer = setTimeout(updateLyricsProgress, 200);
 }
 
 function connect() {
@@ -452,18 +537,24 @@ function connect() {
       lyricsClock.apply(message);
       previewRenderers.lyrics.updateLyrics(lyricsClock);
       focusRenderer?.updateLyrics?.(lyricsClock);
+      updateLyricsProgress();
       revision = message.revision ?? revision;
       updateSaveStatus();
+    } else if (message.type === 'lyrics:songs') {
+      renderLyricsPlaylist(message);
     } else if (message.type === 'lyrics:asr') {
       lyricsClock.applyAsr(message);
       previewRenderers.lyrics.updateLyrics(lyricsClock);
       focusRenderer?.updateLyrics?.(lyricsClock);
     } else if (message.type === 'saved') {
       savedRevision = Math.max(savedRevision, message.revision ?? 0);
-      savedAt = message.savedAt ?? savedAt;
       saveError = '';
       updateSaveStatus();
     } else if (message.type === 'error') {
+      if (message.id?.startsWith('playlist-')) {
+        toast(message.message);
+        return;
+      }
       const rejected = sentPatches.get(message.id);
       if (rejected) {
         for (const [key, value] of Object.entries(rejected.values)) {
@@ -486,6 +577,7 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    clearTimeout(lyricsProgressTimer);
     for (const intent of localIntent.values()) addPending(intent.module, intent.key, intent.value);
     updateConnection('disconnected');
     reconnectTimer = setTimeout(connect, reconnectDelay);
@@ -550,7 +642,7 @@ function bindColorField(moduleId, field) {
   });
 }
 
-const PICKER_PRESETS = ['#FFFFFF', '#10151D', '#772B2C', '#D4AB78', '#FFAA00', '#E23A2E', '#E86A17', '#28A745', '#2E6FE2', '#7A4FD4'];
+const PICKER_PRESETS = ['#FFFFFF', '#10151D', '#772B2C', '#E887A9', '#71C4DE', '#E23A2E', '#77D7AE', '#379C72', '#2E6FE2', '#A69AF5'];
 const picker = $('colorPicker');
 let pickerTarget = null;
 let pickerHsv = { h: 0, s: 0, v: 1 };
@@ -786,9 +878,35 @@ function bindDrag() {
 }
 
 function bindGlobalControls() {
-  for (const button of document.querySelectorAll('[data-module-button]')) {
-    button.addEventListener('click', () => selectModule(button.dataset.moduleButton));
+  for (const toggle of document.querySelectorAll('[data-module-visibility]')) {
+    toggle.addEventListener('click', () => {
+      const moduleId = toggle.dataset.moduleVisibility;
+      edit(moduleId, { visible: !settings.modules[moduleId].visible });
+    });
   }
+  const tabs = [...document.querySelectorAll('[data-module-button]')];
+  for (const [index, button] of tabs.entries()) {
+    const name = button.dataset.moduleButton;
+    const panel = document.querySelector(`[data-module-panel="${name}"]`);
+    button.id = `module-tab-${name}`;
+    panel.id = `module-panel-${name}`;
+    button.setAttribute('aria-controls', panel.id);
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', button.id);
+    button.addEventListener('click', () => selectModule(button.dataset.moduleButton));
+    button.addEventListener('keydown', (event) => {
+      const positions = { ArrowLeft: index - 1, ArrowRight: index + 1, ArrowUp: index - 1, ArrowDown: index + 1, Home: 0, End: tabs.length - 1 };
+      if (!Object.hasOwn(positions, event.key)) return;
+      event.preventDefault();
+      const target = tabs[(positions[event.key] + tabs.length) % tabs.length];
+      selectModule(target.dataset.moduleButton);
+      target.focus();
+    });
+  }
+  $('programAdvance').addEventListener('click', () => {
+    const [current, next = '', ...queue] = upcomingPrograms();
+    if (ready && current) edit('program', { current, next, queue: queue.join('\n') });
+  });
   $('moduleVisible').addEventListener('change', (event) => edit(activeModule, { visible: event.target.checked }));
   $('previewStage').addEventListener('keydown', (event) => {
     if (event.target !== $('previewStage') || !settings.modules[activeModule].visible) return;
@@ -814,19 +932,6 @@ function bindGlobalControls() {
     });
   }
   $('safeAreaToggle').addEventListener('change', (event) => { $('safeArea').hidden = !event.target.checked; });
-  $('copyAddress').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(outputUrl);
-      toast('OBS 浏览器来源地址已复制');
-    } catch {
-      const selection = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents($('obsAddress'));
-      selection.removeAllRanges();
-      selection.addRange(range);
-      toast('已选中地址，请按 Ctrl + C 复制');
-    }
-  });
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
   window.addEventListener('pagehide', flush);
   window.addEventListener('resize', sizePreviewToViewport);

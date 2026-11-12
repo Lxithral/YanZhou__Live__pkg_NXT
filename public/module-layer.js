@@ -27,10 +27,15 @@ function installStyles() {
   document.head.appendChild(style);
 }
 
+export function isLightColor(hex) {
+  const [red, green, blue] = hex.slice(1).match(/../g).map((value) => parseInt(value, 16));
+  return red * .299 + green * .587 + blue * .114 > 150;
+}
+
 export function animateModuleElement(element, kind, animation) {
   const preset = animation[kind];
-  if (!preset || preset === 'none') return;
   element.style.animation = 'none';
+  if (!preset || preset === 'none') return;
   void element.offsetWidth;
   element.style.animation = `${kind}-${preset} ${animation.duration}ms cubic-bezier(0.22, 0.61, 0.36, 1) both`;
 }
@@ -44,6 +49,7 @@ export function createModuleLayer(container, { className = '', bodyHTML = '' } =
   installStyles();
   const element = document.createElement('div');
   element.className = `module-layer ${className}`.trim();
+  element.hidden = true;
   const body = document.createElement('div');
   body.className = 'module-body';
   body.innerHTML = bodyHTML;
@@ -85,6 +91,7 @@ export function createModuleLayer(container, { className = '', bodyHTML = '' } =
         animateModuleElement(body, 'exit', animation);
         hideTimer = setTimeout(() => { element.hidden = true; }, animation.duration + 32);
       } else {
+        body.style.animation = 'none';
         element.hidden = true;
       }
     },
