@@ -60,7 +60,7 @@
         </div>
       </div>
       <dl class="sidebar-help">
-        <div><dt>拖动</dt><dd>在预览中直接移动模块</dd></div>
+        <div><dt>拖动</dt><dd>先选中，再拖动可见内容</dd></div>
         <div><dt>方向键</dt><dd>聚焦预览后微调 1 px</dd></div>
         <div><dt>Shift</dt><dd>配合方向键每次 10 px</dd></div>
       </dl>
@@ -80,6 +80,7 @@
             </div>
             <span class="tool-separator"></span>
             <label class="check-label" for="safeAreaToggle"><input type="checkbox" id="safeAreaToggle" checked><span>安全区</span></label>
+            <label class="check-label" for="autoAvoidToggle" title="模块重叠时，后出现的模块自动让开；不改变保存的位置"><input type="checkbox" id="autoAvoidToggle" checked><span>自动避让</span></label>
           </div>
         </div>
         <div class="preview-stage" id="previewStage" data-background="dark" tabindex="0" aria-label="画面位置预览，可拖动模块或使用方向键微调">
@@ -154,23 +155,18 @@
             <h3><span>01</span>显示内容</h3>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="hostsLabel">标签</label><input class="text-input" id="hostsLabel" type="text" maxlength="40" autocomplete="off"></div>
-              <div class="field"><label class="field-label" for="hostsNames">人物名单 <span class="hint">每行一位姓名；「｜头衔」可保留，三款样式不显示</span></label><textarea class="text-input textarea-input" id="hostsNames" maxlength="240" rows="2"></textarea></div>
-              <div class="field field-wide"><label class="field-label" for="hostsSlotCount">显示人数 <span class="hint">按名单顺序取前几位，H 款最多两人</span></label><div class="slider-line"><input id="hostsSlotCount" class="range-input" type="range" min="1" max="4" step="1"><div class="number-unit"><input id="hostsSlotCountNumber" type="number" min="1" max="4" step="1" aria-label="显示人数"><span></span></div></div></div>
+              <div class="field field-wide"><label class="field-label" for="hostsSlotCount">启用槽位 <span class="hint">停用槽位保留原选择</span></label><div class="slider-line"><input id="hostsSlotCount" class="range-input" type="range" min="1" max="4" step="1"><div class="number-unit"><input id="hostsSlotCountNumber" type="number" min="1" max="4" step="1" aria-label="显示人数"><span></span></div></div></div>
             </div>
           </div>
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field field-wide"><span class="field-label" id="hostsStyleLabel">样式 <span class="hint" id="hostsStyleHint"></span></span><div class="style-picker" id="hostsStyle" role="radiogroup" aria-labelledby="hostsStyleLabel"></div></div>
-              <div class="field field-wide"><div class="field-line"><label class="field-label" for="hostsCustomColors">自定义颜色 <span class="hint">关闭时使用原设计配色</span></label><label class="switch"><input id="hostsCustomColors" type="checkbox" aria-label="自定义颜色"><span></span></label></div></div>
-              <div class="field"><label class="field-label" for="hostsAccent">标签色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsAccent" aria-label="标签色，打开取色器"></button><input id="hostsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="标签色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="hostsTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsTextColor" aria-label="文字颜色，打开取色器"></button><input id="hostsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="hostsScale">整体大小</label><div class="slider-line"><input id="hostsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="hostsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="hostsOpacity">不透明度</label><div class="slider-line"><input id="hostsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="hostsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
           </div>
           <div class="settings-section">
-            <h3><span>03</span>位置 <span class="hint">左右两人在同一条内，整条一起移动</span></h3>
+            <h3><span>03</span>位置 <span class="hint">左右人物条一起移动，X 调整两侧边距</span></h3>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="hostsX">水平 X</label><div class="number-unit"><input id="hostsX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -198,18 +194,13 @@
             <h3><span>01</span>显示内容</h3>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="programLabel">标签</label><input class="text-input" id="programLabel" type="text" maxlength="40" autocomplete="off"></div>
-              <div class="field"><label class="field-label" for="programCurrent">当前节目</label><input class="text-input" id="programCurrent" type="text" maxlength="80" autocomplete="off"></div>
               <div class="field"><label class="field-label" for="programNextLabel">下一个标签 <span class="hint">可留空</span></label><input class="text-input" id="programNextLabel" type="text" maxlength="40" autocomplete="off"></div>
-              <div class="field"><label class="field-label" for="programNext">下一个节目 <span class="hint">可留空</span></label><input class="text-input" id="programNext" type="text" maxlength="80" autocomplete="off"></div>
-              <div class="field field-wide"><label class="field-label" for="programQueue">后续节目 <span class="hint">每行一项</span></label><textarea class="text-input textarea-input" id="programQueue" rows="3" maxlength="2000"></textarea></div>
               <div class="field field-wide program-advance-row"><button class="button program-advance" id="programAdvance" type="button" disabled>切到下一项</button><span class="program-advance-hint" id="programAdvanceHint">后续节目为空</span></div>
             </div>
           </div>
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="programAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="programAccent" aria-label="标签色，打开取色器"></button><input id="programAccentHex" class="hex-input" type="text" maxlength="7" aria-label="标签色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="programTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="programTextColor" aria-label="文字颜色，打开取色器"></button><input id="programTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="programScale">整体大小</label><div class="slider-line"><input id="programScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="programScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="programOpacity">不透明度</label><div class="slider-line"><input id="programOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="programOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>

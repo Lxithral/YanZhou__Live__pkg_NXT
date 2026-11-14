@@ -106,6 +106,7 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
         }, (switching ? 300 : scrolling ? 220 : module.animation.duration) + 32);
       }
     }
+    layer.element.dataset.hasContent = String(Boolean(text.trim()));
     lastText = text;
     lastSource = selected;
     lastItems = items;

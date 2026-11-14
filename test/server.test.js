@@ -277,7 +277,7 @@ test('a version 1 settings file is migrated to the module format in place', asyn
   assert.deepEqual(state.settings.modules.logo.animation, { enter: 'fade-up', exit: 'fade-down', duration: 600 });
   assert.equal(state.settings.modules.hosts.visible, false);
   assert.equal(state.settings.modules.program.visible, false);
-  assert.equal(state.settings.modules.program.current, '节目名称');
+  assert.equal(state.settings.modules.program.current, DEFAULT_SETTINGS.modules.program.current);
 
   const persisted = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
   assert.equal(persisted.version, 5);
@@ -845,4 +845,204 @@ test('the hosts caption style defaults for older files, syncs to every client, a
   await writeFile(setup.settingsPath, JSON.stringify(older));
   const second = await setup.start();
   assert.equal(second.app.getState().settings.modules.hosts.style, 'h', 'a v7 style name falls back to the first style');
+});
+test('a program card style saved by the v10 preview is ignored without rewriting the file, and is no longer accepted', async (t) => {
+  const setup = await fixture(t);
+  for (const cardStyle of ['ticket', 'classic']) {
+    const legacy = structuredClone(DEFAULT_SETTINGS);
+    legacy.modules.program.cardStyle = cardStyle;
+    const before = JSON.stringify(legacy, null, 2) + '\n';
+    await writeFile(setup.settingsPath, before);
+    const app = await setup.start();
+    const client = await setup.connect(app.wsUrl);
+    const initial = await client.waitFor((message) => message.type === 'state');
+    assert.equal(Object.hasOwn(initial.settings.modules.program, 'cardStyle'), false);
+    assert.equal(await readFile(setup.settingsPath, 'utf8'), before, `a stored cardStyle "${cardStyle}" does not rewrite the file`);
+    client.send({ type: 'patch', id: 'card-style', patch: { modules: { program: { cardStyle: 'ticket' } } } });
+    assert.equal((await client.waitFor((message) => message.id === 'card-style')).type, 'error');
+    await setup.stop(app.app);
+  }
+});
+
+test('the show order follows when modules go on screen and is broadcast but never written to disk', async (t) => {
+  const setup = await fixture(t);
+  const base = structuredClone(DEFAULT_SETTINGS);
+  base.modules.hosts.visible = false;
+  base.modules.program.visible = false;
+  await writeFile(setup.settingsPath, JSON.stringify(base));
+  const first = await setup.start();
+  const controller = await setup.connect(first.wsUrl);
+  const overlay = await setup.connect(first.wsUrl);
+  const initial = await controller.waitFor((message) => message.type === 'state');
+  await overlay.waitFor((message) => message.type === 'state');
+  assert.deepEqual(initial.stage.showOrder, ['logo', 'lyrics']);
+
+  const patch = async (id, modules) => {
+    controller.send({ type: 'patch', id, patch: { modules } });
+    return overlay.waitFor((message) => message.type === 'state' && message.id === id);
+  };
+  assert.deepEqual((await patch('show-program', { program: { visible: true } })).stage.showOrder, ['logo', 'lyrics', 'program']);
+  assert.deepEqual((await patch('show-hosts', { hosts: { visible: true } })).stage.showOrder, ['logo', 'lyrics', 'program', 'hosts']);
+  assert.deepEqual((await patch('move-program', { program: { x: 300 } })).stage.showOrder, ['logo', 'lyrics', 'program', 'hosts'], 'moving is not appearing');
+  assert.deepEqual((await patch('hide-program', { program: { visible: false } })).stage.showOrder, ['logo', 'lyrics', 'hosts']);
+  assert.deepEqual((await patch('reshow-program', { program: { visible: true } })).stage.showOrder, ['logo', 'lyrics', 'hosts', 'program']);
+
+  // A host caption slot that comes on screen counts as the host captions appearing again.
+  controller.send({ type: 'hosts:manage', id: 'slot-off', payload: { action: 'slot', index: 1, patch: { hidden: true } } });
+  const slotOff = await overlay.waitFor((message) => message.type === 'state' && message.id === 'slot-off');
+  assert.deepEqual(slotOff.stage.showOrder, ['logo', 'lyrics', 'hosts', 'program'], 'hiding one caption keeps the order');
+  controller.send({ type: 'hosts:manage', id: 'slot-on', payload: { action: 'slot', index: 1, patch: { hidden: false } } });
+  const slotState = await overlay.waitFor((message) => message.type === 'state' && message.id === 'slot-on');
+  assert.deepEqual(slotState.stage.showOrder, ['logo', 'lyrics', 'program', 'hosts']);
+
+  await controller.waitFor((message) => message.type === 'saved' && message.revision >= slotState.revision);
+  const persisted = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.equal(Object.hasOwn(persisted, 'stage'), false);
+  assert.equal(Object.hasOwn(persisted, 'showOrder'), false);
+});
+
+test('the auto-avoid switch defaults to on for older files, syncs, persists and rejects malformed values', async (t) => {
+  const setup = await fixture(t);
+  const before = JSON.stringify(DEFAULT_SETTINGS, null, 2) + '\n';
+  await writeFile(setup.settingsPath, before);
+  const first = await setup.start();
+  const controller = await setup.connect(first.wsUrl);
+  const overlay = await setup.connect(first.wsUrl);
+  const initial = await controller.waitFor((message) => message.type === 'state');
+  await overlay.waitFor((message) => message.type === 'state');
+  assert.equal(initial.settings.layout, undefined, 'no layout means auto-avoid is on');
+  assert.equal(await readFile(setup.settingsPath, 'utf8'), before, 'an older file is not rewritten');
+
+  controller.send({ type: 'patch', id: 'avoid-off', patch: { layout: { autoAvoid: false } } });
+  const off = await overlay.waitFor((message) => message.type === 'state' && message.id === 'avoid-off');
+  assert.deepEqual(off.settings.layout, { autoAvoid: false });
+  await controller.waitFor((message) => message.type === 'saved' && message.revision >= off.revision);
+  assert.deepEqual(JSON.parse(await readFile(setup.settingsPath, 'utf8')).layout, { autoAvoid: false });
+
+  for (const [id, patch] of [['bad-type', { layout: { autoAvoid: 'yes' } }], ['bad-key', { layout: { gap: 4 } }], ['mixed', { layout: { autoAvoid: true }, modules: { logo: { x: 1 } } }]]) {
+    controller.send({ type: 'patch', id, patch });
+    assert.equal((await controller.waitFor((message) => message.id === id)).type, 'error', id);
+  }
+  await setup.stop(first.app);
+
+  const second = await setup.start();
+  assert.deepEqual(second.app.getState().settings.layout, { autoAvoid: false }, 'the switch survives a restart');
+  await setup.stop(second.app);
+  const broken = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  broken.layout = { autoAvoid: 1 };
+  await writeFile(setup.settingsPath, JSON.stringify(broken));
+  await assert.rejects(setup.start());
+});
+
+test('management initializes once, backs up old settings, and keeps empty libraries after restart', async (t) => {
+  const setup = await fixture(t);
+  const old = structuredClone(DEFAULT_SETTINGS);
+  delete old.modules.hosts.people;
+  delete old.modules.hosts.slots;
+  delete old.modules.program.items;
+  delete old.modules.program.selectedId;
+  await writeFile(setup.settingsPath, JSON.stringify(old));
+  const first = await setup.start();
+  const snapshot = first.app.getState().settings;
+  assert.equal(snapshot.modules.hosts.people.length, 4);
+  assert.equal(snapshot.modules.program.items.length, 16);
+  assert.equal(snapshot.modules.hosts.visible, false);
+  assert.deepEqual(JSON.parse(await readFile(setup.settingsPath + '.pre-management.bak', 'utf8')), old);
+  const client = await setup.connect(first.wsUrl);
+  await client.waitFor((m) => m.type === 'state');
+  for (const kind of ['hosts', 'program']) {
+    const key = kind === 'hosts' ? 'people' : 'items';
+    for (const item of snapshot.modules[kind][key]) {
+      const id = 'delete-' + item.id;
+      client.send({ type: kind + ':manage', id, payload: { action: 'delete', id: item.id } });
+      await client.waitFor((m) => m.type === 'management:result' && m.id === id);
+    }
+  }
+  await setup.stop(first.app);
+  const after = await setup.start();
+  assert.deepEqual(after.app.getState().settings.modules.hosts.people, []);
+  assert.deepEqual(after.app.getState().settings.modules.program.items, []);
+});
+
+test('management keeps independent slots and current program identities across save, delete and reconnect', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await client.waitFor((m) => m.type === 'state');
+  let sequence = 0;
+  const manage = async (kind, payload) => {
+    const id = 'manage-' + ++sequence;
+    client.send({ type: kind + ':manage', id, payload });
+    await client.waitFor((m) => m.type === 'management:result' && m.id === id);
+  };
+  const people = first.app.getState().settings.modules.hosts.people;
+  await manage('hosts', { action: 'slot', index: 2, patch: { personId: people[3].id, style: 'i', hidden: false } });
+  await manage('hosts', { action: 'slot', index: 2, patch: { accentColor: '#FFFFFF', textColor: '#123456', customColors: true } });
+  client.send({ type: 'patch', id: 'count', patch: { modules: { hosts: { slotCount: 1 } } } });
+  await client.waitFor((m) => m.type === 'state' && m.id === 'count');
+  assert.equal(first.app.getState().settings.modules.hosts.slots[2].personId, people[3].id);
+  await manage('hosts', { action: 'save', item: { ...people[3], name: '新姓名', title: '新头衔' } });
+  await manage('hosts', { action: 'delete', id: people[0].id });
+  let module = first.app.getState().settings.modules.hosts;
+  assert.equal(module.slots[0].personId, null);
+  assert.equal(module.slots[0].hidden, true);
+  assert.equal(module.slots[2].personId, people[3].id);
+  assert.equal(module.slots[2].style, 'i');
+  const items = first.app.getState().settings.modules.program.items;
+  await manage('program', { action: 'select', id: items[2].id });
+  await manage('program', { action: 'delete', id: items[0].id });
+  assert.equal(first.app.getState().settings.modules.program.selectedId, items[2].id);
+  await manage('program', { action: 'save', item: { ...items[2], title: '新节目标题' } });
+  assert.equal(first.app.getState().settings.modules.program.current, '新节目标题');
+  await manage('program', { action: 'delete', id: items[2].id });
+  assert.equal(first.app.getState().settings.modules.program.selectedId, items[3].id);
+  await manage('program', { action: 'select', id: items.at(-1).id });
+  await manage('program', { action: 'navigate', direction: 1 });
+  assert.equal(first.app.getState().settings.modules.program.next, '');
+  await setup.stop(first.app);
+  const after = await setup.start();
+  const fresh = await setup.connect(after.wsUrl);
+  const snapshot = await fresh.waitFor((m) => m.type === 'state');
+  assert.equal(snapshot.settings.modules.hosts.slots[2].textColor, '#123456');
+  assert.equal(snapshot.settings.modules.program.selectedId, items.at(-1).id);
+  assert.equal(snapshot.settings.modules.hosts.people.find((p) => p.id === people[3].id).title, '新头衔');
+});
+
+test('management rejects malformed and concurrent changes atomically and preserves playout on disk failure', async (t) => {
+  const { rename, rmdir } = await import('node:fs/promises');
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await client.waitFor((m) => m.type === 'state');
+  const previous = first.app.getState().settings;
+  const invalid = [
+    { action: 'slot', index: 0, patch: { personId: 'missing' } },
+    { action: 'slot', index: -1, patch: { hidden: false } },
+    { action: 'slot', index: 0, patch: { style: 'unknown', hidden: false } },
+    { action: 'save', item: { id: 'bad', name: '' } },
+    { action: 'delete', id: 'missing' },
+    { action: 'navigate', index: 0, direction: 2 },
+  ];
+  for (const [i, payload] of invalid.entries()) {
+    client.send({ type: 'hosts:manage', id: 'invalid-' + i, payload });
+    await client.waitFor((m) => m.type === 'error' && m.id === 'invalid-' + i);
+    assert.deepEqual(first.app.getState().settings, previous);
+  }
+  const backup = setup.settingsPath + '.failure-test';
+  await rename(setup.settingsPath, backup);
+  await mkdir(setup.settingsPath);
+  try {
+    client.send({ type: 'hosts:manage', id: 'disk-failure', payload: { action: 'delete', id: previous.modules.hosts.people[0].id } });
+    await client.waitFor((m) => m.type === 'error' && m.id === 'disk-failure');
+    assert.deepEqual(first.app.getState().settings, previous);
+  } finally { await rmdir(setup.settingsPath); await rename(backup, setup.settingsPath); }
+  const other = await setup.connect(first.wsUrl);
+  await other.waitFor((m) => m.type === 'state');
+  client.send({ type: 'hosts:manage', id: 'concurrent-a', payload: { action: 'save', item: { id: 'new-a', name: '甲' } } });
+  other.send({ type: 'hosts:manage', id: 'concurrent-b', payload: { action: 'save', item: { id: 'new-b', name: '乙' } } });
+  await client.waitFor((m) => m.type === 'management:result' && m.id === 'concurrent-a');
+  await other.waitFor((m) => m.type === 'management:result' && m.id === 'concurrent-b');
+  const disk = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.ok(disk.modules.hosts.people.some((p) => p.id === 'new-a'));
+  assert.ok(disk.modules.hosts.people.some((p) => p.id === 'new-b'));
 });
