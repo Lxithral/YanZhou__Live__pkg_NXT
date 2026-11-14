@@ -84,6 +84,7 @@ export function bindAsrControls({ correct, timecode }) {
     const session = local;
     if (!session) return;
     local = undefined;
+    clearTimeout(session.startTimer);
     if (message) failure = message;
     session.socket?.close();
     stopTracks(session.stream);
@@ -129,7 +130,7 @@ export function bindAsrControls({ correct, timecode }) {
     local = session;
     render();
     try {
-      session.context = new AudioContext();
+      session.context = new AudioContext({ sinkId: { type: 'none' } });
       const resumed = session.context.resume();
       resumed.catch(() => {});
       const stream = await inputStream(session);
@@ -138,6 +139,9 @@ export function bindAsrControls({ correct, timecode }) {
         return;
       }
       session.stream = stream;
+      session.startTimer = setTimeout(() => {
+        if (local === session) stopCapture('音频采集启动超时，请检查音源后重试。');
+      }, 40_000);
       for (const track of stream.getTracks()) track.addEventListener('ended', () => {
         if (local === session) stopCapture('音源已断开或停止共享。');
       });
@@ -153,6 +157,7 @@ export function bindAsrControls({ correct, timecode }) {
         const packet = JSON.parse(data);
         if (packet.type === 'error') stopCapture(packet.message);
         if (packet.type !== 'ready') return;
+        clearTimeout(session.startTimer);
         try {
           const input = session.context.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
           const worklet = new AudioWorkletNode(session.context, 'yanzhou-pcm-capture');

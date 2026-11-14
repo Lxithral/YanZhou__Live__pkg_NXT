@@ -37,6 +37,13 @@ function normalizeSongTitle(title) {
   return title.normalize('NFKC').trim().toLowerCase();
 }
 
+function songArtist(value = '') {
+  if (typeof value !== 'string' || [...value.trim()].length > 100 || /[\u0000-\u001F\u007F]/u.test(value)) {
+    throw new Error('歌手须为 100 个字符以内的文本，且不能包含控制字符。');
+  }
+  return value.trim();
+}
+
 export function validateSongReference(value) {
   if (!value || typeof value.id !== 'string' || typeof value.version !== 'string' ||
       !ID.test(value.id) || !VERSION.test(value.version) || Object.keys(value).length !== 2) {
@@ -52,16 +59,17 @@ export async function openLyricLibrary(directory) {
     if (typeof id !== 'string' || !ID.test(id)) throw new Error('歌曲编号无效。');
     const saved = JSON.parse(await readFile(songPath(id), 'utf8'));
     const title = songTitle(saved.title);
+    const artist = songArtist(saved.artist);
     if (!Number.isSafeInteger(saved.updatedAt) || saved.updatedAt < 0 || saved.updatedAt > 8.64e15) {
       throw new Error('歌曲保存时间无效。');
     }
     const doc = validateDocument(saved.doc);
-    return { id, title, updatedAt: saved.updatedAt, doc, version: digest(doc) };
+    return { id, title, artist, updatedAt: saved.updatedAt, doc, version: digest(doc) };
   }
 
   function remember(song) {
-    const { id, title, updatedAt } = song;
-    catalog.set(id, { id, title, updatedAt });
+    const { id, title, artist, updatedAt } = song;
+    catalog.set(id, { id, title, artist, updatedAt });
     return song;
   }
 
@@ -79,11 +87,11 @@ export async function openLyricLibrary(directory) {
     }
   }
 
-  async function writeSong(id, title, doc) {
+  async function writeSong(id, title, artist, doc) {
     const updatedAt = Date.now();
     await mkdir(directory, { recursive: true });
-    await atomicWrite(songPath(id), { title, updatedAt, doc });
-    return remember({ id, title, updatedAt, doc, version: digest(doc) });
+    await atomicWrite(songPath(id), { title, artist, updatedAt, doc });
+    return remember({ id, title, artist, updatedAt, doc, version: digest(doc) });
   }
 
   return {
@@ -95,8 +103,14 @@ export async function openLyricLibrary(directory) {
       if (!catalog.has(id)) throw new Error('曲库中找不到这首歌，请检查 config/lyrics。');
       return remember(await readSong(id));
     },
-    async save(title, doc, replaceId, saveKey) {
+    async preview(id) {
+      if (!catalog.has(id)) throw new Error('曲库中找不到这首歌。');
+      const { doc } = await readSong(id);
+      return doc.map(({ text }) => text);
+    },
+    async save(title, doc, replaceId, saveKey, artist) {
       title = songTitle(title);
+      artist = songArtist(artist);
       validateDocument(doc);
       if (replaceId !== undefined) {
         const existing = catalog.get(replaceId);
@@ -112,15 +126,15 @@ export async function openLyricLibrary(directory) {
         : randomUUID().replaceAll('-', ''));
       if (catalog.has(id)) {
         const previous = await readSong(id);
-        if (previous.title === title && previous.version === digest(doc)) return previous;
+        if (previous.title === title && previous.artist === artist && previous.version === digest(doc)) return previous;
         if (!replaceId) throw new Error('该导入编号已用于另一份歌词，请重新导入。');
       }
-      return writeSong(id, title, doc);
+      return writeSong(id, title, artist, doc);
     },
     async migrate(doc) {
       const id = digest(doc).slice(0, 32);
       if (catalog.has(id)) return readSong(id);
-      return writeSong(id, '旧版歌词', doc);
+      return writeSong(id, '旧版歌词', '', doc);
     },
   };
 }

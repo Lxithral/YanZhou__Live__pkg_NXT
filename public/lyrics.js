@@ -1,16 +1,26 @@
 import { buildLyricDocument, LYRIC_BYTES, jsonBytes, parseLrc, RATES, timelineIndex } from './lyrics-model.js';
-import { createLyricsClock } from './lyrics-clock.js';
+import { createLyricsClock, timecode } from './lyrics-clock.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
+import { highlightLyrics, clearLyricHighlight, LYRIC_HIGHLIGHT_CSS } from './lyrics-highlight.js';
 import { bindAsrControls } from './asr-controls.js';
 
 const $ = (id) => document.getElementById(id);
+const highlightStyle = document.createElement('style');
+highlightStyle.textContent = LYRIC_HIGHLIGHT_CSS;
+document.head.append(highlightStyle);
+let highlightedElements = [];
 const clock = createLyricsClock();
 const preview = createLyricsRenderer($('mini-canvas'));
 const asr = bindAsrControls({ correct: (enabled) => send('lyrics:correct', { enabled }), timecode });
 const liveControls = [...document.querySelectorAll('[data-live]')];
+const playButtons = [...document.querySelectorAll('[data-play]')];
 const pending = new Map();
 const instance = crypto.randomUUID();
 const dialog = $('import-dialog');
+const nextColumn = $('up-next');
+const columns = nextColumn.parentElement;
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const NEXT_LEAD_MS = 15_000;
 let socket;
 let ready = false;
 let reconnectDelay = 500;
@@ -19,20 +29,23 @@ let revision = 0;
 let savedRevision = 0;
 let saveError = '';
 let lyricsVisible = true;
-let draftDirty = false;
 let entries = [];
 let importDoc = [];
 let importFits = true;
 let importRequest;
 let importKey;
 let suggestedTitle = '';
+let suggestedArtist = '';
 let songCatalog = [];
 let selectedSong = null;
+let nextSong;
+let nextSongPreview;
+let nextColumnOpen = false;
 let renderFrame;
 let timelineRow = -2;
 let manualRow = null;
-let timelineTokens = [];
-let timelineText;
+let manualSelection;
+let manualFollowsTimeline = false;
 let timelineFollowTimer;
 
 for (const rate of RATES) $('rate').add(new Option(`${rate.toFixed(2)}×`, rate));
@@ -43,10 +56,11 @@ function message(text = '') {
 
 function updateControls() {
   for (const control of liveControls) control.disabled = !ready;
-  for (const id of ['play', 'back', 'forward', 'rate']) $(id).disabled = !ready || !clock.doc.length;
+  for (const id of ['play', 'manual-play', 'back', 'forward', 'rate']) $(id).disabled = !ready || !clock.doc.length;
   $('load').disabled = !ready || !importDoc.length || !importFits || !$('song-title').value.trim() || Boolean(importRequest);
   $('song-select').disabled = !ready || !songCatalog.length;
   $('song-load').disabled = !ready || !$('song-select').value;
+  $('load-next').disabled = !ready || !nextSong;
   for (const button of document.querySelectorAll('.lyric-list button')) button.disabled = !ready;
   $('save-status').textContent = saveError || (savedRevision < revision ? '保存中' : '已保存');
 }
@@ -60,13 +74,11 @@ function send(type, payload, onAccepted) {
 }
 
 const transport = (action, value = null) => send('lyrics:transport', { action, value });
-const manual = (action, value = null, accepted) => send('lyrics:manual', { action, value }, accepted);
+const manual = (action, value = null) => {
+  if (action !== 'auto') manualFollowsTimeline = false;
+  return send('lyrics:manual', { action, value });
+};
 const push = (source) => send('lyrics:onair', { source });
-
-function timecode(position) {
-  const ms = Math.floor(position);
-  return `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`;
-}
 
 function renderList(id, lines, display, select) {
   const list = $(id);
@@ -78,8 +90,7 @@ function renderList(id, lines, display, select) {
     count.textContent = typeof line === 'string' ? String(index + 1) : timecode(line.start);
     const text = document.createElement('span');
     text.className = 'lyric-line-text';
-    text.dataset.lineText = display(line);
-    text.textContent = text.dataset.lineText;
+    text.textContent = display(line);
     row.append(count, text);
     if (select) row.onclick = () => select(line, index);
     item.append(row);
@@ -88,7 +99,7 @@ function renderList(id, lines, display, select) {
   if (!lines.length) {
     const empty = document.createElement('li');
     empty.className = 'lyrics-empty';
-    empty.textContent = id === 'manual-list' ? '等待导入歌词或粘贴手动列表' : '等待导入歌词';
+    empty.textContent = '等待导入歌词';
     list.append(empty);
   }
 }
@@ -103,7 +114,7 @@ function markRow(id, oldIndex, newIndex, follow = false) {
       row?.removeAttribute('data-distance');
     }
   }
-  const active = children[newIndex]?.firstElementChild;
+  const active = children[newIndex]?.querySelector('.lyric-row');
   list.classList.toggle('has-active', Boolean(active));
   if (!active) return;
   active.setAttribute('aria-current', 'true');
@@ -112,24 +123,22 @@ function markRow(id, oldIndex, newIndex, follow = false) {
     if (row) row.dataset.distance = Math.abs(index - newIndex);
   }
   if (follow && !list.contains(document.activeElement)) {
-    const target = children[newIndex];
-    const top = target.offsetTop - (list.clientHeight - target.offsetHeight) / 2;
-    list.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    centerRow(list, newIndex);
   }
 }
 
-function followTimeline() {
-  const list = $('timeline-list');
-  const target = list.children[timelineRow];
+function centerRow(list, index) {
+  const target = list.children[index];
   if (!target) return;
-  list.scrollTop = target.offsetTop - (list.clientHeight - target.offsetHeight) / 2;
+  const top = target.offsetTop - (list.clientHeight - target.offsetHeight) / 2;
+  list.scrollTo({ top, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
 }
 
 function pauseTimelineFollow() {
   clearTimeout(timelineFollowTimer);
   timelineFollowTimer = setTimeout(() => {
     timelineFollowTimer = undefined;
-    followTimeline();
+    centerRow($('timeline-list'), timelineRow);
   }, 3000);
 }
 
@@ -145,35 +154,39 @@ timelineList.addEventListener('keydown', (event) => {
   if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(event.key)) pauseTimelineFollow();
 });
 
-function drawTimeline(position, state) {
-  const index = timelineIndex(clock.doc, position, state.transport.end);
-  const line = clock.doc[index];
+columns.addEventListener('transitionend', (event) => {
+  if (event.target !== columns || event.propertyName !== 'grid-template-columns') return;
+  if (!timelineFollowTimer) centerRow(timelineList, timelineRow);
+  if (manualFollowsTimeline) centerRow($('manual-list'), manualRow);
+  centerRow($('reference-list'), timelineRow);
+});
+
+function drawTimeline(position, state, playing) {
+  const index = Math.min(clock.doc.length - 1, timelineIndex(clock.doc, position, state.transport.end));
   if (index !== timelineRow) {
     markRow('timeline-list', timelineRow, index);
     markRow('reference-list', timelineRow, index, true);
     timelineRow = index;
-    timelineTokens = [];
-    if (timelineText) timelineText.textContent = timelineText.dataset.lineText;
-    timelineText = $('timeline-list').children[index]?.querySelector('.lyric-line-text');
-    if (timelineText && line?.tokens.length && !line.credit) {
-      timelineTokens = line.tokens.map((token) => {
-        const span = document.createElement('span');
-        span.className = 'lyric-syllable';
-        span.textContent = token.text;
-        return span;
-      });
-      timelineText.replaceChildren(...timelineTokens);
-    }
-    if (!timelineFollowTimer) followTimeline();
+    if (!timelineFollowTimer) centerRow(timelineList, index);
   }
-  const lineEnd = clock.doc[index + 1]?.start ?? state.transport.end;
-  for (const [tokenIndex, span] of timelineTokens.entries()) {
-    const start = line.tokens[tokenIndex].start;
-    const end = line.tokens[tokenIndex + 1]?.start ?? lineEnd;
-    const fill = position < start ? 0 : position >= end ? 100 : (position - start) / (end - start) * 100;
-    const css = `${fill.toFixed(1)}%`;
-    if (span.style.getPropertyValue('--fill') !== css) span.style.setProperty('--fill', css);
+  if (playing && clock.usesDocument) manualFollowsTimeline = true;
+  const manualIndex = manualFollowsTimeline ? index : state.manual.index;
+  if (manualRow !== manualIndex) {
+    markRow('manual-list', manualRow, manualIndex, !manualFollowsTimeline);
+    if (manualFollowsTimeline) centerRow($('manual-list'), manualIndex);
+    manualRow = manualIndex;
   }
+  const line = clock.doc[index];
+  const lists = ['timeline-list', 'reference-list'];
+  if (manualFollowsTimeline && clock.usesDocument) lists.push('manual-list');
+  const elements = line ? lists.map((id) => $(id).children[index]?.querySelector('.lyric-line-text')).filter(Boolean) : [];
+  for (const previous of highlightedElements) {
+    if (!elements.includes(previous)) clearLyricHighlight(previous, previous.textContent);
+  }
+  for (const element of elements) {
+    highlightLyrics(element, line, position, clock.doc[index + 1]?.start ?? state.transport.end);
+  }
+  highlightedElements = elements;
 }
 
 function drawClock() {
@@ -182,9 +195,13 @@ function drawClock() {
   const position = clock.position();
   const code = timecode(position);
   if ($('position').value !== code) $('position').value = code;
-  drawTimeline(position, state);
   const playing = state.transport.playing && position < state.transport.end;
-  $('play').textContent = playing ? '暂停' : '播放';
+  updateNextColumn(position);
+  drawTimeline(position, state, playing);
+  for (const button of playButtons) {
+    const label = playing ? '暂停' : '播放';
+    if (button.textContent !== label) button.textContent = label;
+  }
   const remaining = ready ? clock.remaining() : null;
   $('countdown').hidden = remaining === null;
   if (remaining !== null) {
@@ -196,7 +213,9 @@ function drawClock() {
 
 function updateOutput() {
   const selected = clock.state?.armed ? clock.state.source : '';
-  $('output-source').value = selected;
+  const outputSource = $('output-source');
+  outputSource.value = selected;
+  outputSource.options[0].textContent = selected ? '停止推送' : '待推送';
   const asrLive = ready && clock.asr?.phase === 'listening';
   $('asr-push').disabled = !asrLive;
   $('asr-option').disabled = !asrLive;
@@ -215,16 +234,17 @@ function renderState(state) {
     renderList('timeline-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''), (line) => transport('seek', line.start));
     renderList('reference-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''));
     timelineRow = -2;
+    manualFollowsTimeline = false;
   }
   if (Object.hasOwn(state.manual, 'lines')) {
     renderList('manual-list', clock.lines, (line) => line, (_line, index) => manual('select', index));
-    manualRow = null;
+    manualRow = undefined;
+    if (!clock.usesDocument) manualFollowsTimeline = false;
   }
-  if (manualRow !== state.manual.index || Object.hasOwn(state.manual, 'lines')) {
-    markRow('manual-list', manualRow, state.manual.index, true);
-    manualRow = state.manual.index;
+  if (manualSelection !== state.manual.index) {
+    manualSelection = state.manual.index;
+    manualFollowsTimeline = false;
   }
-  if (!draftDirty) $('draft').value = state.manual.current;
   $('manual-current').textContent = state.manual.current || '—';
   $('manual-next').textContent = state.manual.next || '—';
   $('rate').value = state.transport.rate;
@@ -332,8 +352,55 @@ function renderSongs() {
     ...songCatalog.map((song) => new Option(counts.get(songNameKey(song.title)) > 1
       ? `${song.title} · ${songVersionLabel(song)}` : song.title, song.id)));
   select.value = selectedSong ?? '';
+  const activeIndex = songCatalog.findIndex((song) => song.id === selectedSong);
+  const current = songCatalog[activeIndex];
+  $('current-song').textContent = current?.title ?? '尚未载入歌曲';
+  $('current-artist').textContent = current ? current.artist || '歌手未填写' : '';
+  nextSong = current ? songCatalog[activeIndex + 1] : undefined;
+  if (!nextSong || nextSongPreview?.id !== nextSong.id || nextSongPreview.updatedAt !== nextSong.updatedAt) {
+    nextSongPreview = undefined;
+  }
+  updateNextColumn();
   renderReplaceChoices();
   updateControls();
+}
+
+function updateNextColumn(position = clock.position()) {
+  const state = clock.state;
+  const visible = Boolean(state?.songId === selectedSong && clock.doc.length &&
+    state.transport.end - position <= NEXT_LEAD_MS);
+  if (visible !== nextColumnOpen) {
+    nextColumnOpen = visible;
+    if (!visible && nextColumn.contains(document.activeElement)) $('play').focus({ preventScroll: true });
+    nextColumn.inert = !visible;
+    nextColumn.setAttribute('aria-hidden', String(!visible));
+    columns.classList.toggle('has-next', visible);
+  }
+  if (!visible) return;
+  if (!nextSong) {
+    if ($('next-song').textContent !== '暂无下一首') {
+      $('next-song').textContent = '暂无下一首';
+      $('next-artist').textContent = '';
+      $('up-next-list').replaceChildren();
+    }
+    return;
+  }
+  if (nextSongPreview) return;
+  $('next-song').textContent = nextSong.title;
+  $('next-artist').textContent = nextSong.artist || '歌手未填写';
+  const request = nextSongPreview = { id: nextSong.id, updatedAt: nextSong.updatedAt };
+  $('up-next-list').textContent = '正在读取歌词…';
+  fetch(`/api/lyrics/song?${new URLSearchParams({ id: request.id })}`)
+    .then((response) => {
+      if (!response.ok) throw new Error('无法读取下一首歌词。');
+      return response.json();
+    })
+    .then((lines) => {
+      if (nextSongPreview === request) renderList('up-next-list', lines, (line) => line);
+    })
+    .catch(() => {
+      if (nextSongPreview === request) $('up-next-list').textContent = '无法读取下一首歌词。';
+    });
 }
 
 function syncImport() {
@@ -367,6 +434,11 @@ function prepareImport(filename = '') {
     suggestedTitle = (fromMetadata || filename.replace(/\.[^.]+$/u, '')).slice(0, 100);
     title.value = suggestedTitle;
     renderReplaceChoices();
+  }
+  const artist = $('song-artist');
+  if (!artist.value.trim() || artist.value === suggestedArtist) {
+    suggestedArtist = (/^\s*\[ar:([^\]\r\n]+)\]/imu.exec(source)?.[1].trim() ?? '').slice(0, 100);
+    artist.value = suggestedArtist;
   }
   entries = parseLrc(source);
   $('import-list').replaceChildren(...entries.map((entry) => {
@@ -416,31 +488,20 @@ document.querySelectorAll('[data-push]').forEach((button) => {
   button.onclick = () => push(button.dataset.push);
 });
 $('output-source').onchange = (event) => {
-  const source = event.target.value;
+  const source = event.target.value || null;
   updateOutput();
-  if (source) push(source);
+  push(source);
 };
-$('play').onclick = () => transport(clock.state.transport.playing && clock.position() < clock.state.transport.end ? 'pause' : 'play');
+for (const button of playButtons) {
+  button.onclick = () => transport(clock.state.transport.playing && clock.position() < clock.state.transport.end ? 'pause' : 'play');
+}
 $('back').onclick = () => transport('nudge', -500);
 $('forward').onclick = () => transport('nudge', 500);
 $('rate').onchange = ({ target }) => transport('rate', Number(target.value));
-$('draft').oninput = () => { draftDirty = true; };
-$('commit').onclick = () => {
-  const submitted = $('draft').value;
-  manual('commit', submitted, () => {
-    if ($('draft').value === submitted) draftDirty = false;
-    message('当前句已更新');
-  });
-};
 $('previous').onclick = () => manual('step', -1);
 $('next').onclick = () => manual('step', 1);
 $('clear').onclick = () => manual('clear');
 $('auto').onchange = ({ target }) => manual('auto', Number(target.value));
-$('manual-import').onclick = () => {
-  const lines = $('manual-paste').value.split(/\r\n?|\n/).map((line) => line.trim()).filter(Boolean);
-  if (jsonBytes(lines) > 15 * 1024) return message('手动列表超过 15 KiB，请删减后再载入。');
-  manual('load', lines, () => message(`已载入 ${lines.length} 句手动字幕`));
-};
 $('manual-column').addEventListener('keydown', (event) => {
   if (!ready || event.isComposing || event.keyCode === 229 || event.repeat ||
       event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -459,14 +520,16 @@ $('song-title').oninput = () => {
   renderReplaceChoices();
   updateControls();
 };
+$('song-artist').oninput = () => { importKey = undefined; };
 $('replace-song').onchange = () => { importKey = undefined; };
 $('song-select').onchange = updateControls;
-$('song-load').onclick = () => {
-  const select = $('song-select');
-  send('lyrics:select-song', { id: select.value }, () => {
+function loadSong(id) {
+  send('lyrics:select-song', { id }, () => {
     message(`已载入《${songCatalog.find((song) => song.id === selectedSong)?.title ?? '歌曲'}》`);
   });
-};
+}
+$('song-load').onclick = () => loadSong($('song-select').value);
+$('load-next').onclick = () => loadSong(nextSong.id);
 $('parse').onclick = () => prepareImport();
 $('lrc-file').onchange = async ({ target }) => {
   const file = target.files[0];
@@ -486,17 +549,20 @@ $('lrc-file').onchange = async ({ target }) => {
 };
 $('load').onclick = () => {
   const title = $('song-title').value.trim();
+  const artist = $('song-artist').value.trim();
   const replaceId = $('replace-song').value;
   const count = importDoc.length;
   importKey ??= crypto.randomUUID().replaceAll('-', '');
-  importRequest = send('lyrics:load', { doc: importDoc, title, saveKey: importKey, ...(replaceId && { replaceId }) }, () => {
+  importRequest = send('lyrics:load', { doc: importDoc, title, artist, saveKey: importKey, ...(replaceId && { replaceId }) }, () => {
     importRequest = undefined;
     dialog.close();
     message(`已保存并载入《${title}》 · ${count} 句`);
     $('song-title').value = '';
+    $('song-artist').value = '';
     $('lrc-input').value = '';
     $('lrc-file').value = '';
     suggestedTitle = '';
+    suggestedArtist = '';
     invalidateImport();
     renderReplaceChoices();
   });
