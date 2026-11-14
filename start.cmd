@@ -14,5 +14,5 @@ if errorlevel 1 (
 )
 
 :start
-node server.js
+node server\server.js
 if errorlevel 1 pause

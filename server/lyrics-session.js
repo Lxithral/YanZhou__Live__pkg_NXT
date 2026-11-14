@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks';
-import { documentEnd, isLine, jsonBytes, RATES, validateDocument } from './public/lyrics-model.js';
+import { documentEnd, isLine, jsonBytes, RATES, validateDocument } from '../public/lyrics-model.js';
 import { indexLyrics, matchLyric } from './asr-match.js';
 
 export const LYRIC_COMMANDS = ['lyrics:load', 'lyrics:transport', 'lyrics:manual', 'lyrics:onair', 'lyrics:correct'];

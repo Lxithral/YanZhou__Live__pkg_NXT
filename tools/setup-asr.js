@@ -6,7 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 import path from 'node:path';
-import { ASR_MODELS, MODEL_ROOT, modelAvailable } from '../asr-models.js';
+import { ASR_MODELS, MODEL_ROOT, modelAvailable } from '../server/asr-models.js';
 
 const exec = promisify(execFile);
 const modes = process.argv.slice(2);

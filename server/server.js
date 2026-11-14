@@ -8,7 +8,8 @@ import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSetti
 import { createAsrCapture } from './asr-capture.js';
 import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-library.js';
 
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
+// 服务代码在 server/ 下；设置、public/、assets/ 都在项目根目录。
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics'];
 const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];

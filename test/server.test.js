@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
-import { createPackagingServer, DEFAULT_SETTINGS } from '../server.js';
+import { createPackagingServer, DEFAULT_SETTINGS } from '../server/server.js';
 import { buildLyricDocument, jsonBytes, LYRIC_BYTES, parseLrc, timelineIndex } from '../public/lyrics-model.js';
 import { createLyricsClock } from '../public/lyrics-clock.js';
 

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, readdir, rename, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import { validateDocument } from './public/lyrics-model.js';
+import { validateDocument } from '../public/lyrics-model.js';
 
 const ID = /^[0-9a-f]{32}$/u;
 const VERSION = /^[0-9a-f]{64}$/u;

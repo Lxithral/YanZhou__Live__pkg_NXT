@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 export const MODEL_ROOT = path.resolve(process.env.YZ_ASR_MODELS_DIR ||
-  fileURLToPath(new URL('./.asr-models/', import.meta.url)));
+  fileURLToPath(new URL('../.asr-models/', import.meta.url)));
 export const SAMPLE_RATE = 16000;
 export const FRAME_SAMPLES = 640;
 export const ASR_MODELS = {

@@ -91,15 +91,17 @@
 
 ## 文件结构
 
-- `server.js`：静态文件、`/api/state`、`/health`、WebSocket `/ws`（Origin 校验、单模块原子 patch、广播 `state` / `saved`、15 秒心跳、退出保存）。
+- `server/server.js`：静态文件、`/api/state`、`/health`、WebSocket `/ws`（Origin 校验、单模块原子 patch、广播 `state` / `saved`、15 秒心跳、退出保存）。服务端代码都在 `server/` 下。
 - `public/module-layer.js`：所有模块共用的定位、缩放、透明度与动画层。
 - `public/*-renderer.js`：四个模块的渲染器。
 - `public/lyrics.html` / `lyrics.js` / `lyrics.css`：独立歌词台。
-- `lyrics-session.js`、`public/lyrics-model.js`、`public/lyrics-clock.js`：歌词会话、LRC 格式及客户端时钟。
+- `server/lyrics-session.js`、`public/lyrics-model.js` / `lyrics-clock.js`：歌词会话、LRC 格式及客户端时钟。
 - `public/control.html` / `control.js` / `control.css`：控制面板。
 - `public/overlay.html` / `overlay.js` / `overlay.css`：OBS 输出页。
-- `test/server.test.js`：现有包装模块、歌词、WebSocket、重连与配置迁移测试。
+- `test/server.test.js` / `asr.test.js`：包装模块、歌词、WebSocket、重连、配置迁移与识别匹配测试。
 - `assets/`：字体与原始素材；`logo-mask.png` 为由原校徽派生的透明着色版本，原图没有修改。
+- `config/lyrics/`：歌词曲库；`settings.json`：设置文件（均在项目根目录）。
+- `tools/`：ASR 模型安装（`setup-asr.js`）与界面检查脚本；`previews/`：界面截图。
 
 ## 开发与检查
 

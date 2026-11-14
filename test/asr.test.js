@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
-import { indexLyrics, matchLyric } from '../asr-match.js';
-import { createLyricsSession, DEFAULT_LYRICS } from '../lyrics-session.js';
+import { indexLyrics, matchLyric } from '../server/asr-match.js';
+import { createLyricsSession, DEFAULT_LYRICS } from '../server/lyrics-session.js';
 import { createLyricsClock } from '../public/lyrics-clock.js';
 
 const line = (start, text) => ({

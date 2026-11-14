@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Local HTML broadcast graphics and live control panel",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server/server.js",
     "test": "node --test",
     "asr:setup": "node tools/setup-asr.js"
   },
