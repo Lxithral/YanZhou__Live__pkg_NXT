@@ -1,8 +1,10 @@
+import { bindStageControls } from './stage-controls.js';
 import { createLogoRenderer } from './logo-renderer.js';
-import { createHostsRenderer, DEFAULT_HOSTS_STYLE, HOSTS_STYLES } from './hosts-renderer.js';
+import { createHostsRenderer } from './hosts-renderer.js';
 import { createProgramRenderer } from './program-renderer.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
 import { createLyricsClock, timecode } from './lyrics-clock.js';
+import { createAvoidance } from './stage-avoidance.js';
 
 const $ = (id) => document.getElementById(id);
 const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics'];
@@ -43,20 +45,17 @@ const MODULES = {
     create: createHostsRenderer,
     fields: [
       { key: 'label', id: 'hostsLabel', kind: 'text' },
-      { key: 'names', id: 'hostsNames', kind: 'textarea' },
       { key: 'slotCount', id: 'hostsSlotCount', numberId: 'hostsSlotCountNumber', kind: 'raw' },
-      { key: 'style', id: 'hostsStyle', hintId: 'hostsStyleHint', kind: 'choice', options: HOSTS_STYLES, fallback: DEFAULT_HOSTS_STYLE },
-      { key: 'customColors', id: 'hostsCustomColors', kind: 'boolean' },
-      { key: 'accentColor', id: 'hostsAccent', hexId: 'hostsAccentHex', kind: 'color', enabledBy: 'customColors' },
-      { key: 'textColor', id: 'hostsTextColor', hexId: 'hostsTextColorHex', kind: 'color', enabledBy: 'customColors' },
       { key: 'scale', id: 'hostsScale', numberId: 'hostsScaleNumber', kind: 'percent' },
       { key: 'opacity', id: 'hostsOpacity', numberId: 'hostsOpacityNumber', kind: 'opacity' },
     ],
     position: { x: 'hostsX', xRange: 'hostsXRange', xMax: 'hostsXMax', y: 'hostsY', yRange: 'hostsYRange', yMax: 'hostsYMax' },
     animation: { enter: 'hostsEnter', exit: 'hostsExit', duration: 'hostsDuration', durationNumber: 'hostsDurationNumber' },
     summary(module) {
-      const names = String(module.names || '').split(/\r?\n/).map((line) => line.split(/[｜|]/)[0].trim()).filter(Boolean).join('  ');
-      return [module.label, names].filter(Boolean).join(' · ') || '人物信息条';
+      const people = module.people ?? [];
+      return [module.label, ...(module.slots ?? []).slice(0, module.slotCount)
+        .filter((slot) => !slot.hidden).map((slot) => people.find((p) => p.id === slot.personId)?.name)]
+        .filter(Boolean).join(' · ') || '人物信息条';
     },
   },
   program: {
@@ -64,12 +63,7 @@ const MODULES = {
     create: createProgramRenderer,
     fields: [
       { key: 'label', id: 'programLabel', kind: 'text' },
-      { key: 'current', id: 'programCurrent', kind: 'text' },
       { key: 'nextLabel', id: 'programNextLabel', kind: 'text' },
-      { key: 'next', id: 'programNext', kind: 'text' },
-      { key: 'queue', id: 'programQueue', kind: 'textarea' },
-      { key: 'accentColor', id: 'programAccent', hexId: 'programAccentHex', kind: 'color' },
-      { key: 'textColor', id: 'programTextColor', hexId: 'programTextColorHex', kind: 'color' },
       { key: 'scale', id: 'programScale', numberId: 'programScaleNumber', kind: 'percent' },
       { key: 'opacity', id: 'programOpacity', numberId: 'programOpacityNumber', kind: 'opacity' },
     ],
@@ -98,7 +92,7 @@ const FALLBACK_SETTINGS = {
   modules: {
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#FFFFFF', textColor: '#F4F0E8', weight: 500, x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1376, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1144, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 678, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
 };
@@ -115,6 +109,10 @@ let flushFrame = 0;
 let toastTimer;
 let previewZoom = 1;
 let activeModule = 'logo';
+const stageControls = bindStageControls({
+  send: (message) => socket.send(JSON.stringify(message)),
+  edit, toast,
+});
 const pendingPatches = new Map();
 const localIntent = new Map();
 const sentPatches = new Map();
@@ -125,6 +123,13 @@ measureStage.className = 'measure-stage';
 measureStage.setAttribute('aria-hidden', 'true');
 document.body.append(measureStage);
 for (const moduleId of MODULE_ORDER) previewRenderers[moduleId] = MODULES[moduleId].create($('previewCanvas'));
+// 上屏先后顺序由服务端维护（只在内存里），预览与 OBS 输出用同一顺序计算自动避让。
+let showOrder = null;
+const avoidance = createAvoidance(previewRenderers, () => ({ settings, showOrder }));
+let renderFrame = 0;
+function scheduleRender() {
+  if (!renderFrame) renderFrame = requestAnimationFrame(() => { renderFrame = 0; render(); });
+}
 let focusRenderer = null;
 let lyricsProgressTimer;
 let playlistRequest = 0;
@@ -296,6 +301,7 @@ function updateConnection(state) {
   $('connectionText').textContent = state === 'connected' ? '服务已连接' : state === 'disconnected' ? '连接已断开' : '正在连接';
   $('previewOffline').hidden = state === 'connected';
   updateProgramAdvance();
+  stageControls.render(settings, ready);
   updateSaveStatus();
 }
 
@@ -334,6 +340,38 @@ function updatePositionControls(moduleId) {
     setInput(number.id, module[axis]);
     range.nextElementSibling.firstElementChild.textContent = `${min} px · ${axis === 'x' ? '左' : '上'}`;
     $(axis === 'x' ? position.xMax : position.yMax).textContent = `${max} px · ${axis === 'x' ? '右' : '下'}`;
+  }
+}
+
+function renderModuleCard(moduleId, knownBounds) {
+  const module = settings.modules[moduleId];
+  const mapRect = document.querySelector(`[data-module-map="${moduleId}"]`);
+  if (mapRect) {
+    const { width: canvasWidth, height: canvasHeight } = settings.canvas;
+    const bounds = knownBounds ?? previewRenderers[moduleId].getBounds();
+    mapRect.style.left = `${module.x / canvasWidth * 100}%`;
+    mapRect.style.top = `${module.y / canvasHeight * 100}%`;
+    mapRect.style.width = `${Math.min(100, bounds.width / canvasWidth * 100)}%`;
+    mapRect.style.height = `${Math.min(100, bounds.height / canvasHeight * 100)}%`;
+  }
+  const detail = document.querySelector(`[data-module-detail="${moduleId}"]`);
+  if (detail) {
+    const label = (value) => ANIMATION_OPTIONS.find(([key]) => key === value)?.[1] ?? value;
+    detail.replaceChildren(
+      ...[['X', module.x], ['Y', module.y], ['', `${Math.round(module.scale * 100)}%`]].map(([key, value]) => {
+        const item = document.createElement('span');
+        const b = document.createElement('b');
+        item.textContent = key ? `${key} ` : '';
+        b.textContent = value;
+        item.append(b);
+        return item;
+      }),
+      Object.assign(document.createElement('span'), {
+        className: 'module-detail-anim',
+        textContent: `${label(module.animation.enter)}/${label(module.animation.exit)} ${module.animation.duration}ms`,
+        title: `出场 ${label(module.animation.enter)} · 退场 ${label(module.animation.exit)} · ${module.animation.duration} ms`,
+      }),
+    );
   }
 }
 
@@ -387,34 +425,7 @@ function renderControls() {
     if (state) state.textContent = module.visible ? '画面中' : '未显示';
     const summary = document.querySelector(`[data-module-summary="${moduleId}"]`);
     if (summary && moduleId !== 'lyrics') summary.textContent = MODULES[moduleId].summary(module);
-    const mapRect = document.querySelector(`[data-module-map="${moduleId}"]`);
-    if (mapRect) {
-      const { width: canvasWidth, height: canvasHeight } = settings.canvas;
-      const bounds = previewRenderers[moduleId].getBounds();
-      mapRect.style.left = `${module.x / canvasWidth * 100}%`;
-      mapRect.style.top = `${module.y / canvasHeight * 100}%`;
-      mapRect.style.width = `${Math.min(100, bounds.width / canvasWidth * 100)}%`;
-      mapRect.style.height = `${Math.min(100, bounds.height / canvasHeight * 100)}%`;
-    }
-    const detail = document.querySelector(`[data-module-detail="${moduleId}"]`);
-    if (detail) {
-      const label = (value) => ANIMATION_OPTIONS.find(([key]) => key === value)?.[1] ?? value;
-      detail.replaceChildren(
-        ...[['X', module.x], ['Y', module.y], ['', `${Math.round(module.scale * 100)}%`]].map(([key, value]) => {
-          const item = document.createElement('span');
-          const b = document.createElement('b');
-          item.textContent = key ? `${key} ` : '';
-          b.textContent = value;
-          item.append(b);
-          return item;
-        }),
-        Object.assign(document.createElement('span'), {
-          className: 'module-detail-anim',
-          textContent: `${label(module.animation.enter)}/${label(module.animation.exit)} ${module.animation.duration}ms`,
-          title: `出场 ${label(module.animation.enter)} · 退场 ${label(module.animation.exit)} · ${module.animation.duration} ms`,
-        }),
-      );
-    }
+    renderModuleCard(moduleId);
   }
   const liveCount = MODULE_ORDER.filter((moduleId) => settings.modules[moduleId].visible).length;
   $('liveCount').textContent = `画面中 ${liveCount} / ${MODULE_ORDER.length}`;
@@ -477,6 +488,7 @@ function fitFocus() {
 }
 
 function rebuildFocus() {
+  focusRenderer?.dispose?.();
   $('focusCanvas').replaceChildren();
   focusRenderer = MODULES[activeModule].create($('focusCanvas'), { sample: activeModule === 'lyrics' });
   focusRenderer.updateLyrics?.(lyricsClock);
@@ -484,6 +496,7 @@ function rebuildFocus() {
 }
 
 function render() {
+  stageControls.render(settings, ready);
   for (const moduleId of MODULE_ORDER) previewRenderers[moduleId].update(settings.modules[moduleId]);
   updateActiveUI();
   renderControls();
@@ -491,6 +504,8 @@ function render() {
   updateSelection();
   fitFocus();
   updateSaveStatus();
+  $('autoAvoidToggle').checked = settings.layout?.autoAvoid !== false;
+  avoidance.schedule();
 }
 
 function selectModule(moduleId) {
@@ -505,6 +520,7 @@ function selectModule(moduleId) {
 function applyServerState(message) {
   if (!message.settings?.modules || !message.settings?.canvas) return;
   settings = structuredClone(message.settings);
+  if (Array.isArray(message.stage?.showOrder)) showOrder = message.stage.showOrder;
   settings.modules.lyrics ??= structuredClone(FALLBACK_SETTINGS.modules.lyrics);
   if (message.id) sentPatches.delete(message.id);
   for (const [path, intent] of localIntent) {
@@ -517,7 +533,9 @@ function applyServerState(message) {
   reconnectDelay = 700;
   saveError = '';
   updateConnection('connected');
-  render();
+  // 拖动中收到的回执只更新数据，松手后统一重绘；平时也合并到下一帧，一帧最多重绘一次。
+  if (drag?.moved) return;
+  scheduleRender();
   edit('hosts', { x: settings.modules.hosts.x, y: settings.modules.hosts.y });
   queueFlush();
 }
@@ -615,11 +633,14 @@ function connect() {
       lyricsClock.applyAsr(message);
       previewRenderers.lyrics.updateLyrics(lyricsClock);
       focusRenderer?.updateLyrics?.(lyricsClock);
+    } else if (message.type === 'management:result') {
+      stageControls.result(message);
     } else if (message.type === 'saved') {
       savedRevision = Math.max(savedRevision, message.revision ?? 0);
       saveError = '';
       updateSaveStatus();
     } else if (message.type === 'error') {
+      if (stageControls.result(message)) return;
       if (message.id?.startsWith('playlist-')) {
         toast(message.message);
         return;
@@ -646,6 +667,7 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    stageControls.disconnected();
     clearTimeout(lyricsProgressTimer);
     for (const intent of localIntent.values()) addPending(intent.module, intent.key, intent.value);
     updateConnection('disconnected');
@@ -951,37 +973,120 @@ function bindFields() {
 }
 
 let drag = null;
+const DRAG_SEND_MS = 33;
+let dragSendTimer = 0;
+let lastDragSend = 0;
+
+function sendDragPosition() {
+  dragSendTimer = 0;
+  lastDragSend = performance.now();
+  flush();
+}
+
+/** 拖动的每一帧：只移动被拖的预览模块并更新坐标显示，不重绘整个控制台；网络约 30 帧/秒发送一次。 */
+function dragFrame() {
+  drag.frame = 0;
+  const { module: moduleId, limits } = drag;
+  const x = Math.round(Math.min(limits.maxX, Math.max(limits.minX, drag.x + (drag.clientX - drag.startX) / drag.zoom)));
+  const y = Math.round(Math.min(limits.maxY, Math.max(limits.minY, drag.y + (drag.clientY - drag.startY) / drag.zoom)));
+  const changedX = setOne(moduleId, 'x', x);
+  const changedY = setOne(moduleId, 'y', y);
+  if (!changedX && !changedY) return;
+  saveError = '';
+  const module = settings.modules[moduleId];
+  const renderer = previewRenderers[moduleId];
+  if (moduleId === 'hosts') {
+    // 人物条的宽度随 X 变化，需要重新排版。
+    renderer.update(module, { animate: false });
+  } else {
+    // 其余模块只改合成层位移（translate = 避让偏移 + 拖动距离），不触发重新排版；松手时再写回 left/top。
+    renderer.element.style.translate = `${drag.offset.dx + x - drag.left}px ${drag.offset.dy + y - drag.top}px`;
+  }
+  const position = MODULES[moduleId].position;
+  updateRange(position.xRange, x);
+  setInput(position.x, x);
+  updateRange(position.yRange, y);
+  setInput(position.y, y);
+  if (moduleId === activeModule) {
+    $('summaryX').textContent = x;
+    $('summaryY').textContent = y;
+  }
+  renderModuleCard(moduleId, drag.bounds);
+  const wait = DRAG_SEND_MS - (performance.now() - lastDragSend);
+  if (wait <= 0) sendDragPosition();
+  else if (!dragSendTimer) dragSendTimer = setTimeout(sendDragPosition, wait);
+}
+
 function bindDrag() {
   for (const moduleId of MODULE_ORDER) {
     const element = previewRenderers[moduleId].element;
     element.addEventListener('pointerdown', (event) => {
       if (event.button !== 0 || !settings.modules[moduleId].visible) return;
+      if (moduleId === 'lyrics' && element.dataset.hasContent !== 'true') return;
+      const wasSelected = activeModule === moduleId;
       event.preventDefault();
       selectModule(moduleId);
+      if (!wasSelected) return;
       $('previewStage').focus({ preventScroll: true });
+      const renderer = previewRenderers[moduleId];
+      const limits = positionLimits(renderer);
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
       drag = {
         module: moduleId,
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
-        x: settings.modules[moduleId].x,
-        y: settings.modules[moduleId].y,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        // 从画面上实际显示的位置开始拖（保存的位置可能超出当前尺寸允许的范围）。
+        x: clamp(settings.modules[moduleId].x, limits.minX, limits.maxX),
+        y: clamp(settings.modules[moduleId].y, limits.minY, limits.maxY),
+        left: parseFloat(element.style.left) || 0,
+        top: parseFloat(element.style.top) || 0,
         zoom: previewZoom,
+        // 尺寸在拖动中不变，开始时量一次，之后每帧不再强制布局。
+        limits,
+        bounds: renderer.getBounds(),
+        offset: { dx: 0, dy: 0, ...avoidance.offsets()[moduleId] },
+        moved: false,
+        frame: 0,
       };
       element.setPointerCapture(event.pointerId);
-      $('previewStage').classList.add('dragging');
     });
     element.addEventListener('pointermove', (event) => {
       if (!drag || drag.module !== moduleId || event.pointerId !== drag.pointerId) return;
-      edit(moduleId, {
-        x: drag.x + (event.clientX - drag.startX) / drag.zoom,
-        y: drag.y + (event.clientY - drag.startY) / drag.zoom,
-      });
+      if (!drag.moved) {
+        if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 4) return;
+        drag.moved = true;
+        $('previewStage').classList.add('dragging');
+        // 拖动中各模块的避让偏移保持不动，被拖的模块不会跳；松手后再统一计算。
+        avoidance.freeze(true);
+      }
+      drag.clientX = event.clientX;
+      drag.clientY = event.clientY;
+      if (!drag.frame) drag.frame = requestAnimationFrame(dragFrame);
     });
     const endDrag = () => {
+      if (!drag || drag.module !== moduleId) return;
+      const finished = drag;
+      if (finished.frame) {
+        cancelAnimationFrame(finished.frame);
+        dragFrame();
+      }
+      clearTimeout(dragSendTimer);
+      dragSendTimer = 0;
       drag = null;
       $('previewStage').classList.remove('dragging');
       flush();
+      if (finished.moved) {
+        const { dx, dy } = finished.offset;
+        element.classList.add('avoid-still');
+        element.style.translate = dx || dy ? `${Math.round(dx)}px ${Math.round(dy)}px` : '';
+        render();
+        void element.offsetWidth;
+        element.classList.remove('avoid-still');
+        avoidance.freeze(false);
+      }
     };
     element.addEventListener('pointerup', endDrag);
     element.addEventListener('pointercancel', endDrag);
@@ -1016,8 +1121,7 @@ function bindGlobalControls() {
     });
   }
   $('programAdvance').addEventListener('click', () => {
-    const [current, next = '', ...queue] = upcomingPrograms();
-    if (ready && current) edit('program', { current, next, queue: queue.join('\n') });
+    stageControls.navigateProgram();
   });
   $('moduleVisible').addEventListener('change', (event) => edit(activeModule, { visible: event.target.checked }));
   $('previewStage').addEventListener('keydown', (event) => {
@@ -1070,6 +1174,13 @@ function bindGlobalControls() {
     }
   });
   $('safeAreaToggle').addEventListener('change', (event) => { $('safeArea').hidden = !event.target.checked; });
+  $('autoAvoidToggle').addEventListener('change', (event) => {
+    const autoAvoid = event.target.checked;
+    settings.layout = { ...settings.layout, autoAvoid };
+    avoidance.schedule();
+    if (!ready || !socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({ type: 'patch', id: crypto.randomUUID(), patch: { layout: { autoAvoid } } }));
+  });
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
   window.addEventListener('pagehide', flush);
   window.addEventListener('resize', sizePreviewToViewport);

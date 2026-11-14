@@ -14,7 +14,7 @@
     var tag=node.querySelector('.tag'),names=node.querySelector('.names'),sub=node.querySelector('.sub');
     if(!tag||!names||!sub){return;}tag.textContent=data.title||'主持人';
     if(node.dataset.template==='h'){
-      var values=String(data.names||'').split(/[、,，;；\n]+/).map(function(v){return v.trim();}).filter(Boolean).slice(0,2);
+      var values=data.single?[String(data.names||'')]:String(data.names||'').split(/[、,，;；\n]+/).map(function(v){return v.trim();}).filter(Boolean).slice(0,2);
       node.dataset.hostCount=String(values.length);
       var signature=JSON.stringify(values);if(names.dataset.signature!==signature||!names.querySelector('.host-name')){if(!names.querySelector('.host-name')){names.textContent='';[0,1].forEach(function(i){var item=document.createElement('span');item.className='host-name host-name-'+i;names.appendChild(item);});}[0,1].forEach(function(i){names.children[i].textContent=values[i]||'';});names.dataset.signature=signature;}
       var appearance=normalize(data.appearance),footer=JSON.stringify([appearance.footerLeft,data.subtitle||'']);

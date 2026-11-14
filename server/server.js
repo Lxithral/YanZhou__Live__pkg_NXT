@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { applyManagement, defaultManagement, validateManagement } from './stage-management.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { constants } from 'node:fs';
@@ -92,7 +93,7 @@ export const DEFAULT_SETTINGS = {
       next: '下一个节目',
       accentColor: '#A69AF5',
       textColor: '#F4F0E8',
-      x: 1376,
+      x: 1144,
       y: 64,
       scale: 1,
       opacity: 100,
@@ -106,6 +107,8 @@ export const DEFAULT_SETTINGS = {
     },
   },
 };
+
+for (const kind of ['hosts', 'program']) Object.assign(DEFAULT_SETTINGS.modules[kind], defaultManagement(kind, DEFAULT_SETTINGS.modules[kind]));
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -127,6 +130,7 @@ function isObject(value) {
 
 function validateField(field, value) {
   const rule = FIELD_RULES[field];
+  if (field === 'slotCount' && !Number.isInteger(value)) throw new Error('槽位数量必须是整数。');
   if (rule.kind === 'boolean') {
     if (typeof value !== 'boolean') throw new Error(`${rule.label}必须是布尔值。`);
     return value;
@@ -209,6 +213,10 @@ function validateModulePatch(moduleId, patch) {
 function validateModule(moduleId, module) {
   if (!isObject(module)) throw new Error(`settings.json 缺少模块：${moduleId}`);
   const allowed = new Set([...MODULE_FIELDS[moduleId], 'animation']);
+  if (moduleId === 'hosts') ['people', 'slots'].forEach((key) => allowed.add(key));
+  if (moduleId === 'program') ['items', 'selectedId'].forEach((key) => allowed.add(key));
+  // v10 测试版曾保存 program.cardStyle（ticket / classic）；现在只有票根卡，读到时直接忽略。
+  if (moduleId === 'program') allowed.add('cardStyle');
   if (moduleId === 'lyrics') {
     Object.keys(DEFAULT_LYRICS).forEach((key) => allowed.add(key));
     allowed.add('song');
@@ -224,16 +232,22 @@ function validateModule(moduleId, module) {
       result[field] = OPTIONAL_DEFAULTS[moduleId][field];
       continue;
     }
-    // A style saved by an earlier version (or any unknown name) falls back to the first style.
-    if (field === 'style' && !FIELD_RULES.style.values.includes(module.style)) {
-      result.style = OPTIONAL_DEFAULTS[moduleId].style;
+    // A style saved by an earlier version (or any unknown name) falls back to the default style.
+    if (FIELD_RULES[field].kind === 'choice' && !FIELD_RULES[field].values.includes(module[field])) {
+      result[field] = OPTIONAL_DEFAULTS[moduleId][field];
       continue;
     }
     if (!Object.hasOwn(module, field)) throw new Error(`settings.json 缺少设置项：${moduleId}.${field}`);
     result[field] = validateField(field, module[field]);
   }
   result.animation = validateAnimation(module.animation);
-  if (moduleId !== 'lyrics') return result;
+  if (moduleId !== 'lyrics') {
+    if ((moduleId === 'hosts' && ('people' in module || 'slots' in module)) ||
+        (moduleId === 'program' && ('items' in module || 'selectedId' in module))) {
+      Object.assign(result, validateManagement(module, moduleId));
+    }
+    return result;
+  }
   const { songOrder } = module;
   if (songOrder !== undefined && (!Array.isArray(songOrder) ||
       songOrder.some((id) => typeof id !== 'string' || !/^[0-9a-f]{32}$/u.test(id)) ||
@@ -261,7 +275,23 @@ function validateSettings(settings) {
     const module = Object.hasOwn(settings.modules, moduleId) ? settings.modules[moduleId] : clone(DEFAULT_SETTINGS.modules[moduleId]);
     modules[moduleId] = validateModule(moduleId, module);
   }
-  return { version: 5, canvas: { width: 1920, height: 1080 }, modules };
+  return { version: 5, canvas: { width: 1920, height: 1080 }, modules, ...(Object.hasOwn(settings, 'layout') && { layout: validateLayout(settings.layout) }) };
+}
+
+/** 画面整体设置（可选）：autoAvoid 自动避让，缺省视为开启，旧文件不需要补写。 */
+function validateLayout(layout, partial = false) {
+  if (!isObject(layout)) throw new Error('画面设置格式不正确。');
+  for (const key of Object.keys(layout)) {
+    if (key !== 'autoAvoid') throw new Error(`不支持的画面设置：${key}`);
+  }
+  if (!partial && !Object.hasOwn(layout, 'autoAvoid')) throw new Error('画面设置缺少 autoAvoid。');
+  if (Object.hasOwn(layout, 'autoAvoid') && typeof layout.autoAvoid !== 'boolean') throw new Error('自动避让必须是开或关。');
+  return { ...layout };
+}
+
+/** 人物条中实际上屏的槽位序号。 */
+function shownSlots(hosts) {
+  return (hosts.slots ?? []).flatMap((slot, index) => (index < hosts.slotCount && !slot.hidden && slot.personId ? [index] : []));
 }
 
 /** Upgrade older settings files stepwise to the current schema
@@ -363,13 +393,23 @@ export async function createPackagingServer({
       }
     }
     settings = validateSettings(migrated);
+    const needsManagement = !settings.modules.hosts.people || !settings.modules.program.items;
+    if (needsManagement) {
+      try {
+        await copyFile(settingsPath, `${settingsPath}.pre-management.bak`, constants.COPYFILE_EXCL);
+      } catch (error) { if (error.code !== 'EEXIST') throw error; }
+      for (const kind of ['hosts', 'program']) {
+        const module = settings.modules[kind];
+        if (!(kind === 'hosts' ? module.people : module.items)) Object.assign(module, defaultManagement(kind, module));
+      }
+    }
     const currentLyrics = settings.modules.lyrics;
     const legacyDoc = !currentLyrics.song && currentLyrics.doc.length > 0;
     if (legacyDoc) {
       const song = await library.migrate(currentLyrics.doc);
       currentLyrics.song = { id: song.id, version: song.version };
     }
-    if (legacyDoc || updatedSong || migrated !== raw || !Object.hasOwn(raw.modules, 'lyrics')) {
+    if (needsManagement || legacyDoc || updatedSong || migrated !== raw || !Object.hasOwn(raw.modules, 'lyrics')) {
       try {
         const backup = legacyDoc || updatedSong ? 'pre-library' : 'pre-lyrics';
         await copyFile(settingsPath, `${settingsPath}.${backup}.bak`, constants.COPYFILE_EXCL);
@@ -392,14 +432,34 @@ export async function createPackagingServer({
   let saveTimer;
   let writeQueue = Promise.resolve();
   let songQueue = Promise.resolve();
+  let commandQueue = Promise.resolve();
   let closing = false;
   const clients = new Set();
-  const getState = () => ({ type: 'state', settings: clone(settings), revision, savedRevision, savedAt });
+  // 上屏先后顺序只保存在内存里（不写入 settings.json）：先出现的模块在前，自动避让时后出现的让开。
+  let showOrder;
+  const getShowOrder = () => (showOrder ??= MODULE_IDS.filter((id) => settings.modules[id].visible));
+  const trackShown = (previous, next) => {
+    let order = getShowOrder();
+    for (const id of MODULE_IDS) {
+      const was = Boolean(previous[id]?.visible);
+      const now = Boolean(next[id]?.visible);
+      let bump = !was && now;
+      if (id === 'hosts' && was && now) {
+        const before = new Set(shownSlots(previous.hosts));
+        bump = shownSlots(next.hosts).some((index) => !before.has(index));
+      }
+      if (!now) order = order.filter((entry) => entry !== id);
+      else if (bump || !order.includes(id)) order = [...order.filter((entry) => entry !== id), id];
+    }
+    showOrder = order;
+  };
+  const getState = () => ({ type: 'state', settings: clone(settings), stage: { showOrder: [...getShowOrder()] }, revision, savedRevision, savedAt });
   const getWireState = () => {
     const { doc, manual, songOrder, ...module } = settings.modules.lyrics;
     const { lines, ...manualState } = manual;
     return {
       type: 'state', revision, savedRevision, savedAt,
+      stage: { showOrder: [...getShowOrder()] },
       settings: {
         ...settings,
         modules: {
@@ -523,9 +583,9 @@ export async function createPackagingServer({
   function queueSave() {
     clearTimeout(saveTimer);
     saveTimer = undefined;
-    const snapshot = clone(settingsForDisk(settings));
-    const targetRevision = revision;
     const task = writeQueue.catch(() => {}).then(async () => {
+      const snapshot = clone(settingsForDisk(settings));
+      const targetRevision = revision;
       await atomicWrite(settingsPath, snapshot);
       savedRevision = targetRevision;
       savedAt = new Date().toISOString();
@@ -620,7 +680,7 @@ export async function createPackagingServer({
     send(client, lyricState({ doc: true, lines: true }));
     send(client, songState());
     send(client, asrState());
-    client.on('message', async (data, isBinary) => {
+    const handleMessage = async (data, isBinary) => {
       let id;
       try {
         if (closing) throw new Error('服务正在关闭。');
@@ -628,6 +688,28 @@ export async function createPackagingServer({
         const message = JSON.parse(data.toString());
         id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
         if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
+        if (['hosts:manage', 'program:manage'].includes(message.type)) {
+          if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) throw new Error('管理消息包含未知字段。');
+          const kind = message.type.split(':')[0];
+          const task = writeQueue.catch(() => {}).then(async () => {
+            const next = applyManagement(settings.modules[kind], kind, message.payload);
+            const targetRevision = revision + 1;
+            const candidate = { ...settings, modules: { ...settings.modules, [kind]: next } };
+            await atomicWrite(settingsPath, settingsForDisk(candidate));
+            trackShown(settings.modules, candidate.modules);
+            settings.modules[kind] = next;
+            revision += 1;
+            savedRevision = Math.min(targetRevision, revision);
+            savedAt = new Date().toISOString();
+          });
+          // A rejected management edit leaves the accepted state unchanged.
+          writeQueue = task.catch(() => {});
+          await task;
+          broadcast({ ...getWireState(), id });
+          send(client, { type: 'management:result', id });
+          scheduleSave();
+          return;
+        }
         if (LYRIC_COMMANDS.includes(message.type) || ['lyrics:select-song', 'lyrics:move-song'].includes(message.type)) {
           if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) {
             throw new Error('歌词消息包含未知字段。');
@@ -650,9 +732,22 @@ export async function createPackagingServer({
           await task;
           return;
         }
+        if (message.type === 'patch' && isObject(message.patch) && Object.keys(message.patch).length === 1 && isObject(message.patch.layout)) {
+          const layout = { autoAvoid: true, ...settings.layout, ...validateLayout(message.patch.layout, true) };
+          if (JSON.stringify(layout) === JSON.stringify({ autoAvoid: true, ...settings.layout })) {
+            send(client, { ...getWireState(), id });
+            return;
+          }
+          settings = { ...settings, layout };
+          revision += 1;
+          broadcast({ ...getWireState(), id });
+          scheduleSave();
+          return;
+        }
         if (message.type !== 'patch' || !isObject(message.patch) || !isObject(message.patch.modules)) {
           throw new Error('只支持包装模块设置修改。');
         }
+        if (Object.keys(message.patch).some((key) => key !== 'modules')) throw new Error('画面设置需要单独修改。');
         const moduleIds = Object.keys(message.patch.modules);
         if (moduleIds.length !== 1) throw new Error('每次只能修改一个包装模块。');
         const moduleId = moduleIds[0];
@@ -668,6 +763,7 @@ export async function createPackagingServer({
           send(client, { ...getWireState(), id });
           return;
         }
+        trackShown(settings.modules, { ...settings.modules, [moduleId]: nextModule });
         settings = { ...settings, modules: { ...settings.modules, [moduleId]: nextModule } };
         revision += 1;
         broadcast({ ...getWireState(), id });
@@ -675,6 +771,10 @@ export async function createPackagingServer({
       } catch (error) {
         send(client, { type: 'error', message: error.message, id });
       }
+    };
+    client.on('message', (data, isBinary) => {
+      const task = commandQueue.then(() => handleMessage(data, isBinary));
+      commandQueue = task.catch(() => {});
     });
   });
 
@@ -709,6 +809,7 @@ export async function createPackagingServer({
       clearInterval(lyricHeartbeat);
       clearInterval(lyricCheckpoint);
       capture.close();
+      await commandQueue;
       await songQueue;
       lyrics.close();
       if (lyrics.checkpointNeeded()) checkpointLyrics();
