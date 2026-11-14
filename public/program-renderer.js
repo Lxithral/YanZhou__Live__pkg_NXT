@@ -3,11 +3,11 @@ import { createModuleLayer } from './module-layer.js';
 const STYLE_ID = 'yanzhou-program-renderer-style';
 
 const STYLES = `
-.program-panel { display: flex; flex-direction: column; gap: 9px; width: max-content; min-width: min(280px, var(--program-width)); max-width: var(--program-width); padding: 14px 16px; border-inline-start: 3px solid var(--program-accent); border-radius: 4px; background: rgba(18, 22, 31, .96); }
+.program-panel { display: flex; flex-direction: column; gap: 9px; width: max-content; min-width: min(280px, var(--program-width)); max-width: var(--program-width); padding: 14px 16px; border-inline-start: 3px solid var(--program-accent); border-radius: 2px; background: rgba(20, 20, 20, .94); }
 .program-head { display: flex; align-items: center; gap: 9px; }
 .program-label { font-size: 14px; font-weight: 550; color: var(--program-accent); }
 .program-current { font-size: 27px; font-weight: 650; line-height: 1.2; color: var(--program-text-color); }
-.program-next { display: flex; align-items: baseline; gap: 8px; padding-top: 9px; border-top: 1px solid rgba(255, 255, 255, .17); font-size: 16px; line-height: 1.2; color: #c7ceda; }
+.program-next { display: flex; align-items: baseline; gap: 8px; padding-top: 9px; border-top: 1px solid rgba(255, 255, 255, .14); font-size: 16px; line-height: 1.2; color: rgba(255, 255, 255, .72); }
 .program-next-label { color: var(--program-accent); }
 .program-label, .program-current, .program-next-name, .program-next-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .program-head[hidden], .program-next[hidden], .program-next-label[hidden], .program-next-name[hidden] { display: none; }

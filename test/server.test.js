@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -768,4 +768,81 @@ test('settings without a lyrics module get a backup before lyrics migration and 
   await writeFile(setup.settingsPath, corrupt);
   await assert.rejects(setup.start(), /速率/);
   assert.equal(await readFile(setup.settingsPath, 'utf8'), corrupt);
+});
+
+test('a settings file whose song is missing from the library starts with no song and reports the skip', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await client.waitFor((message) => message.type === 'lyrics:songs');
+  await lyricCommand(client, 'lyrics:load', { title: '缺失测试', doc: demoDoc }, 'save-missing');
+  const saved = await client.waitFor((message) => message.type === 'lyrics:songs' && message.activeId);
+  assert.equal(saved.skipped, undefined);
+  await setup.stop(first.app);
+  const config = path.join(setup.directory, 'config', 'lyrics');
+  await unlink(path.join(config, `${saved.activeId}.json`));
+  await rmdir(config);
+  const before = await readFile(setup.settingsPath, 'utf8');
+
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(' '));
+  let after;
+  try {
+    after = await setup.start();
+  } finally {
+    console.warn = warn;
+  }
+  assert.ok(warnings.some((line) => line.includes('[提示]') && line.includes(saved.activeId)));
+  const lyrics = after.app.getState().settings.modules.lyrics;
+  assert.equal(lyrics.song, undefined);
+  assert.deepEqual(lyrics.doc, []);
+  assert.equal(lyrics.x, DEFAULT_SETTINGS.modules.lyrics.x);
+  assert.equal(await readFile(setup.settingsPath, 'utf8'), before, 'startup does not rewrite settings.json');
+
+  const fresh = await setup.connect(after.wsUrl);
+  const catalog = await fresh.waitFor((message) => message.type === 'lyrics:songs');
+  assert.equal(catalog.activeId, null);
+  assert.equal(catalog.skipped.id, saved.activeId);
+  assert.match(catalog.skipped.message, /已跳过/u);
+
+  await lyricCommand(fresh, 'lyrics:load', { title: '重新导入', doc: demoDoc }, 'reimport');
+  const reloaded = await fresh.waitFor((message) => message.type === 'lyrics:songs' && message.activeId);
+  assert.equal(reloaded.skipped, undefined);
+  assert.equal(reloaded.songs.length, 1);
+});
+
+test('the hosts caption style defaults for older files, syncs to every client, and rejects unknown values', async (t) => {
+  const setup = await fixture(t);
+  const legacy = structuredClone(DEFAULT_SETTINGS);
+  delete legacy.modules.hosts.style;
+  delete legacy.modules.hosts.customColors;
+  await writeFile(setup.settingsPath, JSON.stringify(legacy));
+  const before = await readFile(setup.settingsPath, 'utf8');
+  const first = await setup.start();
+  const controller = await setup.connect(first.wsUrl);
+  const overlay = await setup.connect(first.wsUrl);
+  const initial = await controller.waitFor((message) => message.type === 'state');
+  assert.equal(initial.settings.modules.hosts.style, 'h');
+  assert.equal(initial.settings.modules.hosts.customColors, false);
+  assert.equal(await readFile(setup.settingsPath, 'utf8'), before, 'a missing style does not rewrite the file');
+
+  controller.send({ type: 'patch', id: 'style-g', patch: { modules: { hosts: { style: 'g', customColors: true } } } });
+  const synced = await overlay.waitFor((message) => message.type === 'state' && message.settings.modules.hosts.style === 'g');
+  assert.equal(synced.settings.modules.hosts.customColors, true);
+  assert.equal(synced.settings.modules.hosts.label, legacy.modules.hosts.label);
+
+  for (const style of ['neon', 'gala']) {
+    controller.send({ type: 'patch', id: `style-${style}`, patch: { modules: { hosts: { style } } } });
+    assert.equal((await controller.waitFor((message) => message.id === `style-${style}`)).type, 'error');
+  }
+  await controller.waitFor((message) => message.type === 'saved');
+  assert.equal(JSON.parse(await readFile(setup.settingsPath, 'utf8')).modules.hosts.style, 'g');
+  await setup.stop(first.app);
+
+  const older = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  older.modules.hosts.style = 'yanzhou';
+  await writeFile(setup.settingsPath, JSON.stringify(older));
+  const second = await setup.start();
+  assert.equal(second.app.getState().settings.modules.hosts.style, 'h', 'a v7 style name falls back to the first style');
 });
