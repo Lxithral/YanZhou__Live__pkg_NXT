@@ -1,5 +1,5 @@
 import { createLogoRenderer } from './logo-renderer.js';
-import { createHostsRenderer } from './hosts-renderer.js';
+import { createHostsRenderer, DEFAULT_HOSTS_STYLE, HOSTS_STYLES } from './hosts-renderer.js';
 import { createProgramRenderer } from './program-renderer.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
 import { createLyricsClock, timecode } from './lyrics-clock.js';
@@ -45,8 +45,10 @@ const MODULES = {
       { key: 'label', id: 'hostsLabel', kind: 'text' },
       { key: 'names', id: 'hostsNames', kind: 'textarea' },
       { key: 'slotCount', id: 'hostsSlotCount', numberId: 'hostsSlotCountNumber', kind: 'raw' },
-      { key: 'accentColor', id: 'hostsAccent', hexId: 'hostsAccentHex', kind: 'color' },
-      { key: 'textColor', id: 'hostsTextColor', hexId: 'hostsTextColorHex', kind: 'color' },
+      { key: 'style', id: 'hostsStyle', hintId: 'hostsStyleHint', kind: 'choice', options: HOSTS_STYLES, fallback: DEFAULT_HOSTS_STYLE },
+      { key: 'customColors', id: 'hostsCustomColors', kind: 'boolean' },
+      { key: 'accentColor', id: 'hostsAccent', hexId: 'hostsAccentHex', kind: 'color', enabledBy: 'customColors' },
+      { key: 'textColor', id: 'hostsTextColor', hexId: 'hostsTextColorHex', kind: 'color', enabledBy: 'customColors' },
       { key: 'scale', id: 'hostsScale', numberId: 'hostsScaleNumber', kind: 'percent' },
       { key: 'opacity', id: 'hostsOpacity', numberId: 'hostsOpacityNumber', kind: 'opacity' },
     ],
@@ -95,7 +97,7 @@ const FALLBACK_SETTINGS = {
   canvas: { width: 1920, height: 1080 },
   modules: {
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#FFFFFF', textColor: '#F4F0E8', weight: 500, x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1376, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 678, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
@@ -342,12 +344,26 @@ function renderControls() {
       if (field.kind === 'color') {
         $(field.id).style.background = module[field.key];
         setInput(field.hexId, module[field.key].toUpperCase());
+        if (field.enabledBy) {
+          const enabled = Boolean(module[field.enabledBy]);
+          $(field.id).disabled = !enabled;
+          $(field.hexId).disabled = !enabled;
+          $(field.id).closest('.field').classList.toggle('is-disabled', !enabled);
+        }
       } else if (field.kind === 'boolean') {
         $(field.id).checked = Boolean(module[field.key]);
       } else if (field.kind === 'percent') {
         const percent = Math.round(module[field.key] * 100);
         updateRange(field.id, percent);
         setInput(field.numberId, percent);
+      } else if (field.kind === 'choice') {
+        const value = module[field.key] ?? field.fallback;
+        for (const button of $(field.id).querySelectorAll('button')) {
+          const checked = button.dataset.value === value;
+          button.setAttribute('aria-checked', String(checked));
+          button.tabIndex = checked ? 0 : -1;
+        }
+        if (field.hintId) $(field.hintId).textContent = field.options.find(({ id }) => id === value)?.hint ?? '';
       } else if (field.kind === 'opacity' || field.kind === 'weight' || field.kind === 'raw') {
         updateRange(field.id, module[field.key]);
         setInput(field.numberId, module[field.key]);
@@ -366,11 +382,48 @@ function renderControls() {
     toggle.setAttribute('aria-label', `${module.visible ? '隐藏' : '显示'}${MODULES[moduleId].name}`);
     toggle.setAttribute('aria-pressed', String(module.visible));
     document.querySelector(`[data-module-button="${moduleId}"]`)?.classList.toggle('is-off', !module.visible);
+    toggle.closest('.module-card')?.classList.toggle('is-live', Boolean(module.visible));
+    const state = document.querySelector(`[data-module-state="${moduleId}"]`);
+    if (state) state.textContent = module.visible ? '画面中' : '未显示';
+    const summary = document.querySelector(`[data-module-summary="${moduleId}"]`);
+    if (summary && moduleId !== 'lyrics') summary.textContent = MODULES[moduleId].summary(module);
+    const mapRect = document.querySelector(`[data-module-map="${moduleId}"]`);
+    if (mapRect) {
+      const { width: canvasWidth, height: canvasHeight } = settings.canvas;
+      const bounds = previewRenderers[moduleId].getBounds();
+      mapRect.style.left = `${module.x / canvasWidth * 100}%`;
+      mapRect.style.top = `${module.y / canvasHeight * 100}%`;
+      mapRect.style.width = `${Math.min(100, bounds.width / canvasWidth * 100)}%`;
+      mapRect.style.height = `${Math.min(100, bounds.height / canvasHeight * 100)}%`;
+    }
+    const detail = document.querySelector(`[data-module-detail="${moduleId}"]`);
+    if (detail) {
+      const label = (value) => ANIMATION_OPTIONS.find(([key]) => key === value)?.[1] ?? value;
+      detail.replaceChildren(
+        ...[['X', module.x], ['Y', module.y], ['', `${Math.round(module.scale * 100)}%`]].map(([key, value]) => {
+          const item = document.createElement('span');
+          const b = document.createElement('b');
+          item.textContent = key ? `${key} ` : '';
+          b.textContent = value;
+          item.append(b);
+          return item;
+        }),
+        Object.assign(document.createElement('span'), {
+          className: 'module-detail-anim',
+          textContent: `${label(module.animation.enter)}/${label(module.animation.exit)} ${module.animation.duration}ms`,
+          title: `出场 ${label(module.animation.enter)} · 退场 ${label(module.animation.exit)} · ${module.animation.duration} ms`,
+        }),
+      );
+    }
   }
+  const liveCount = MODULE_ORDER.filter((moduleId) => settings.modules[moduleId].visible).length;
+  $('liveCount').textContent = `画面中 ${liveCount} / ${MODULE_ORDER.length}`;
   const active = settings.modules[activeModule];
   $('moduleVisible').checked = active.visible;
   $('moduleVisible').setAttribute('aria-label', `显示 ${MODULES[activeModule].name}`);
   $('visibilityTitle').textContent = `显示 ${MODULES[activeModule].name}`;
+  $('visibilityHint').textContent = active.visible ? '显示中 · 关闭后按退场动画离开画面' : '已隐藏 · 打开后按出场动画进入画面';
+  document.querySelector('.visibility-row').classList.toggle('is-live', Boolean(active.visible));
   updateProgramAdvance();
 }
 
@@ -380,7 +433,11 @@ function upcomingPrograms() {
 }
 
 function updateProgramAdvance() {
-  $('programAdvance').disabled = !ready || !upcomingPrograms().length;
+  const upcoming = upcomingPrograms();
+  $('programAdvance').disabled = !ready || !upcoming.length;
+  $('programAdvanceHint').textContent = upcoming.length
+    ? `当前将变为「${upcoming[0]}」${upcoming[1] ? `，预告「${upcoming[1]}」` : ''}`
+    : '后续节目为空';
 }
 
 function updateSummary() {
@@ -443,13 +500,6 @@ function selectModule(moduleId) {
   closePicker();
   rebuildFocus();
   render();
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const panel = document.querySelector(`[data-module-panel="${moduleId}"]`);
-    for (const element of [panel, $('focusStage')]) {
-      element.getAnimations().forEach((animation) => animation.cancel());
-      element.animate([{ opacity: .5 }, { opacity: 1 }], { duration: 220, easing: 'ease-out' });
-    }
-  }
 }
 
 function applyServerState(message) {
@@ -472,7 +522,25 @@ function applyServerState(message) {
   queueFlush();
 }
 
-function renderLyricsPlaylist({ songs, activeId }) {
+const SKIP_NOTICE_KEY = 'yanzhou.skipNoticeDismissed';
+function renderSkipNotice(skipped) {
+  const box = document.getElementById('skip-notice');
+  if (!box) return;
+  let dismissed = '';
+  try { dismissed = sessionStorage.getItem(SKIP_NOTICE_KEY) || ''; } catch {}
+  box.hidden = !skipped || dismissed === skipped.id;
+  if (!skipped) return;
+  document.getElementById('skip-notice-text').textContent = skipped.message;
+  document.getElementById('skip-notice-close').onclick = () => {
+    try { sessionStorage.setItem(SKIP_NOTICE_KEY, skipped.id); } catch {}
+    box.hidden = true;
+  };
+}
+
+function renderLyricsPlaylist({ songs, activeId, skipped }) {
+  const activeSong = songs.find((song) => song.id === activeId);
+  const lyricsSummary = document.querySelector('[data-module-summary="lyrics"]');
+  if (lyricsSummary) lyricsSummary.textContent = activeSong ? `《${activeSong.title}》${activeSong.artist ? ` · ${activeSong.artist}` : ''}` : (skipped ? '未载入歌曲 · 上次的歌已跳过' : '未载入歌曲');
   const list = $('lyricsPlaylist');
   const focused = list.contains(document.activeElement) ? document.activeElement.dataset : undefined;
   let focusTarget;
@@ -542,6 +610,7 @@ function connect() {
       updateSaveStatus();
     } else if (message.type === 'lyrics:songs') {
       renderLyricsPlaylist(message);
+      renderSkipNotice(message.skipped);
     } else if (message.type === 'lyrics:asr') {
       lyricsClock.applyAsr(message);
       previewRenderers.lyrics.updateLyrics(lyricsClock);
@@ -642,7 +711,7 @@ function bindColorField(moduleId, field) {
   });
 }
 
-const PICKER_PRESETS = ['#FFFFFF', '#10151D', '#772B2C', '#E887A9', '#71C4DE', '#E23A2E', '#77D7AE', '#379C72', '#2E6FE2', '#A69AF5'];
+const PICKER_PRESETS = ['#FFFFFF', '#F4F0E8', '#10151D', '#2C2C2E', '#772B2C', '#D4AB78', '#E23A2E', '#71C4DE', '#379C72', '#2E6FE2'];
 const picker = $('colorPicker');
 let pickerTarget = null;
 let pickerHsv = { h: 0, s: 0, v: 1 };
@@ -816,6 +885,47 @@ function bindAnimationFields(moduleId, animation) {
   }
 }
 
+function bindChoiceField(moduleId, field) {
+  const group = $(field.id);
+  const buttons = field.options.map(({ id, name, hint }) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'radio');
+    button.dataset.value = id;
+    button.title = hint;
+    // 缩略图直接用原项目的 presetPreview 渲染真实样式，再按按钮尺寸缩放。
+    button.innerHTML = '<span class="style-thumb" aria-hidden="true"></span><span class="style-name"></span>';
+    const HostAppearance = globalThis.HostAppearance;
+    button.querySelector('.style-thumb').append(HostAppearance.presetPreview({ title: '主持人', names: '张三、李四', appearance: HostAppearance.template(id) }));
+    button.querySelector('.style-name').textContent = name;
+    button.addEventListener('click', () => {
+      edit(moduleId, { [field.key]: id });
+      flush();
+    });
+    return button;
+  });
+  group.replaceChildren(...buttons);
+  const fitThumbs = () => {
+    for (const thumb of group.querySelectorAll('.style-thumb')) {
+      const visual = thumb.querySelector('.host-visual');
+      if (!visual || !visual.offsetWidth || !thumb.clientWidth) continue;
+      const scale = Math.min((thumb.clientWidth - 12) / visual.offsetWidth, (thumb.clientHeight - 8) / visual.offsetHeight);
+      visual.style.transform = `translate(-50%, -50%) scale(${scale})`;
+    }
+  };
+  new ResizeObserver(fitThumbs).observe(group);
+  document.fonts?.ready.then(fitThumbs);
+  group.addEventListener('keydown', (event) => {
+    const step = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[event.key];
+    if (!step) return;
+    event.preventDefault();
+    const index = buttons.indexOf(document.activeElement);
+    const target = buttons[(Math.max(0, index) + step + buttons.length) % buttons.length];
+    target.focus();
+    target.click();
+  });
+}
+
 function bindFields() {
   for (const moduleId of MODULE_ORDER) {
     const meta = MODULES[moduleId];
@@ -827,6 +937,8 @@ function bindFields() {
         $(field.id).addEventListener('change', (event) => edit(moduleId, { [field.key]: event.target.checked }));
       } else if (field.kind === 'color') {
         bindColorField(moduleId, field);
+      } else if (field.kind === 'choice') {
+        bindChoiceField(moduleId, field);
       } else if (field.kind === 'percent') {
         bindRangeField(moduleId, field, 100);
       } else if (field.kind === 'opacity' || field.kind === 'weight' || field.kind === 'raw') {
@@ -919,18 +1031,44 @@ function bindGlobalControls() {
       y: settings.modules[activeModule].y + moves[event.key][1],
     });
   });
-  for (const button of document.querySelectorAll('[data-background]')) {
-    if (button.tagName !== 'BUTTON') continue;
+  // 预览底色：未手动选择时跟随界面主题（深色主题用深色底，浅色主题用浅灰棋盘格）；
+  // 手动选过就记住，选回与当前主题默认相同的底色则恢复跟随。
+  const BACKGROUND_KEY = 'yzb-preview-background';
+  const themeBackground = () => (document.documentElement.dataset.theme === 'light' ? 'checker' : 'dark');
+  const readManualBackground = () => {
+    try { return localStorage.getItem(BACKGROUND_KEY); } catch { return null; }
+  };
+  const applyBackground = () => {
+    const manual = readManualBackground();
+    const value = ['dark', 'light', 'checker'].includes(manual) ? manual : themeBackground();
+    $('previewStage').dataset.background = value;
+    $('focusStage').dataset.background = value;
+    for (const other of document.querySelectorAll('button[data-background]')) {
+      const selected = other.dataset.background === value;
+      other.classList.toggle('active', selected);
+      other.setAttribute('aria-pressed', String(selected));
+    }
+  };
+  for (const button of document.querySelectorAll('button[data-background]')) {
     button.addEventListener('click', () => {
-      $('previewStage').dataset.background = button.dataset.background;
-      $('focusStage').dataset.background = button.dataset.background;
-      for (const other of document.querySelectorAll('button[data-background]')) {
-        const selected = button === other;
-        other.classList.toggle('active', selected);
-        other.setAttribute('aria-pressed', String(selected));
-      }
+      try {
+        if (button.dataset.background === themeBackground()) localStorage.removeItem(BACKGROUND_KEY);
+        else localStorage.setItem(BACKGROUND_KEY, button.dataset.background);
+      } catch {}
+      applyBackground();
     });
   }
+  new MutationObserver(applyBackground).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  applyBackground();
+  $('copyOutputUrl').addEventListener('click', async () => {
+    const url = `${location.origin}/overlay.html`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast(`已复制 ${url}`);
+    } catch {
+      toast(`OBS 浏览器来源地址：${url}`);
+    }
+  });
   $('safeAreaToggle').addEventListener('change', (event) => { $('safeArea').hidden = !event.target.checked; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
   window.addEventListener('pagehide', flush);

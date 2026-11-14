@@ -35,11 +35,15 @@ const FIELD_RULES = {
   opacity: { kind: 'number', min: 0, max: 100, label: '不透明度' },
   weight: { kind: 'number', min: 150, max: 700, label: '字重' },
   slotCount: { kind: 'number', min: 1, max: 4, label: '槽位数量' },
+  style: { kind: 'choice', values: ['h', 'g', 'i'], label: '样式' },
+  customColors: { kind: 'boolean', label: '自定义颜色' },
 };
+// Fields that older settings files may lack; a missing value takes the default.
+const OPTIONAL_DEFAULTS = { hosts: { style: 'h', customColors: false } };
 
 const MODULE_FIELDS = {
   logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
-  hosts: ['visible', 'label', 'names', 'slotCount', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  hosts: ['visible', 'label', 'names', 'slotCount', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
@@ -69,6 +73,8 @@ export const DEFAULT_SETTINGS = {
       label: '主持人',
       names: '张三\n李四',
       slotCount: 2,
+      style: 'h',
+      customColors: false,
       accentColor: '#71C4DE',
       textColor: '#2C2C2E',
       x: 96,
@@ -108,6 +114,7 @@ const MIME = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.ttf': 'font/ttf',
+  '.woff2': 'font/woff2',
   '.ogg': 'audio/ogg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
@@ -130,6 +137,10 @@ function validateField(field, value) {
     if (field === 'queue' && value.split(/\r?\n/u).some((line) => [...line.trim()].length > FIELD_RULES.next.max)) {
       throw new Error('后续节目每行最多 80 个字符。');
     }
+    return value;
+  }
+  if (rule.kind === 'choice') {
+    if (!rule.values.includes(value)) throw new Error(`${rule.label}无效，可选：${rule.values.join(' / ')}。`);
     return value;
   }
   if (rule.kind === 'color') {
@@ -208,6 +219,15 @@ function validateModule(moduleId, module) {
   const result = {};
   for (const field of MODULE_FIELDS[moduleId]) {
     if (field === 'queue' && !Object.hasOwn(module, field)) continue;
+    if (!Object.hasOwn(module, field) && Object.hasOwn(OPTIONAL_DEFAULTS[moduleId] ?? {}, field)) {
+      result[field] = OPTIONAL_DEFAULTS[moduleId][field];
+      continue;
+    }
+    // A style saved by an earlier version (or any unknown name) falls back to the first style.
+    if (field === 'style' && !FIELD_RULES.style.values.includes(module.style)) {
+      result.style = OPTIONAL_DEFAULTS[moduleId].style;
+      continue;
+    }
     if (!Object.hasOwn(module, field)) throw new Error(`settings.json 缺少设置项：${moduleId}.${field}`);
     result[field] = validateField(field, module[field]);
   }
@@ -302,6 +322,7 @@ export async function createPackagingServer({
   let settings;
   let savedAt;
   let hasSettings = false;
+  let skippedSong = null;
   const library = await openLyricLibrary(path.join(path.dirname(settingsPath), 'config', 'lyrics'));
   try {
     const contents = await readFile(settingsPath, 'utf8');
@@ -310,6 +331,23 @@ export async function createPackagingServer({
     const migrated = migrateSettings(raw);
     const previousLyrics = migrated?.modules?.lyrics;
     let updatedSong = false;
+    if (previousLyrics?.song !== undefined &&
+        !library.list().some((entry) => entry.id === validateSongReference(previousLyrics.song).id)) {
+      // 曲库里没有设置中引用的歌（例如干净解压、config/lyrics 未随包拷贝）：按未选歌处理，其余设置不变。
+      // 不主动改写 settings.json；下次保存设置时自然去掉这条引用。
+      const { id } = validateSongReference(previousLyrics.song);
+      skippedSong = {
+        id,
+        message: `曲库中找不到上次使用的歌曲（编号 ${id.slice(0, 8)}），已跳过。请从曲库重新选择，或在歌词台导入 LRC。`,
+      };
+      delete previousLyrics.song;
+      previousLyrics.doc = [];
+      previousLyrics.transport = { ...previousLyrics.transport, position: 0 };
+      if (previousLyrics.manual?.lines === null) {
+        previousLyrics.manual = { ...previousLyrics.manual, index: null, current: '' };
+      }
+      console.warn(`[提示] 曲库中找不到歌曲（编号 ${id}），已跳过，请在歌词台重新选择或导入。曲库目录：${path.join(path.dirname(settingsPath), 'config', 'lyrics')}`);
+    }
     if (previousLyrics?.song !== undefined) {
       const reference = validateSongReference(previousLyrics.song);
       const song = await library.load(reference.id);
@@ -392,6 +430,7 @@ export async function createPackagingServer({
   }
   const songState = () => ({
     type: 'lyrics:songs', songs: orderedSongs(), activeId: activeSongId(),
+    ...(skippedSong && { skipped: { ...skippedSong } }),
   });
 
   function moveSong(payload, id) {
@@ -426,6 +465,7 @@ export async function createPackagingServer({
       settings.modules.lyrics.songOrder = [...order, song.id];
     }
     settings.modules.lyrics.song = { id: song.id, version: song.version };
+    skippedSong = null;
     broadcast(songState());
     publishLyrics(include, id);
     broadcast(asrState());

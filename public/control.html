@@ -11,9 +11,17 @@
 </head>
 <body class="control-page">
   <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" role="img" aria-label="烟洲直播包装" title="烟洲直播包装"></span>
+    </div>
+    <nav class="page-nav" aria-label="页面">
+      <a href="/control.html" aria-current="page">主控台</a>
+      <a href="/lyrics.html">歌词台</a>
+    </nav>
     <div class="header-actions">
-      <a class="button lyrics-link" href="/lyrics.html">歌词台</a>
       <a class="button output-link" href="/overlay.html" target="_blank" rel="noopener">打开输出</a>
+      <button type="button" class="button" id="copyOutputUrl" title="复制 OBS 浏览器来源地址">复制 OBS 地址</button>
+      <span class="header-divider" aria-hidden="true"></span>
       <div class="theme-switch" role="group" aria-label="界面主题">
         <button type="button" data-theme-option="auto" title="跟随系统" aria-label="跟随系统主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button>
         <button type="button" data-theme-option="light" title="浅色" aria-label="浅色主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
@@ -24,42 +32,46 @@
   </header>
   <div class="app-shell">
     <aside class="module-sidebar" aria-label="包装模块">
-      <h2>模块</h2>
+      <div class="sidebar-head"><h2>模块</h2><span id="liveCount" class="live-count">—</span></div>
       <div class="module-list" role="tablist" aria-label="包装模块列表">
         <div class="module-card active">
           <button type="button" class="module-item active" data-module-button="logo" role="tab" aria-selected="true">
-            <span class="module-copy"><strong>Logo 挂角</strong></span>
+            <span class="module-tally" aria-hidden="true"></span><span class="module-copy"><span class="module-title-row"><strong>Logo 挂角</strong></span><span class="module-state" data-module-state="logo">—</span><span class="module-summary" data-module-summary="logo"></span><span class="module-foot"><span class="module-detail" data-module-detail="logo"></span><span class="module-map" aria-hidden="true"><span class="module-map-frame"><span class="module-map-rect" data-module-map="logo"></span></span></span></span></span>
           </button>
           <button type="button" class="module-toggle" data-module-visibility="logo" aria-label="隐藏Logo 挂角">隐藏</button>
         </div>
         <div class="module-card">
           <button type="button" class="module-item" data-module-button="hosts" role="tab" aria-selected="false">
-            <span class="module-copy"><strong>人物信息条</strong></span>
+            <span class="module-tally" aria-hidden="true"></span><span class="module-copy"><span class="module-title-row"><strong>人物信息条</strong></span><span class="module-state" data-module-state="hosts">—</span><span class="module-summary" data-module-summary="hosts"></span><span class="module-foot"><span class="module-detail" data-module-detail="hosts"></span><span class="module-map" aria-hidden="true"><span class="module-map-frame"><span class="module-map-rect" data-module-map="hosts"></span></span></span></span></span>
           </button>
           <button type="button" class="module-toggle" data-module-visibility="hosts" aria-label="隐藏人物信息条">隐藏</button>
         </div>
         <div class="module-card">
           <button type="button" class="module-item" data-module-button="program" role="tab" aria-selected="false">
-            <span class="module-copy"><strong>节目单</strong></span>
+            <span class="module-tally" aria-hidden="true"></span><span class="module-copy"><span class="module-title-row"><strong>节目单</strong></span><span class="module-state" data-module-state="program">—</span><span class="module-summary" data-module-summary="program"></span><span class="module-foot"><span class="module-detail" data-module-detail="program"></span><span class="module-map" aria-hidden="true"><span class="module-map-frame"><span class="module-map-rect" data-module-map="program"></span></span></span></span></span>
           </button>
           <button type="button" class="module-toggle" data-module-visibility="program" aria-label="隐藏节目单">隐藏</button>
         </div>
         <div class="module-card">
           <button type="button" class="module-item" data-module-button="lyrics" role="tab" aria-selected="false">
-            <span class="module-copy"><strong>歌词字幕</strong></span>
+            <span class="module-tally" aria-hidden="true"></span><span class="module-copy"><span class="module-title-row"><strong>歌词字幕</strong></span><span class="module-state" data-module-state="lyrics">—</span><span class="module-summary" data-module-summary="lyrics"></span><span class="module-foot"><span class="module-detail" data-module-detail="lyrics"></span><span class="module-map" aria-hidden="true"><span class="module-map-frame"><span class="module-map-rect" data-module-map="lyrics"></span></span></span></span></span>
           </button>
           <button type="button" class="module-toggle" data-module-visibility="lyrics" aria-label="隐藏歌词字幕">隐藏</button>
         </div>
       </div>
+      <dl class="sidebar-help">
+        <div><dt>拖动</dt><dd>在预览中直接移动模块</dd></div>
+        <div><dt>方向键</dt><dd>聚焦预览后微调 1 px</dd></div>
+        <div><dt>Shift</dt><dd>配合方向键每次 10 px</dd></div>
+      </dl>
     </aside>
     <main class="monitor-column">
       <div class="section-heading">
-        <h1>画面监看<span class="heading-tag" id="activeModuleTag">Logo 挂角</span></h1>
-        <span class="canvas-dimensions">1920 <span>×</span> 1080</span>
+        <h1>画面监看<span class="heading-tag">当前选中 <b id="activeModuleTag">Logo 挂角</b></span></h1>
       </div>
       <section class="preview-card" aria-label="包装实时预览">
         <div class="preview-toolbar">
-          <div class="preview-live">全画面</div>
+          <div class="preview-live"><span class="preview-label">节目画面</span><span class="canvas-dimensions">1920 × 1080</span><span class="preview-zoom" id="previewScale">100%</span></div>
           <div class="preview-tools">
             <div class="background-switch" role="group" aria-label="预览背景">
               <button type="button" class="active" data-background="dark" aria-label="深色预览背景" aria-pressed="true" title="深色背景"><span class="bg-sample dark"></span></button>
@@ -75,9 +87,6 @@
             <div class="safe-area" id="safeArea" aria-hidden="true"></div>
           </div>
           <div class="preview-offline" id="previewOffline" hidden><span></span>连接恢复后同步</div>
-        </div>
-        <div class="preview-bottom">
-          <span id="previewScale">100%</span>
         </div>
       </section>
       <section class="focus-card" aria-labelledby="focusTitle">
@@ -96,7 +105,7 @@
         <h2 id="propertiesTitle">Logo 挂角设置</h2>
       </div>
       <section class="properties-card">
-        <div class="visibility-row"><div><strong id="visibilityTitle">显示 Logo 挂角</strong></div><label class="switch"><input id="moduleVisible" type="checkbox" checked aria-label="显示当前模块"><span></span></label></div>
+        <div class="visibility-row"><div class="visibility-copy"><strong id="visibilityTitle">显示 Logo 挂角</strong><small id="visibilityHint">关闭后按退场动画离开画面</small></div><label class="switch"><input id="moduleVisible" type="checkbox" checked aria-label="显示当前模块"><span></span></label></div>
         <div class="module-panel" data-module-panel="logo">
           <div class="settings-section">
             <h3><span>01</span>显示内容</h3>
@@ -110,7 +119,7 @@
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="logoColor">校徽颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoColor" aria-label="校徽颜色，打开取色器"></button><input id="logoColorHex" class="hex-input" type="text" maxlength="7" aria-label="校徽颜色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="logoTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoTextColor" aria-label="文字颜色，打开取色器"></button><input id="logoTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="logoTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoTextColor" aria-label="文字颜色，打开取色器"></button><input id="logoTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="logoWeight">字重</label><div class="slider-line"><input id="logoWeight" class="range-input" type="range" min="150" max="700" step="10"><div class="number-unit"><input id="logoWeightNumber" type="number" min="150" max="700" step="10" aria-label="字重数值"><span></span></div></div></div>
               <div class="field"><label class="field-label" for="logoScale">整体大小</label><div class="slider-line"><input id="logoScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="logoScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="logoOpacity">不透明度</label><div class="slider-line"><input id="logoOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="logoOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
@@ -145,21 +154,23 @@
             <h3><span>01</span>显示内容</h3>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="hostsLabel">标签</label><input class="text-input" id="hostsLabel" type="text" maxlength="40" autocomplete="off"></div>
-              <div class="field"><label class="field-label" for="hostsNames">人物名单 <span class="hint">每行一位：姓名｜头衔（可省略）</span></label><textarea class="text-input textarea-input" id="hostsNames" maxlength="240" rows="2"></textarea></div>
-              <div class="field field-wide"><label class="field-label" for="hostsSlotCount">槽位数量 <span class="hint">右半区自动镜像</span></label><div class="slider-line"><input id="hostsSlotCount" class="range-input" type="range" min="1" max="4" step="1"><div class="number-unit"><input id="hostsSlotCountNumber" type="number" min="1" max="4" step="1" aria-label="槽位数量"><span></span></div></div></div>
+              <div class="field"><label class="field-label" for="hostsNames">人物名单 <span class="hint">每行一位姓名；「｜头衔」可保留，三款样式不显示</span></label><textarea class="text-input textarea-input" id="hostsNames" maxlength="240" rows="2"></textarea></div>
+              <div class="field field-wide"><label class="field-label" for="hostsSlotCount">显示人数 <span class="hint">按名单顺序取前几位，H 款最多两人</span></label><div class="slider-line"><input id="hostsSlotCount" class="range-input" type="range" min="1" max="4" step="1"><div class="number-unit"><input id="hostsSlotCountNumber" type="number" min="1" max="4" step="1" aria-label="显示人数"><span></span></div></div></div>
             </div>
           </div>
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="hostsAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsAccent" aria-label="强调色，打开取色器"></button><input id="hostsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="hostsTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsTextColor" aria-label="文字颜色，打开取色器"></button><input id="hostsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field field-wide"><span class="field-label" id="hostsStyleLabel">样式 <span class="hint" id="hostsStyleHint"></span></span><div class="style-picker" id="hostsStyle" role="radiogroup" aria-labelledby="hostsStyleLabel"></div></div>
+              <div class="field field-wide"><div class="field-line"><label class="field-label" for="hostsCustomColors">自定义颜色 <span class="hint">关闭时使用原设计配色</span></label><label class="switch"><input id="hostsCustomColors" type="checkbox" aria-label="自定义颜色"><span></span></label></div></div>
+              <div class="field"><label class="field-label" for="hostsAccent">标签色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsAccent" aria-label="标签色，打开取色器"></button><input id="hostsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="标签色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="hostsTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="hostsTextColor" aria-label="文字颜色，打开取色器"></button><input id="hostsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="hostsScale">整体大小</label><div class="slider-line"><input id="hostsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="hostsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="hostsOpacity">不透明度</label><div class="slider-line"><input id="hostsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="hostsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
           </div>
           <div class="settings-section">
-            <h3><span>03</span>位置</h3>
+            <h3><span>03</span>位置 <span class="hint">左右两人在同一条内，整条一起移动</span></h3>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="hostsX">水平 X</label><div class="number-unit"><input id="hostsX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -191,14 +202,14 @@
               <div class="field"><label class="field-label" for="programNextLabel">下一个标签 <span class="hint">可留空</span></label><input class="text-input" id="programNextLabel" type="text" maxlength="40" autocomplete="off"></div>
               <div class="field"><label class="field-label" for="programNext">下一个节目 <span class="hint">可留空</span></label><input class="text-input" id="programNext" type="text" maxlength="80" autocomplete="off"></div>
               <div class="field field-wide"><label class="field-label" for="programQueue">后续节目 <span class="hint">每行一项</span></label><textarea class="text-input textarea-input" id="programQueue" rows="3" maxlength="2000"></textarea></div>
-              <div class="field field-wide"><button class="button program-advance" id="programAdvance" type="button" disabled>切到下一项</button></div>
+              <div class="field field-wide program-advance-row"><button class="button program-advance" id="programAdvance" type="button" disabled>切到下一项</button><span class="program-advance-hint" id="programAdvanceHint">后续节目为空</span></div>
             </div>
           </div>
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="programAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="programAccent" aria-label="强调色，打开取色器"></button><input id="programAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="programTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="programTextColor" aria-label="文字颜色，打开取色器"></button><input id="programTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="programAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="programAccent" aria-label="标签色，打开取色器"></button><input id="programAccentHex" class="hex-input" type="text" maxlength="7" aria-label="标签色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="programTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="programTextColor" aria-label="文字颜色，打开取色器"></button><input id="programTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="programScale">整体大小</label><div class="slider-line"><input id="programScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="programScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="programOpacity">不透明度</label><div class="slider-line"><input id="programOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="programOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
@@ -230,6 +241,11 @@
         <div class="module-panel" data-module-panel="lyrics" hidden>
           <div class="settings-section lyrics-playlist">
             <h3><span>01</span>歌词控制</h3>
+            <div class="skip-notice" id="skip-notice" role="status" hidden>
+              <svg class="skip-notice-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M8 4.75v4M8 11.1v.15"/></svg>
+              <span class="skip-notice-text" id="skip-notice-text"></span>
+              <button type="button" class="skip-notice-close" id="skip-notice-close" aria-label="关闭提示" title="关闭提示"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
+            </div>
             <div class="lyrics-playlist-progress">
               <label for="lyricsProgress">当前歌曲进度</label>
               <output id="lyricsProgressTime">—</output>
@@ -240,8 +256,8 @@
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="lyricsAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsAccent" aria-label="强调色，打开取色器"></button><input id="lyricsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="强调色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="lyricsTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsTextColor" aria-label="文字颜色，打开取色器"></button><input id="lyricsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="lyricsAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsAccent" aria-label="标签色，打开取色器"></button><input id="lyricsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="标签色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="lyricsTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsTextColor" aria-label="文字颜色，打开取色器"></button><input id="lyricsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="lyricsScale">整体大小</label><div class="slider-line"><input id="lyricsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="lyricsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="lyricsOpacity">不透明度</label><div class="slider-line"><input id="lyricsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="lyricsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>

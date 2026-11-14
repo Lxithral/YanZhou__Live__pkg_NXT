@@ -1,0 +1,7 @@
+/* The original transparent res.zip school crest stays intact. */
+.host-visual[data-template=i],#host-bar.host-visual[data-template=i]{padding:22px 32px 22px 24px;gap:26px;min-width:540px;max-width:1040px}
+.host-visual[data-template=i]>.host-shell{background:var(--host-bg);border:0;border-left:7px solid var(--host-tagColor);border-radius:var(--host-radius);overflow:hidden}
+.host-visual[data-template=i]>.host-shell::after{content:"";position:absolute;width:190px;height:190px;right:-36px;bottom:-48px;background:url('/assets/yanzhou-watermark.png') center/contain no-repeat;opacity:.13;filter:saturate(.45);pointer-events:none}
+.host-visual[data-template=i] .tag,#host-bar.host-visual[data-template=i] .tag{border-radius:5px;font-size:25px;padding:9px 16px}
+.host-visual[data-template=i] .names{font-size:42px;letter-spacing:2px}
+.host-visual[data-template=i] .sub{font-size:22px;max-width:280px;white-space:normal}

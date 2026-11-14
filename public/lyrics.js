@@ -222,6 +222,7 @@ function updateOutput() {
   for (const source of ['timeline', 'manual', 'asr']) {
     $(`${source}-air`).hidden = selected !== source || !lyricsVisible || !ready || (source === 'asr' && !asrLive);
   }
+  $('output-source-group').classList.toggle('is-live', Boolean(selected) && lyricsVisible && ready);
   const names = { timeline: '时间轴', manual: '手动', asr: asrLive ? '语音识别' : '语音识别已停止' };
   $('output-status').textContent = !ready ? 'OBS 状态未确认' : !lyricsVisible ? 'OBS 歌词模块已隐藏' :
     selected ? `OBS · ${names[selected]}` : 'OBS 待推送';
@@ -255,6 +256,21 @@ function renderState(state) {
   drawClock();
 }
 
+const SKIP_NOTICE_KEY = 'yanzhou.skipNoticeDismissed';
+function renderSkipNotice(skipped) {
+  const box = document.getElementById('skip-notice');
+  if (!box) return;
+  let dismissed = '';
+  try { dismissed = sessionStorage.getItem(SKIP_NOTICE_KEY) || ''; } catch {}
+  box.hidden = !skipped || dismissed === skipped.id;
+  if (!skipped) return;
+  document.getElementById('skip-notice-text').textContent = skipped.message;
+  document.getElementById('skip-notice-close').onclick = () => {
+    try { sessionStorage.setItem(SKIP_NOTICE_KEY, skipped.id); } catch {}
+    box.hidden = true;
+  };
+}
+
 function connect() {
   socket = new WebSocket(new URL('/ws', location.href.replace(/^http/, 'ws')));
   socket.addEventListener('message', ({ data }) => {
@@ -275,6 +291,7 @@ function connect() {
         reconnectDelay = 500;
         saveError = '';
         $('connection').textContent = '服务已连接';
+        $('connection').className = 'connection-status connected';
       }
       revision = state.revision;
       savedRevision = state.savedRevision;
@@ -289,6 +306,7 @@ function connect() {
       songCatalog = state.songs;
       selectedSong = state.activeId;
       renderSongs();
+      renderSkipNotice(state.skipped);
     } else if (state.type === 'lyrics:asr') {
       clock.applyAsr(state);
       asr.update(state, ready);
@@ -319,6 +337,7 @@ function connect() {
       $('import-result').textContent = '连接中断。重连后可以重试保存。';
     }
     $('connection').textContent = '已断线 · 正在重连';
+    $('connection').className = 'connection-status disconnected';
     updateControls();
     updateOutput();
     setTimeout(connect, reconnectDelay);
