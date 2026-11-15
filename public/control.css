@@ -645,3 +645,6 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
 @media (prefers-reduced-motion:reduce) {
   .stage-record,.stage-quick-cell,.save-status,.save-status svg { transition:none; }
 }
+
+.stage-management.is-pending button { pointer-events:none; }
+.stage-management.is-pending { cursor:progress; }

@@ -284,8 +284,12 @@ export function bindStageControls({ send, edit, toast }) {
     if (settling) sourceStatusTimer = setTimeout(refreshEnabled, 250 - (performance.now() - sourceStatusSince));
     else if (!request) sourceStatusSince = 0;
     for (const [kind, { area, status }] of Object.entries(areas)) {
+      area.classList.toggle('is-pending', Boolean(request));
+      area.setAttribute('aria-busy', String(Boolean(request)));
       area.querySelectorAll('button,input,textarea,select').forEach((input) => {
-        input.disabled = !ready || Boolean(request) || input.dataset.unavailable === 'true';
+        // A round trip must not dim every programme button. Commands are
+        // guarded while pending; only draft fields need a temporary lock.
+        input.disabled = !ready || input.dataset.unavailable === 'true' || (Boolean(request) && Boolean(input.closest('form')));
       });
       status.textContent = !ready ? '连接断开 · 草稿已保留' : (request || settling) ? '正在保存…' : 'settings.json · 已连接';
       status.classList.toggle('is-offline', !ready);
