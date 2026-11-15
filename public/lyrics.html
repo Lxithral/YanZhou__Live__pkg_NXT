@@ -63,7 +63,10 @@
         </div>
         <div class="tool-row">
           <label for="song-select">曲库</label>
-          <select id="song-select" data-live disabled><option value="">曲库暂无歌曲</option></select>
+          <select id="song-select" data-live disabled>
+            <button type="button"><selectedcontent></selectedcontent></button>
+            <option value="">曲库暂无歌曲</option>
+          </select>
           <button id="song-load" data-live disabled>载入歌曲</button>
           <button id="open-import">导入 LRC</button>
         </div>
@@ -136,8 +139,13 @@
   </main>
   <footer class="lyric-footer">
     <div class="mini-preview" aria-label="OBS 歌词小预览"><div id="mini-canvas"></div></div>
-    <span id="output-status">OBS 待推送</span>
-    <span id="save-status" role="status">正在读取设置</span>
+    <div class="playback-progress">
+      <div class="playback-progress-label">
+        <span id="playback-state">尚未载入歌词</span>
+        <output id="playback-time" aria-label="当前播放时间与总时长">00:00 / 00:00</output>
+      </div>
+      <progress id="playback-progress" max="1" value="0" aria-label="当前歌曲播放进度"></progress>
+    </div>
     <span id="message" role="status"></span>
   </footer>
   <dialog id="import-dialog" aria-labelledby="import-title">

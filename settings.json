@@ -103,16 +103,16 @@
       ]
     },
     "program": {
-      "visible": true,
+      "visible": false,
       "label": "正在演出",
-      "current": "任我门",
+      "current": "身骑白马",
       "nextLabel": "接下来",
-      "next": "多亏是有你",
+      "next": "刻在我心底的名字",
       "queue": "",
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
-      "x": 151,
-      "y": 698,
+      "x": 189,
+      "y": 722,
       "scale": 1,
       "opacity": 100,
       "animation": {
@@ -125,7 +125,7 @@
           "id": "program-1",
           "number": "01",
           "type": "歌曲",
-          "title": "任我门",
+          "title": "任我行",
           "performer": "高一10班 陈浩天",
           "desc": "",
           "cover": ""
@@ -134,7 +134,7 @@
           "id": "program-2",
           "number": "02",
           "type": "歌曲",
-          "title": "多亏是有你",
+          "title": "至少还有你",
           "performer": "高二19班 温子晴",
           "desc": "",
           "cover": ""
@@ -196,7 +196,7 @@
         {
           "id": "program-9",
           "number": "09",
-          "type": "古筝",
+          "type": "歌曲",
           "title": "野心家",
           "performer": "",
           "desc": "",
@@ -230,14 +230,14 @@
           "cover": ""
         }
       ],
-      "selectedId": "program-1"
+      "selectedId": "program-11"
     },
     "lyrics": {
       "visible": true,
       "accentColor": "#FFFFFF",
       "textColor": "#F4F0E8",
       "x": 260,
-      "y": 724,
+      "y": 790,
       "scale": 1,
       "opacity": 100,
       "animation": {
@@ -248,7 +248,7 @@
       "source": "timeline",
       "doc": [],
       "transport": {
-        "position": 194620,
+        "position": 32490,
         "rate": 1
       },
       "manual": {
@@ -261,7 +261,22 @@
       "song": {
         "id": "90b5e87f7908c511d07de86ac7298634",
         "version": "90b5e87f7908c511d07de86ac72986347fb0b153a8fc99af495549c2f946c88f"
-      }
+      },
+      "songOrder": [
+        "e6cd9155496fcf3752774c7d43defbd9",
+        "18226b58fe79ecc9ff62349d2f856c87",
+        "98481fcff10c1c59a8c7cb042cb45fd8",
+        "45f6962bf5285b34bd7b8e6823e90902",
+        "8578aa16d4afad246e6c735a48f3ea5e",
+        "295d0ae4ca4ff1073182e721c506b754",
+        "a9254444ba8b093ddc61ae1f4fed0c15",
+        "08c5fe649671dbd703bc1b4eb1afc5fb",
+        "cdba90ce13d71099c8504dae8203f909",
+        "bd0f3b4563af448c0f1e654101700f62",
+        "f28e916e3ab138e403a31a005bee17f4",
+        "354855ea86c6afae650414bc6cd3605b",
+        "90b5e87f7908c511d07de86ac7298634"
+      ]
     }
   },
   "layout": {

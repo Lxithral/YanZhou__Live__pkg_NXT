@@ -25,8 +25,6 @@ let socket;
 let ready = false;
 let reconnectDelay = 500;
 let requestNumber = 0;
-let revision = 0;
-let savedRevision = 0;
 let saveError = '';
 let lyricsVisible = true;
 let entries = [];
@@ -62,7 +60,6 @@ function updateControls() {
   $('song-load').disabled = !ready || !$('song-select').value;
   $('load-next').disabled = !ready || !nextSong;
   for (const button of document.querySelectorAll('.lyric-list button')) button.disabled = !ready;
-  $('save-status').textContent = saveError || (savedRevision < revision ? '保存中' : '已保存');
 }
 
 function send(type, payload, onAccepted) {
@@ -196,6 +193,15 @@ function drawClock() {
   const code = timecode(position);
   if ($('position').value !== code) $('position').value = code;
   const playing = state.transport.playing && position < state.transport.end;
+  const progress = $('playback-progress');
+  const total = Math.max(1, state.transport.end);
+  if (progress.max !== total) progress.max = total;
+  if (progress.value !== position) progress.value = position;
+  const playbackTime = `${code.slice(0, -4)} / ${timecode(state.transport.end).slice(0, -4)}`;
+  if ($('playback-time').value !== playbackTime) $('playback-time').value = playbackTime;
+  const playbackState = !clock.doc.length ? '尚未载入歌词' : playing ? '播放中' :
+    position >= state.transport.end ? '已结束' : '已暂停';
+  if ($('playback-state').textContent !== playbackState) $('playback-state').textContent = playbackState;
   updateNextColumn(position);
   drawTimeline(position, state, playing);
   for (const button of playButtons) {
@@ -223,9 +229,6 @@ function updateOutput() {
     $(`${source}-air`).hidden = selected !== source || !lyricsVisible || !ready || (source === 'asr' && !asrLive);
   }
   $('output-source-group').classList.toggle('is-live', Boolean(selected) && lyricsVisible && ready);
-  const names = { timeline: '时间轴', manual: '手动', asr: asrLive ? '语音识别' : '语音识别已停止' };
-  $('output-status').textContent = !ready ? 'OBS 状态未确认' : !lyricsVisible ? 'OBS 歌词模块已隐藏' :
-    selected ? `OBS · ${names[selected]}` : 'OBS 待推送';
 }
 
 function renderState(state) {
@@ -280,8 +283,6 @@ function connect() {
       if (!module) return;
       lyricsVisible = module.visible;
       preview.update(module);
-      revision = state.revision;
-      savedRevision = state.savedRevision;
       updateOutput();
       updateControls();
     } else if (state.type === 'lyrics:state') {
@@ -293,8 +294,6 @@ function connect() {
         $('connection').textContent = '服务已连接';
         $('connection').className = 'connection-status connected';
       }
-      revision = state.revision;
-      savedRevision = state.savedRevision;
       clock.apply(state);
       preview.updateLyrics(clock);
       if (pending.has(state.id)) {
@@ -313,7 +312,7 @@ function connect() {
       preview.updateLyrics(clock);
       updateOutput();
     } else if (state.type === 'saved') {
-      savedRevision = state.revision;
+      if (saveError && $('message').textContent === saveError) message();
       saveError = '';
       updateControls();
     } else if (state.type === 'error') {
@@ -322,7 +321,10 @@ function connect() {
         importRequest = undefined;
         $('import-result').textContent = state.message;
       }
-      if (state.scope === 'save') saveError = state.message;
+      if (state.scope === 'save') {
+        saveError = state.message;
+        message(state.message);
+      }
       else if (state.id?.startsWith(instance)) message(state.message);
       updateControls();
     }
@@ -367,7 +369,8 @@ function renderSongs() {
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   const select = $('song-select');
-  select.replaceChildren(new Option(songCatalog.length ? '选择歌曲' : '曲库暂无歌曲', ''),
+  select.replaceChildren(...select.querySelectorAll(':scope > button'),
+    new Option(songCatalog.length ? '选择歌曲' : '曲库暂无歌曲', ''),
     ...songCatalog.map((song) => new Option(counts.get(songNameKey(song.title)) > 1
       ? `${song.title} · ${songVersionLabel(song)}` : song.title, song.id)));
   select.value = selectedSong ?? '';

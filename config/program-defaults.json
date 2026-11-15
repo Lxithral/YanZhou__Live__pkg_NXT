@@ -2,7 +2,7 @@
   {
     "number": "01",
     "type": "歌曲",
-    "title": "任我门",
+    "title": "任我行",
     "performer": "高一10班 陈浩天",
     "desc": "",
     "cover": ""
@@ -10,7 +10,7 @@
   {
     "number": "02",
     "type": "歌曲",
-    "title": "多亏是有你",
+    "title": "至少还有你",
     "performer": "高二19班 温子晴",
     "desc": "",
     "cover": ""
@@ -65,7 +65,7 @@
   },
   {
     "number": "09",
-    "type": "古筝",
+    "type": "歌曲",
     "title": "野心家",
     "performer": "",
     "desc": "",
