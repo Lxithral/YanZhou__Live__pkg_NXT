@@ -1108,3 +1108,26 @@ test('program reorder keeps the current programme by identity, persists, syncs a
   assert.deepEqual(after.app.getState().settings.modules.program.items.map((item) => item.id), order);
   assert.equal(after.app.getState().settings.modules.program.selectedId, order.at(-2));
 });
+
+test('a no-op programme step or repeated slot edit does not rewrite the file or bump the revision', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await client.waitFor((m) => m.type === 'state');
+  const items = first.app.getState().settings.modules.program.items;
+  client.send({ type: 'program:manage', id: 'to-last', payload: { action: 'select', id: items.at(-1).id } });
+  await client.waitFor((m) => m.type === 'management:result' && m.id === 'to-last');
+  const revision = first.app.getState().revision;
+  const bytes = await readFile(setup.settingsPath);
+  client.send({ type: 'program:manage', id: 'past-end', payload: { action: 'navigate', direction: 1 } });
+  const reply = await client.waitFor((m) => (m.type === 'management:result' || m.type === 'error') && m.id === 'past-end');
+  assert.equal(reply.type, 'management:result');
+  assert.equal(first.app.getState().revision, revision);
+  assert.equal(first.app.getState().settings.modules.program.selectedId, items.at(-1).id);
+  assert.deepEqual(await readFile(setup.settingsPath), bytes);
+  const hosts = first.app.getState().settings.modules.hosts;
+  client.send({ type: 'hosts:manage', id: 'same-slot', payload: { action: 'slot', index: 0, patch: { hidden: hosts.slots[0].hidden } } });
+  await client.waitFor((m) => m.type === 'management:result' && m.id === 'same-slot');
+  assert.equal(first.app.getState().revision, revision);
+  assert.deepEqual(await readFile(setup.settingsPath), bytes);
+});

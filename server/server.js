@@ -693,21 +693,30 @@ export async function createPackagingServer({
           const kind = message.type.split(':')[0];
           const task = writeQueue.catch(() => {}).then(async () => {
             const next = applyManagement(settings.modules[kind], kind, message.payload);
-            const targetRevision = revision + 1;
+            // 已经在最后一项再按「下一项」，或重复提交同一个槽位：画面没变，就不要重写文件。
+            if (JSON.stringify(next) === JSON.stringify(settings.modules[kind])) return false;
+            const revisionBefore = revision;
             const candidate = { ...settings, modules: { ...settings.modules, [kind]: next } };
             await atomicWrite(settingsPath, settingsForDisk(candidate));
+            const concurrent = revision !== revisionBefore;
             trackShown(settings.modules, candidate.modules);
             settings.modules[kind] = next;
             revision += 1;
-            savedRevision = Math.min(targetRevision, revision);
-            savedAt = new Date().toISOString();
+            // 写盘期间歌词进度如果又往前走了，这份文件不含那次进度，不能把它标成已保存。
+            if (!concurrent) {
+              savedRevision = revision;
+              savedAt = new Date().toISOString();
+            }
+            return true;
           });
           // A rejected management edit leaves the accepted state unchanged.
           writeQueue = task.catch(() => {});
-          await task;
-          broadcast({ ...getWireState(), id });
+          const changed = await task;
+          if (changed) {
+            broadcast({ ...getWireState(), id });
+            if (savedRevision < revision) scheduleSave();
+          }
           send(client, { type: 'management:result', id });
-          scheduleSave();
           return;
         }
         if (LYRIC_COMMANDS.includes(message.type) || ['lyrics:select-song', 'lyrics:move-song'].includes(message.type)) {

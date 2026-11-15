@@ -34,6 +34,14 @@ function limited(b, condition) {
   b.dataset.unavailable = String(condition);
   return b;
 }
+/** 一条资料修改还在写盘时，切节目的操作先排上，不要丢掉。
+ *  直接点某个节目会清掉前面排着的上一项 / 下一项；其它操作不进这个队列。 */
+export function queueManagement(queue, command, limit = 30) {
+  const action = command?.payload?.action;
+  if (action === 'select') return [command];
+  if (action === 'navigate' && queue.length < limit) return [...queue, command];
+  return queue;
+}
 export function bindStageControls({ send, edit, toast }) {
   let settings;
   let ready = false;
@@ -80,7 +88,7 @@ export function bindStageControls({ send, edit, toast }) {
     hotkeys.setAttribute('role','group');
     hotkeys.setAttribute('aria-label', kind === 'hosts' ? '主持人热键操作区' : '节目热键操作区');
     hotkeys.onkeydown = (event) => {
-      if (event.target !== hotkeys || event.isComposing || event.repeat || event.ctrlKey || event.altKey || event.metaKey || !ready || request) return;
+      if (event.target !== hotkeys || event.isComposing || event.repeat || event.ctrlKey || event.altKey || event.metaKey || !ready) return;
       const module = settings.modules[kind];
       if (event.key === '0') edit(kind, { visible:!module.visible });
       else if (kind === 'hosts' && /^[1-4]$/u.test(event.key)) {
@@ -128,8 +136,26 @@ export function bindStageControls({ send, edit, toast }) {
   function sendOrder(ids) {
     const current = (settings.modules.program.items ?? []).map((item) => item.id);
     if (ids.length !== current.length || ids.every((id, i) => id === current[i])) return false;
-    command('program', { action:'reorder', order:ids });
-    return true;
+    return command('program', { action:'reorder', order:ids });
+  }
+  // 资料库和快速切换是两份列表。拖完只改其中一份时，另一份会变成「新编号贴在旧行上」。
+  function paintOrder(ids) {
+    const width = Math.max(2, String(ids.length).length);
+    const selectedAt = ids.indexOf(settings.modules.program.selectedId);
+    for (const holder of [areas.program.list, areas.program.quick]) {
+      const byId = new Map([...holder.querySelectorAll(':scope > [data-record-id]')].map((el) => [el.dataset.recordId, el]));
+      ids.forEach((id, index) => {
+        const el = byId.get(id);
+        if (!el) return;
+        holder.append(el);
+        const label = el.querySelector('.stage-number');
+        if (label) label.textContent = String(index + 1).padStart(width, '0');
+        if (!el.classList.contains('stage-quick-cell')) return;
+        el.setAttribute('aria-pressed', String(id === settings.modules.program.selectedId));
+        if (index === selectedAt + 1) el.dataset.next = 'true';
+        else delete el.dataset.next;
+      });
+    }
   }
   function scrollParent(element) {
     for (let el = element.parentElement; el; el = el.parentElement) {
@@ -240,18 +266,7 @@ export function bindStageControls({ send, edit, toast }) {
     const ids = state.items.map((el) => el.dataset.recordId);
     const [moved] = ids.splice(state.from, 1);
     ids.splice(state.to > state.from ? state.to - 1 : state.to, 0, moved);
-    if (!sendOrder(ids)) return;
-    // 乐观更新：先在本地挪好，服务器回传后整表重绘确认。
-    state.container.insertBefore(state.source, state.items[state.to] ?? null);
-    // 编号同步按新顺序显示（与后端重排规则一致），避免等服务器回传时闪一下旧编号。
-    const width = Math.max(2, String(ids.length).length);
-    for (const holder of [areas.program.list, areas.program.quick]) {
-      for (const el of holder.querySelectorAll('[data-record-id]')) {
-        const at = ids.indexOf(el.dataset.recordId);
-        const label = el.querySelector('.stage-number');
-        if (at >= 0 && label) label.textContent = String(at + 1).padStart(width, '0');
-      }
-    }
+    if (sendOrder(ids)) paintOrder(ids);
   }
   function cancelDrag() {
     if (drag?.active) finishDrag(false);
@@ -264,16 +279,27 @@ export function bindStageControls({ send, edit, toast }) {
     if (from < 0 || to < 0 || to >= ids.length) return;
     ids.splice(to, 0, ...ids.splice(from, 1));
     pendingFocus = `drag-${id}`;
-    sendOrder(ids);
+    if (sendOrder(ids)) paintOrder(ids);
   }
   let pendingFocus;
-  function command(kind, payload) {
-    if (!ready || request) return;
+  let followUps = [];
+  function beginCommand(kind, payload) {
     request = `management-${crypto.randomUUID()}`;
     savingKind = payload.action === 'save' ? kind : null;
     reordering = payload.action === 'reorder';
     send({ type:`${kind}:manage`, id:request, payload });
     refreshEnabled();
+  }
+  function command(kind, payload) {
+    if (!ready) return false;
+    if (request) {
+      const queued = queueManagement(followUps, { kind, payload });
+      if (queued === followUps) return false;
+      followUps = queued;
+      return true;
+    }
+    beginCommand(kind, payload);
+    return true;
   }
   let sourceStatusSince = 0;
   let sourceStatusTimer;
@@ -384,7 +410,12 @@ export function bindStageControls({ send, edit, toast }) {
     const cards = items.map((item, index) => {
       const key = JSON.stringify([item, index, editor?.item.id === item.id, Boolean(editor)]);
       const cached = libraryCache[kind].get(item.id);
-      if (cached?.key === key) return cached.card;
+      if (cached?.key === key) {
+        // 条目内容没变时卡片会复用。节目从 1 个变成多个后，拖动手柄必须重新允许拖动。
+        const grip = cached.card.querySelector('.stage-drag-handle');
+        if (grip) grip.dataset.unavailable = String(Boolean(editor) || records.length < 2);
+        return cached.card;
+      }
       const card = node('article', undefined, 'stage-record');
       card.dataset.recordId = item.id;
       card.classList.toggle('is-current', item.id === module.selectedId);
@@ -562,12 +593,12 @@ export function bindStageControls({ send, edit, toast }) {
     render,
     navigateProgram: () => command('program',{ action:'navigate', direction:1 }),
     disconnected() {
-      request = undefined; ready = false; savingKind = null; refreshEnabled();
+      followUps = [];
+      request = undefined; ready = false; savingKind = null; reordering = false; refreshEnabled();
       for (const { message } of editors.values()) message.textContent = '连接中断，草稿已保留。';
     },
     result(message) {
       if (!request || message.id !== request) return false;
-      request = undefined;
       if (message.type === 'error') {
         editors.get(savingKind)?.message.replaceChildren(document.createTextNode(message.message));
         toast(message.message);
@@ -577,7 +608,10 @@ export function bindStageControls({ send, edit, toast }) {
         editors.delete(savingKind); renderLibraries(savingKind);
       }
       savingKind = null; reordering = false;
-      refreshEnabled(); return true;
+      const next = followUps.shift();
+      if (next && ready) beginCommand(next.kind, next.payload);
+      else { request = undefined; refreshEnabled(); }
+      return true;
     },
   };
 }
