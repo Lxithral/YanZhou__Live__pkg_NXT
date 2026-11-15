@@ -265,11 +265,11 @@ export function createProgramRenderer(container) {
       firstUpdate = false;
 
       const signature = JSON.stringify([content.title, content.next, content.number]);
-      if (signature !== lastSignature && lastSignature && shown && visible && animate) {
+      if (signature !== lastSignature && lastSignature && shown && visible && animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
         ticket.card.getAnimations().forEach((animation) => animation.cancel());
         ticket.card.animate([
-          { opacity: .3, transform: 'translateY(5px)' },
-          { opacity: 1, transform: 'translateY(0)' },
+          { transform: 'translateY(4px)' },
+          { transform: 'translateY(0)' },
         ], { duration: 240, easing: 'ease-out' });
       }
       lastSignature = signature;

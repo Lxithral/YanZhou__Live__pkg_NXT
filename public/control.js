@@ -275,7 +275,15 @@ function flush() {
   }
 }
 
-function updateSaveStatus() {
+let saveStatusTimer;
+let saveStatusSince = 0;
+function updateSaveStatus(deferred = false) {
+  clearTimeout(saveStatusTimer);
+  const busy = localIntent.size || hasPendingChanges() || savedRevision < revision;
+  if (!deferred && ready && !saveError && !busy && saveStatusSince && performance.now() - saveStatusSince < 250) {
+    saveStatusTimer = setTimeout(() => updateSaveStatus(true), 250 - (performance.now() - saveStatusSince));
+    return;
+  }
   const status = $('saveStatus');
   status.classList.remove('saving', 'offline', 'error');
   if (saveError) {
@@ -287,10 +295,12 @@ function updateSaveStatus() {
     $('saveText').textContent = localIntent.size ? '连接断开 · 改动待同步' : '正在连接本地服务';
     $('saveDetail').textContent = '';
   } else if (localIntent.size || hasPendingChanges() || savedRevision < revision) {
+    if (!saveStatusSince) saveStatusSince = performance.now();
     status.classList.add('saving');
     $('saveText').textContent = '正在保存设置';
     $('saveDetail').textContent = '';
   } else {
+    saveStatusSince = 0;
     $('saveText').textContent = '已保存';
     $('saveDetail').textContent = '';
   }

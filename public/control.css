@@ -632,3 +632,19 @@ html[data-theme=light] :is(.text-input, .select-input, .number-unit input, .colo
 .stage-drag-ghost strong { font-weight:500; overflow:hidden; text-overflow:ellipsis; }
 .stage-drag-ghost .stage-number { font-size:11px; color:var(--muted); }
 html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; cursor:grabbing !important; }
+
+/* Keep the type label in the title column, clear of the number and metadata. */
+.stage-record-title { grid-area:title; display:flex; flex-wrap:wrap; align-items:center; gap:3px 6px; min-width:0; }
+.stage-record-title h4 { flex:1 1 100%; min-width:0; }
+.stage-record-title .stage-type { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.stage-record { transition:background-color 180ms ease, box-shadow 180ms ease; row-gap:3px; }
+.stage-quick-cell { transition:background-color 180ms ease, box-shadow 180ms ease, color 180ms ease; }
+.save-status { transition:color 180ms ease, background-color 180ms ease; }
+.save-status svg { transition:opacity 180ms ease; }
+.save-status strong { display:inline-block; min-width:7em; }
+@media (prefers-reduced-motion:reduce) {
+  .stage-record,.stage-quick-cell,.save-status,.save-status svg { transition:none; }
+}
+
+.stage-management.is-pending button { pointer-events:none; }
+.stage-management.is-pending { cursor:progress; }
