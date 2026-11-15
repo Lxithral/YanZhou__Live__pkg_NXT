@@ -1,4 +1,6 @@
 import { createModuleLayer } from './module-layer.js';
+import { PERF_SCROLL, scrollPlan, startDelay, scrollKeyframes } from './perf-scroll.js';
+import { INTRO_SCROLL, introSpeed, introPlan, introBar, introKeyframes } from './intro-scroll.js';
 
 const STYLE_ID = 'yanzhou-program-renderer-style';
 
@@ -18,8 +20,23 @@ const STYLES = `
 .pc-title { grid-area: title; padding: 9px 24px 0; color: #fff8ee; font-size: 37.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-perf { grid-area: perf; display: flex; gap: 10.5px; align-items: baseline; padding: 9px 24px 0; }
 .pc-perf-label { flex: none; color: #e6c08a; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
-.pc-perf-text { min-width: 0; color: #f3e7da; font-size: 15px; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.pc-desc { grid-area: desc; align-self: start; margin: 7.5px 24px 0; color: #f3e7dab3; font-size: 14.25px; line-height: 1.65; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.pc-perf-text { display: block; min-width: 0; flex: 1 1 auto; color: #f3e7da; font-size: 15px; line-height: 1.5; max-height: ${15 * 1.5 * PERF_SCROLL.lines}px; overflow: hidden; }
+.pc-perf-track, .pc-perf-copy { display: block; }
+.pc-perf-copy + .pc-perf-copy { display: none; }
+/* 放不下时：竖向无缝循环滚动，内容复制一份，两份之间留间隔，上下边缘渐隐 */
+.pc-perf-text.is-scrolling { -webkit-mask: linear-gradient(to bottom, #0000, #000 ${PERF_SCROLL.fade}px, #000 calc(100% - ${PERF_SCROLL.fade}px), #0000); mask: linear-gradient(to bottom, #0000, #000 ${PERF_SCROLL.fade}px, #000 calc(100% - ${PERF_SCROLL.fade}px), #0000); }
+.pc-perf-text.is-scrolling .pc-perf-track { will-change: transform; }
+.pc-perf-text.is-scrolling .pc-perf-copy { padding-bottom: ${PERF_SCROLL.gap}px; }
+.pc-perf-text.is-scrolling .pc-perf-copy + .pc-perf-copy { display: block; }
+.pc-desc { grid-area: desc; align-self: start; position: relative; min-width: 0; margin: 7.5px 24px 0; }
+/* 介绍：最多 3 行；放不下时按阅读速度竖向慢慢上滚，上下渐隐；右侧细竖条放在卡片原有的右侧留白里（离字 9px，不压字、不改变可视宽度和卡片高度），显示长度和进度 */
+.pc-desc-view { max-height: ${INTRO_SCROLL.fontSize * INTRO_SCROLL.lineHeight * INTRO_SCROLL.lines}px; overflow: hidden; color: #f3e7dab3; font-size: ${INTRO_SCROLL.fontSize}px; line-height: ${INTRO_SCROLL.lineHeight}; }
+.pc-desc-track { display: block; }
+.pc-desc.is-scrolling .pc-desc-view { -webkit-mask: linear-gradient(to bottom, #0000, #000 ${INTRO_SCROLL.fade}px, #000 calc(100% - ${INTRO_SCROLL.fade}px), #0000); mask: linear-gradient(to bottom, #0000, #000 ${INTRO_SCROLL.fade}px, #000 calc(100% - ${INTRO_SCROLL.fade}px), #0000); }
+.pc-desc.is-scrolling .pc-desc-track, .pc-desc.is-scrolling .pc-desc-thumb { will-change: transform, opacity; }
+.pc-desc-bar { position: absolute; top: 0; bottom: 0; right: -11px; width: 2px; border-radius: 1px; background: #fff8ee24; overflow: hidden; visibility: hidden; }
+.pc-desc.is-scrolling .pc-desc-bar { visibility: visible; }
+.pc-desc-thumb { position: absolute; left: 0; right: 0; top: 0; border-radius: 1px; background: #fff8eebf; }
 .pc-next { grid-area: next; display: flex; align-items: baseline; gap: 9px; margin: 13.5px 24px 0; padding: 10.5px 0 13.5px; border-top: 1px dashed #ffffff3d; color: #fff; font-size: 14.25px; }
 .pc-next-label { flex: none; color: #e6c08a; font-weight: 700; }
 .pc-next-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -35,8 +52,8 @@ const TICKET_HTML = '<div class="pc-wrap"><div class="pc">'
   + '<div class="pc-head"><span class="pc-label"></span><span class="pc-type"></span></div>'
   + '<div class="pc-num"><span class="pc-num-text"></span></div>'
   + '<div class="pc-title"></div>'
-  + '<div class="pc-perf"><span class="pc-perf-label">表演者</span><span class="pc-perf-text"></span></div>'
-  + '<div class="pc-desc"></div>'
+  + '<div class="pc-perf"><span class="pc-perf-label">表演者</span><span class="pc-perf-text"><span class="pc-perf-track"><span class="pc-perf-copy"></span><span class="pc-perf-copy" aria-hidden="true"></span></span></span></div>'
+  + '<div class="pc-desc"><div class="pc-desc-view"><span class="pc-desc-track"></span></div><div class="pc-desc-bar"><span class="pc-desc-thumb"></span></div></div>'
   + '<div class="pc-next"><span class="pc-next-label"></span><span class="pc-next-name"></span></div>'
   + '</div></div>';
 
@@ -92,12 +109,77 @@ export function createProgramRenderer(container) {
   const ticket = {
     card: $('.pc'), head: $('.pc-head'), label: $('.pc-label'), type: $('.pc-type'),
     num: $('.pc-num'), numText: $('.pc-num-text'), title: $('.pc-title'),
-    perf: $('.pc-perf'), perfText: $('.pc-perf-text'), desc: $('.pc-desc'),
+    perf: $('.pc-perf'), perfText: $('.pc-perf-text'), perfTrack: $('.pc-perf-track'),
+    perfCopies: [...body.querySelectorAll('.pc-perf-copy')], desc: $('.pc-desc'),
+    descView: $('.pc-desc-view'), descTrack: $('.pc-desc-track'), descBar: $('.pc-desc-bar'), descThumb: $('.pc-desc-thumb'),
     next: $('.pc-next'), nextLabel: $('.pc-next-label'), nextName: $('.pc-next-name'),
   };
   let shown = false;
   let lastSignature = '';
   let module;
+  let firstUpdate = true;
+  // 滚动器：表演者（竖向无缝循环）和介绍（竖向上滚 + 右侧竖条）共用同一套生命周期：
+  // 只在内容 / 显隐 / 字体变化时重新测量；key = 文本 + 测量结果，结果不变就不打断正在进行的动画。
+  function createScroller({ host, measure, start }) {
+    const state = { text: '', key: '', measured: false, animations: [], stopTimer: 0 };
+    const stop = () => {
+      clearTimeout(state.stopTimer);
+      for (const animation of state.animations) animation.cancel();
+      state.animations = [];
+      state.key = '';
+      state.measured = false;
+      host.classList.remove('is-scrolling');
+    };
+    const sync = ({ restart = false, delay = PERF_SCROLL.pause } = {}) => {
+      if (element.hidden || !state.text || host.closest('[hidden]')) { stop(); return; }
+      // offsetWidth / offsetHeight 不受外层 scale 影响，缩放模块不会改变测量结果。
+      const plan = measure();
+      const key = plan ? `${state.text}|${plan.key}` : '';
+      if (!restart && key === state.key && (!plan || state.animations.length)) { state.measured = true; return; }
+      stop();
+      state.measured = true;
+      if (!plan) return;
+      state.key = key;
+      host.classList.add('is-scrolling');
+      state.animations = start(plan, delay);
+    };
+    return { state, stop, sync };
+  }
+
+  /** 表演者：超出 2 行就在原区域里竖向无缝循环滚动。 */
+  const perfScroller = createScroller({
+    host: ticket.perfText,
+    measure() {
+      const scrolling = ticket.perfText.classList.contains('is-scrolling');
+      const contentHeight = ticket.perfCopies[0].offsetHeight - (scrolling ? PERF_SCROLL.gap : 0);
+      const viewportHeight = parseFloat(getComputedStyle(ticket.perfText).maxHeight) || 45;
+      const plan = scrollPlan({ contentHeight, viewportHeight });
+      return plan && { ...plan, key: plan.distance };
+    },
+    start: (plan, delay) => [ticket.perfTrack.animate(scrollKeyframes(plan.distance),
+      { duration: plan.duration, delay, iterations: Infinity, easing: 'linear' })],
+  });
+
+  /** 介绍：3 行放不下就按阅读速度竖向上滚到文末，停一下，淡出回到开头；右侧竖条同步显示长度和进度。 */
+  const introScroller = createScroller({
+    host: ticket.desc,
+    measure() {
+      const contentHeight = ticket.descTrack.offsetHeight;
+      const viewportHeight = parseFloat(getComputedStyle(ticket.descView).maxHeight) || 70.5;
+      const viewportWidth = ticket.descView.clientWidth;
+      const plan = introPlan({ contentHeight, viewportHeight, speed: introSpeed({ viewportWidth }) });
+      if (!plan) return null;
+      const bar = introBar({ contentHeight, viewportHeight, barLength: viewportHeight });
+      return { ...plan, bar, key: `${plan.distance}|${bar.thumb}` };
+    },
+    start(plan, delay) {
+      ticket.descThumb.style.height = `${plan.bar.thumb}px`;
+      const frames = introKeyframes(plan, plan.bar.travel);
+      const timing = { duration: plan.total, delay, iterations: Infinity, easing: 'linear' };
+      return [ticket.descTrack.animate(frames.track, timing), ticket.descThumb.animate(frames.thumb, timing)];
+    },
+  });
+  const scrollers = [perfScroller, introScroller];
 
   function getPositionLimits() {
     const { width, height } = layer.getBounds();
@@ -126,7 +208,7 @@ export function createProgramRenderer(container) {
     if (wasHidden) element.hidden = true;
     place(true);
   }
-  document.fonts?.ready.then(refit);
+  document.fonts?.ready.then(() => { refit(); if (shown) scrollers.forEach((s) => s.sync()); });
 
   return {
     element,
@@ -143,9 +225,18 @@ export function createProgramRenderer(container) {
       ticket.numText.textContent = content.number;
       ticket.num.classList.toggle('is-empty', !content.number);
       setText(ticket.title, content.title);
-      setText(ticket.perfText, content.performer);
+      const perfChanged = content.performer !== perfScroller.state.text;
+      if (perfChanged) {
+        for (const copy of ticket.perfCopies) copy.textContent = content.performer;
+        perfScroller.state.text = content.performer;
+      }
       ticket.perf.hidden = !content.performer;
-      setText(ticket.desc, content.desc);
+      const descChanged = content.desc !== introScroller.state.text;
+      if (descChanged) {
+        ticket.descTrack.textContent = content.desc;
+        introScroller.state.text = content.desc;
+      }
+      ticket.desc.hidden = !content.desc;
       setText(ticket.nextLabel, content.nextLabel);
       setText(ticket.nextName, content.next);
       ticket.next.hidden = !content.next;
@@ -154,6 +245,24 @@ export function createProgramRenderer(container) {
       for (const row of [ticket.title, ticket.perf, ticket.desc]) row.classList.toggle('is-last', row === last);
       refit();
       if (!constrain) place(false);
+
+      // 表演者 / 介绍滚动：上屏就一直滚；刚入场先等入场动画 + 停顿；切节目 / 内容变化从头开始；下屏放完退场后停止。
+      const entering = visible && !shown;
+      const animation = program.animation ?? {};
+      for (const [scroller, changed] of [[perfScroller, perfChanged], [introScroller, descChanged]]) {
+        const { state } = scroller;
+        if (visible) {
+          clearTimeout(state.stopTimer);
+          if (entering || changed) {
+            scroller.sync({ restart: true, delay: startDelay({ entering: entering && !firstUpdate, enter: animation.enter, duration: animation.duration }) });
+          } else if (!state.measured) scroller.sync();
+        } else if (shown || state.animations.length) {
+          clearTimeout(state.stopTimer);
+          const exitTime = animation.exit && animation.exit !== 'none' ? (Number(animation.duration) || 0) + 40 : 0;
+          state.stopTimer = setTimeout(scroller.stop, exitTime);
+        }
+      }
+      firstUpdate = false;
 
       const signature = JSON.stringify([content.title, content.next, content.number]);
       if (signature !== lastSignature && lastSignature && shown && visible && animate) {

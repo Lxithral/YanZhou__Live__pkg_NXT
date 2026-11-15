@@ -77,7 +77,7 @@ function projectProgram(module) {
   return { ...module, current: module.items[index]?.title ?? '', next: module.items[index + 1]?.title ?? '', queue: '' };
 }
 export function applyManagement(module, kind, payload) {
-  fields(payload, ['action', 'item', 'id', 'direction', 'index', 'patch']);
+  fields(payload, ['action', 'item', 'id', 'direction', 'index', 'patch', 'order']);
   const next = structuredClone(module);
   const key = kind === 'hosts' ? 'people' : 'items';
   const records = next[key];
@@ -108,6 +108,19 @@ export function applyManagement(module, kind, payload) {
       slot.customColors = false;
       [slot.accentColor, slot.textColor] = COLORS[slot.style] ?? [];
     }
+  } else if (kind === 'program' && payload.action === 'reorder') {
+    // 拖动排序：order 必须是当前全部节目 ID 的一个排列；当前节目按 ID 追踪，排序后保持不变。
+    fields(payload, ['action', 'order']);
+    if (!Array.isArray(payload.order) || payload.order.length !== records.length) throw new Error('节目列表已变化，请刷新后再排序。');
+    const byId = new Map(records.map((item) => [item.id, item]));
+    const seen = new Set();
+    for (const id of payload.order) {
+      if (!byId.has(itemId(id)) || seen.has(id)) throw new Error('节目列表已变化，请刷新后再排序。');
+      seen.add(id);
+    }
+    // 拖动后按新顺序重写编号：01、02…，至少两位，超过 99 个自动变三位。只有拖动排序触发，编辑/新增不改编号。
+    const width = Math.max(2, String(records.length).length);
+    next.items = payload.order.map((id, index) => ({ ...byId.get(id), number:String(index + 1).padStart(width, '0') }));
   } else if (kind === 'program' && payload.action === 'select') {
     fields(payload, ['action', 'id']);
     next.selectedId = itemId(payload.id);
