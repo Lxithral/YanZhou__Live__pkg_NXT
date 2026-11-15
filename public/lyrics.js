@@ -45,6 +45,8 @@ let manualRow = null;
 let manualSelection;
 let manualFollowsTimeline = false;
 let timelineFollowTimer;
+let seekPreview = null;
+let seekRequest;
 
 for (const rate of RATES) $('rate').add(new Option(`${rate.toFixed(2)}×`, rate));
 
@@ -54,7 +56,7 @@ function message(text = '') {
 
 function updateControls() {
   for (const control of liveControls) control.disabled = !ready;
-  for (const id of ['play', 'manual-play', 'back', 'forward', 'rate']) $(id).disabled = !ready || !clock.doc.length;
+  for (const id of ['play', 'manual-play', 'back', 'forward', 'rate', 'playback-progress']) $(id).disabled = !ready || !clock.doc.length;
   $('load').disabled = !ready || !importDoc.length || !importFits || !$('song-title').value.trim() || Boolean(importRequest);
   $('song-select').disabled = !ready || !songCatalog.length;
   $('song-load').disabled = !ready || !$('song-select').value;
@@ -194,12 +196,14 @@ function drawClock() {
   if ($('position').value !== code) $('position').value = code;
   const playing = state.transport.playing && position < state.transport.end;
   const progress = $('playback-progress');
-  const total = Math.max(1, state.transport.end);
-  if (progress.max !== total) progress.max = total;
-  if (progress.value !== position) progress.value = position;
-  const playbackTime = `${code.slice(0, -4)} / ${timecode(state.transport.end).slice(0, -4)}`;
+  const displayPosition = seekPreview ?? position;
+  const percent = state.transport.end ? Math.min(100, Math.max(0, displayPosition / state.transport.end * 100)) : 0;
+  if (seekPreview === null && Number(progress.value) !== percent) progress.value = percent;
+  progress.style.setProperty('--playback-fill', `${percent}%`);
+  const playbackTime = `${timecode(displayPosition).slice(0, -4)} / ${timecode(state.transport.end).slice(0, -4)}`;
   if ($('playback-time').value !== playbackTime) $('playback-time').value = playbackTime;
-  const playbackState = !clock.doc.length ? '尚未载入歌词' : playing ? '播放中' :
+  if (progress.getAttribute('aria-valuetext') !== playbackTime) progress.setAttribute('aria-valuetext', playbackTime);
+  const playbackState = !clock.doc.length ? '尚未载入歌词' : seekPreview !== null ? '调节中' : playing ? '播放中' :
     position >= state.transport.end ? '已结束' : '已暂停';
   if ($('playback-state').textContent !== playbackState) $('playback-state').textContent = playbackState;
   updateNextColumn(position);
@@ -215,6 +219,13 @@ function drawClock() {
     $('countdown').style.setProperty('--remaining', `${remaining / (state.manual.autoSeconds * 10)}%`);
   }
   if (playing || remaining > 0) renderFrame = requestAnimationFrame(drawClock);
+}
+
+function cancelSeekPreview() {
+  seekPreview = null;
+  seekRequest = undefined;
+  cancelAnimationFrame(renderFrame);
+  drawClock();
 }
 
 function updateOutput() {
@@ -233,6 +244,8 @@ function updateOutput() {
 
 function renderState(state) {
   if (state.doc) {
+    seekPreview = null;
+    seekRequest = undefined;
     clearTimeout(timelineFollowTimer);
     timelineFollowTimer = undefined;
     renderList('timeline-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''), (line) => transport('seek', line.start));
@@ -317,6 +330,7 @@ function connect() {
       updateControls();
     } else if (state.type === 'error') {
       pending.delete(state.id);
+      if (seekRequest && state.id === seekRequest) cancelSeekPreview();
       if (state.id && state.id === importRequest) {
         importRequest = undefined;
         $('import-result').textContent = state.message;
@@ -331,6 +345,7 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    cancelSeekPreview();
     asr.update(undefined, false);
     if (pending.size) message('部分操作未收到确认。重连后请核对当前状态。');
     pending.clear();
@@ -520,6 +535,29 @@ for (const button of playButtons) {
 $('back').onclick = () => transport('nudge', -500);
 $('forward').onclick = () => transport('nudge', 500);
 $('rate').onchange = ({ target }) => transport('rate', Number(target.value));
+$('playback-progress').oninput = ({ target }) => {
+  if (!ready || !clock.doc.length) return;
+  const end = clock.state.transport.end;
+  seekPreview = Math.min(end, Math.max(0, Math.round(Number(target.value) / 100 * end)));
+  seekRequest = undefined;
+  cancelAnimationFrame(renderFrame);
+  drawClock();
+};
+$('playback-progress').onchange = () => {
+  if (seekPreview === null) return;
+  const request = send('lyrics:transport', { action: 'seek', value: seekPreview }, () => {
+    if (seekRequest === request) {
+      seekPreview = null;
+      seekRequest = undefined;
+    }
+  });
+  seekRequest = request;
+  if (!request) cancelSeekPreview();
+};
+$('playback-progress').addEventListener('pointercancel', cancelSeekPreview);
+$('playback-progress').addEventListener('blur', () => {
+  if (seekPreview !== null && !seekRequest) cancelSeekPreview();
+});
 $('previous').onclick = () => manual('step', -1);
 $('next').onclick = () => manual('step', 1);
 $('clear').onclick = () => manual('clear');

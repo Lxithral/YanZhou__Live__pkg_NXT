@@ -144,7 +144,7 @@
         <span id="playback-state">尚未载入歌词</span>
         <output id="playback-time" aria-label="当前播放时间与总时长">00:00 / 00:00</output>
       </div>
-      <progress id="playback-progress" max="1" value="0" aria-label="当前歌曲播放进度"></progress>
+      <input id="playback-progress" type="range" min="0" max="100" step="any" value="0" aria-label="调整当前歌曲播放进度" aria-valuetext="00:00 / 00:00" data-live disabled>
     </div>
     <span id="message" role="status"></span>
   </footer>

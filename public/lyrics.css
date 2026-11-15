@@ -70,10 +70,17 @@ html[data-theme=light] .lyric-footer { box-shadow: 0 0 0 1px var(--line), 0 1px 
 .playback-progress { flex: 1; min-width: 180px; display: grid; gap: 7px; }
 .playback-progress-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
 #playback-time { color: var(--text); font: 13px var(--mono); font-variant-numeric: tabular-nums; }
-#playback-progress { display: block; width: 100%; height: 5px; border: 0; border-radius: 99px; overflow: hidden; background: var(--raised); accent-color: var(--accent); }
-#playback-progress::-webkit-progress-bar { background: var(--raised); border-radius: 99px; }
-#playback-progress::-webkit-progress-value { background: var(--accent); border-radius: 99px; }
-#playback-progress::-moz-progress-bar { background: var(--accent); border-radius: 99px; }
+#playback-progress { --playback-fill: 0%; appearance: none; display: block; width: 100%; height: 18px; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; cursor: pointer; touch-action: pan-y; }
+#playback-progress::-webkit-slider-runnable-track { height: 5px; border-radius: 99px; background: linear-gradient(to right, var(--accent) var(--playback-fill), var(--raised) var(--playback-fill)); }
+#playback-progress::-moz-range-track { height: 5px; border-radius: 99px; background: var(--raised); }
+#playback-progress::-moz-range-progress { height: 5px; border-radius: 99px; background: var(--accent); }
+#playback-progress::-webkit-slider-thumb { appearance: none; width: 12px; height: 12px; margin-top: -3.5px; border: 0; border-radius: 50%; background: var(--accent); cursor: grab; }
+#playback-progress::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); cursor: grab; }
+#playback-progress:not(:disabled):is(:hover, :focus-visible)::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--accent-soft); }
+#playback-progress:not(:disabled):is(:hover, :focus-visible)::-moz-range-thumb { box-shadow: 0 0 0 4px var(--accent-soft); }
+#playback-progress:active::-webkit-slider-thumb { cursor: grabbing; }
+#playback-progress:active::-moz-range-thumb { cursor: grabbing; }
+#playback-progress:disabled { opacity: .45; cursor: default; }
 #message { margin-inline-start: auto; }
 #message:empty { display: none; }
 
@@ -108,9 +115,9 @@ html[data-theme=light] .lyric-column { box-shadow: 0 0 0 1px var(--line), 0 1px 
 #song-select { flex: 1; min-width: 0; }
 @supports (appearance: base-select) {
   #song-select, #song-select::picker(select) { appearance: base-select; }
-  #song-select { gap: 10px; padding-inline-end: 12px; background: var(--raised); }
-  #song-select > button { flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; box-shadow: none; text-align: left; }
-  #song-select selectedcontent { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #song-select { align-items: center; gap: 10px; padding-inline-end: 12px; background: var(--raised); }
+  #song-select > button { display: flex; align-items: center; flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; box-shadow: none; text-align: left; }
+  #song-select selectedcontent { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #song-select::picker-icon { content: ''; flex: none; width: 10px; height: 6px; margin-inline-start: auto; background: var(--chevron) no-repeat center; transition: transform 160ms var(--ease); }
   #song-select:open { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
   #song-select:open::picker-icon { transform: rotate(180deg); }
@@ -130,7 +137,7 @@ html[data-theme=light] .lyric-column { box-shadow: 0 0 0 1px var(--line), 0 1px 
     scrollbar-width: thin;
     scrollbar-color: var(--line-3) transparent;
   }
-  #song-select option { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 8px 10px; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: 500 13px/1.4 inherit; white-space: normal; overflow-wrap: anywhere; }
+  #song-select option { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 8px 10px; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
   #song-select option[value=""] { color: var(--faint); font-size: 12px; }
   #song-select option:checked { background: var(--accent-soft); color: var(--on-text); }
   #song-select option:is(:hover, :focus-visible) { background: var(--hover); outline: none; }
