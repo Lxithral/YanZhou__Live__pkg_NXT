@@ -275,12 +275,19 @@ export function bindStageControls({ send, edit, toast }) {
     send({ type:`${kind}:manage`, id:request, payload });
     refreshEnabled();
   }
+  let sourceStatusSince = 0;
+  let sourceStatusTimer;
   function refreshEnabled() {
+    clearTimeout(sourceStatusTimer);
+    if (request && !sourceStatusSince) sourceStatusSince = performance.now();
+    const settling = ready && !request && sourceStatusSince && performance.now() - sourceStatusSince < 250;
+    if (settling) sourceStatusTimer = setTimeout(refreshEnabled, 250 - (performance.now() - sourceStatusSince));
+    else if (!request) sourceStatusSince = 0;
     for (const [kind, { area, status }] of Object.entries(areas)) {
       area.querySelectorAll('button,input,textarea,select').forEach((input) => {
         input.disabled = !ready || Boolean(request) || input.dataset.unavailable === 'true';
       });
-      status.textContent = !ready ? '连接断开 · 草稿已保留' : request ? '正在保存…' : 'settings.json · 已连接';
+      status.textContent = !ready ? '连接断开 · 草稿已保留' : (request || settling) ? '正在保存…' : 'settings.json · 已连接';
       status.classList.toggle('is-offline', !ready);
     }
   }
@@ -299,14 +306,22 @@ export function bindStageControls({ send, edit, toast }) {
     nav.append(previous, info, following);
     return nav;
   }
+  const quickCache = new Map();
   function quickCell(item, index, selected, action, key, kind, upcoming = false) {
+    const signature = JSON.stringify([item, index]);
+    const old = kind === 'program' && quickCache.get(item.id);
+    if (old?.signature === signature) {
+      old.cell.setAttribute('aria-pressed', String(selected));
+      old.cell.dataset.next = String(upcoming);
+      return old.cell;
+    }
     const cell = button('', action, key, 'stage-quick-cell');
     cell.setAttribute('aria-pressed', String(selected));
     if (upcoming) cell.dataset.next = 'true';
     cell.append(node('span', item.number || String(index + 1).padStart(2,'0'), 'stage-number'),
       node('strong', kind === 'hosts' ? item.name : item.title, 'stage-quick-title'));
     if (kind === 'program' && item.type) cell.append(node('small', item.type, 'stage-quick-type'));
-    if (kind === 'program') { cell.dataset.recordId = item.id; cell.title = '单击切换 · 按住拖动调整顺序'; }
+    if (kind === 'program') { quickCache.set(item.id, { signature, cell }); cell.dataset.recordId = item.id; cell.title = '单击切换 · 按住拖动调整顺序'; }
     return cell;
   }
   function renderHostSlots(hosts) {
@@ -356,12 +371,16 @@ export function bindStageControls({ send, edit, toast }) {
       return card;
     }));
   }
+  const libraryCache = { hosts: new Map(), program: new Map() };
   function renderLibraries(kind) {
     const module = settings.modules[kind];
     const records = kind === 'hosts' ? module.people ?? [] : module.items ?? [];
     const editor = editors.get(kind);
     const items = editor?.isNew ? [...records, editor.item] : records;
     const cards = items.map((item, index) => {
+      const key = JSON.stringify([item, index, editor?.item.id === item.id, Boolean(editor)]);
+      const cached = libraryCache[kind].get(item.id);
+      if (cached?.key === key) return cached.card;
       const card = node('article', undefined, 'stage-record');
       card.dataset.recordId = item.id;
       card.classList.toggle('is-current', item.id === module.selectedId);
@@ -379,8 +398,10 @@ export function bindStageControls({ send, edit, toast }) {
       }
       const head = node('div', undefined, 'stage-record-head');
       head.append(node('span', kind === 'hosts' ? String(index + 1).padStart(2,'0') : item.number || String(index + 1).padStart(2,'0'), 'stage-number'));
-      if (kind === 'program' && item.type) head.append(node('span', item.type, 'stage-type'));
-      card.append(head, node('h4', kind === 'hosts' ? item.name : item.title));
+      const heading = node('div', undefined, 'stage-record-title');
+      heading.append(node('h4', kind === 'hosts' ? item.name : item.title));
+      if (kind === 'program' && item.type) heading.append(node('span', item.type, 'stage-type'));
+      card.append(head, heading);
       const meta = kind === 'hosts' ? item.title : item.performer;
       if (meta) {
         const line = node('p', undefined, 'stage-record-meta');
@@ -398,12 +419,26 @@ export function bindStageControls({ send, edit, toast }) {
           button('删除', () => {
             if (confirm(`删除「${kind === 'hosts' ? item.name : item.title}」？`)) command(kind, { action:'delete', id:item.id });
           }, `delete-${item.id}`, 'stage-delete'));
-        if (item.id === module.selectedId) actions.append(node('span', '当前节目', 'stage-current-badge'));
+        if (kind === 'program') {
+          const badge = node('span', '当前节目', 'stage-current-badge');
+          badge.hidden = item.id !== module.selectedId; actions.append(badge);
+        }
         card.append(actions);
       }
+      libraryCache[kind].set(item.id, { key, card });
       return card;
     });
-    areas[kind].list.replaceChildren(...cards);
+    for (const id of libraryCache[kind].keys()) if (!items.some((item) => item.id === id)) libraryCache[kind].delete(id);
+    cards.forEach((card, index) => {
+      const selected = items[index].id === module.selectedId;
+      card.classList.toggle('is-current', selected);
+      const badge = card.querySelector('.stage-current-badge');
+      if (badge) badge.hidden = !selected;
+    });
+    const list = areas[kind].list;
+    // Keep unchanged cards attached, preserving focus and CSS transitions.
+    [...list.children].filter((child) => !cards.includes(child)).forEach((child) => child.remove());
+    cards.forEach((card, index) => { if (list.children[index] !== card) list.insertBefore(card, list.children[index] ?? null); });
     if (!items.length) areas[kind].list.append(node('p', '暂无资料，请添加。'));
   }
   function open(kind, item) {
@@ -490,13 +525,25 @@ export function bindStageControls({ send, edit, toast }) {
       }
       renderHostSlots(hosts);
       const index = items.findIndex((p) => p.id === program.selectedId);
+      const previousProgram = areas.program.current.dataset.content;
+      const currentContent = JSON.stringify([items[index], items[index + 1]]);
+      areas.program.current.dataset.content = currentContent;
       areas.program.current.replaceChildren(navigation('program', items[index], index, items.length));
       const nextItem = items[index + 1];
       areas.program.next.replaceChildren(node('small','下一个节目'),
         node('strong',nextItem?.title ?? '没有下一个节目了'),
         node('span', nextItem ? [nextItem.number,nextItem.type,nextItem.performer].filter(Boolean).join(' · ') : '已到达最后一个节目'));
-      areas.program.quick.replaceChildren(...items.map((item,i) => quickCell(item,i,item.id===program.selectedId,
-        ()=>command('program',{ action:'select', id:item.id }), `select-${item.id}`,'program', i === index + 1)));
+      const quickCards = items.map((item,i) => quickCell(item,i,item.id===program.selectedId,
+        ()=>command('program',{ action:'select', id:item.id }), `select-${item.id}`,'program', i === index + 1));
+      for (const [id, entry] of quickCache) if (!quickCards.includes(entry.cell)) { entry.cell.remove(); quickCache.delete(id); }
+      [...areas.program.quick.children].filter((cell) => !quickCards.includes(cell)).forEach((cell) => cell.remove());
+      quickCards.forEach((cell,i) => { if (areas.program.quick.children[i] !== cell) areas.program.quick.insertBefore(cell, areas.program.quick.children[i] ?? null); });
+      if (previousProgram && previousProgram !== currentContent && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        for (const region of [areas.program.current, areas.program.next]) {
+          region.getAnimations().forEach((a) => a.cancel());
+          region.animate([{ transform:'translateY(3px)' }, { transform:'none' }], { duration:180, easing:'ease-out' });
+        }
+      }
       renderLibraries('hosts'); renderLibraries('program');
       const refocus = pendingFocus ?? focused;
       pendingFocus = undefined;
