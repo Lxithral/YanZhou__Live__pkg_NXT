@@ -17,7 +17,7 @@ const STYLES = `
 .pc-head { grid-area: head; display: flex; align-items: center; gap: 9px; padding: 19.5px 24px 0; white-space: nowrap; }
 .pc-label { flex: none; padding: 2.25px 7.5px; border-radius: 2px; background: #f4ece0; color: #6e2427; font-size: 11.25px; font-weight: 700; letter-spacing: 2.25px; }
 .pc-type { flex: none; padding: 2px 6.75px; border: 1px solid #f1d9bd66; color: #f1d9bd; font-size: 11.25px; font-weight: 700; }
-.pc-title { grid-area: title; padding: 9px 24px 0; color: #fff8ee; font-size: 37.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-title { grid-area: title; padding: 9px 24px 0; color: #fff8ee; font-size: 37.5px; font-weight: 700; white-space: nowrap; overflow: hidden; overflow-wrap: anywhere; }
 .pc-perf { grid-area: perf; display: flex; gap: 10.5px; align-items: baseline; padding: 9px 24px 0; }
 .pc-perf-label { flex: none; color: #e6c08a; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
 .pc-perf-text { display: block; min-width: 0; flex: 1 1 auto; color: #f3e7da; font-size: 15px; line-height: 1.5; max-height: ${15 * 1.5 * PERF_SCROLL.lines}px; overflow: hidden; }
@@ -100,15 +100,17 @@ function setText(element, value) {
   element.hidden = !value;
 }
 
-/** 长节目名先缩小字号（最小 25.5px），仍放不下再显示省略号。 */
+/** 长节目名先缩小字号（最小 25.5px），仍放不下则换行完整显示。 */
 function fitTitle(title) {
   title.style.fontSize = '';
+  title.style.whiteSpace = '';
   if (!title.clientWidth) return;
   let size = parseFloat(getComputedStyle(title).fontSize);
   while (size > TITLE_MIN && title.scrollWidth > title.clientWidth + 1) {
     size -= 1.5;
     title.style.fontSize = `${size}px`;
   }
+  if (title.scrollWidth > title.clientWidth + 1) title.style.whiteSpace = 'normal';
 }
 
 export function createProgramRenderer(container) {
