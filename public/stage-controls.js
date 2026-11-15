@@ -325,7 +325,7 @@ export function bindStageControls({ send, edit, toast }) {
     const nav = node('div', undefined, 'stage-nav');
     const payload = (direction) => ({ action:'navigate', direction, ...(kind === 'hosts' && { index:slotIndex }) });
     const previous = limited(button('◀', () => command(kind, payload(-1)), kind === 'hosts' ? `previous-${slotIndex}` : 'program-previous', 'stage-nav-button'), index <= 0);
-    const following = limited(button('▶', () => command(kind, payload(1)), kind === 'hosts' ? `next-${slotIndex}` : 'program-next', 'stage-nav-button'), index >= total - 1);
+    const following = limited(button('▶', () => command(kind, payload(1)), kind === 'hosts' ? `next-${slotIndex}` : 'program-next', 'stage-nav-button'), (kind === 'hosts' && index < 0) || index >= total - 1);
     previous.setAttribute('aria-label', kind === 'hosts' ? `字幕条 ${slotIndex + 1} 上一人` : '上一节目');
     following.setAttribute('aria-label', kind === 'hosts' ? `字幕条 ${slotIndex + 1} 下一人` : '下一节目');
     const info = node('div', undefined, 'stage-nav-info');

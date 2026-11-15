@@ -52,6 +52,24 @@ test('reorder uses three digits once there are more than 99 programmes', () => {
   assert.equal(result.items.at(-1).number, '100');
 });
 
+test('navigating an empty host slot does not assign the first or last person', () => {
+  const hosts = defaultManagement('hosts', {});
+  hosts.slots[2].personId = null;
+  const before = structuredClone(hosts);
+  for (const direction of [1, -1]) {
+    const result = applyManagement(hosts, 'hosts', { action: 'navigate', index: 2, direction });
+    assert.equal(result.slots[2].personId, null);
+    assert.notEqual(result.slots[2].personId, hosts.people[0].id);
+    assert.notEqual(result.slots[2].personId, hosts.people.at(-1).id);
+    assert.deepEqual(result.slots, before.slots);
+    assert.deepEqual(result.people, before.people);
+  }
+  assert.deepEqual(hosts, before);
+  const stepped = applyManagement(hosts, 'hosts', { action: 'navigate', index: 0, direction: 1 });
+  assert.equal(stepped.slots[0].personId, hosts.people[1].id);
+  assert.equal(stepped.slots[2].personId, null);
+});
+
 test('editing or adding a programme never renumbers the others', () => {
   const module = make(['01', '07', '07', '12']);
   const edited = applyManagement(module, 'program', { action:'save', item:{ ...module.items[1], title:'改名' } });
