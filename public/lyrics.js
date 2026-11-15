@@ -1,14 +1,9 @@
 import { buildLyricDocument, LYRIC_BYTES, jsonBytes, parseLrc, RATES, timelineIndex } from './lyrics-model.js';
 import { createLyricsClock, timecode } from './lyrics-clock.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
-import { highlightLyrics, clearLyricHighlight, LYRIC_HIGHLIGHT_CSS } from './lyrics-highlight.js';
 import { bindAsrControls } from './asr-controls.js';
 
 const $ = (id) => document.getElementById(id);
-const highlightStyle = document.createElement('style');
-highlightStyle.textContent = LYRIC_HIGHLIGHT_CSS;
-document.head.append(highlightStyle);
-let highlightedElements = [];
 const clock = createLyricsClock();
 const preview = createLyricsRenderer($('mini-canvas'));
 const asr = bindAsrControls({ correct: (enabled) => send('lyrics:correct', { enabled }), timecode });
@@ -89,7 +84,13 @@ function renderList(id, lines, display, select) {
     count.textContent = typeof line === 'string' ? String(index + 1) : timecode(line.start);
     const text = document.createElement('span');
     text.className = 'lyric-line-text';
-    text.textContent = display(line);
+    text.append(display(line));
+    if (typeof line === 'object' && line.translation) {
+      const sub = document.createElement('small');
+      sub.className = 'lyric-line-translation';
+      sub.textContent = line.translation;
+      text.append(sub);
+    }
     row.append(count, text);
     if (select) row.onclick = () => select(line, index);
     item.append(row);
@@ -175,17 +176,6 @@ function drawTimeline(position, state, playing) {
     if (manualFollowsTimeline) centerRow($('manual-list'), manualIndex);
     manualRow = manualIndex;
   }
-  const line = clock.doc[index];
-  const lists = ['timeline-list', 'reference-list'];
-  if (manualFollowsTimeline && clock.usesDocument) lists.push('manual-list');
-  const elements = line ? lists.map((id) => $(id).children[index]?.querySelector('.lyric-line-text')).filter(Boolean) : [];
-  for (const previous of highlightedElements) {
-    if (!elements.includes(previous)) clearLyricHighlight(previous, previous.textContent);
-  }
-  for (const element of elements) {
-    highlightLyrics(element, line, position, clock.doc[index + 1]?.start ?? state.transport.end);
-  }
-  highlightedElements = elements;
 }
 
 function drawClock() {
@@ -450,7 +440,8 @@ function syncImport() {
   for (const entry of entries) {
     const error = entry.skip ? '' : entry.error || entry.lines.map((line) => errors.get(line)).find(Boolean);
     if (error) invalid += 1;
-    entry.status.textContent = entry.skip ? '已跳过' : error || (entry.lines.some((line) => line.credit) ? '署名 · 仅显示' : '有效');
+    entry.status.textContent = entry.skip ? '已跳过' : entry.translation ? '译文 · 并入上一行' :
+      error || (entry.lines.some((line) => line.credit) ? '署名 · 仅显示' : '有效');
     entry.status.classList.toggle('invalid', Boolean(error));
   }
   $('import-result').textContent = !importFits ? '歌词文档超过 200 KiB，请删减后再载入。' :
@@ -489,6 +480,7 @@ function prepareImport(filename = '') {
     input.addEventListener('input', () => {
       const edited = parseLrc(input.value)[0];
       entry.lines = edited?.lines ?? [];
+      entry.translation = false;
       entry.error = edited?.error || (entry.lines.length ? '' : '空白或元数据行');
       syncImport();
     });

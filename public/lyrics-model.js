@@ -8,6 +8,7 @@ const LINE_STAMP = new RegExp('^\\[' + STAMP + '\\]');
 const WORD_STAMP = new RegExp('<' + STAMP + '>', 'g');
 const METADATA = /^\[(?:ar|al|ti|by|re|ve|length|offset):[^\]]*\]$/i;
 const CREDIT = /^(?:作[词曲]|词|曲|编曲|演唱|歌手|原唱|制作|混音|录音|监制|credits?|lyrics|music|arrang(?:er|ement)|vocal(?:s)?)\s*[:：]/iu;
+const HAN = /\p{Script=Han}/u;
 const TEXT = /^[^\u0000-\u001F\u007F]*$/u;
 const TOKEN = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|[^\s\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]+|\s+/gu;
 
@@ -78,7 +79,36 @@ export function parseLrc(source) {
   }
   const ordered = entries.flatMap((entry) => entry.lines).sort((a, b) => a.start - b.start);
   if (ordered[0]?.start === 0 && CREDIT.test(ordered[0].text)) ordered[0].credit = true;
+  pairTranslations(entries);
   return entries;
+}
+
+// 双语 LRC 的常见写法：原文行与译文行使用同一个时间戳相邻排列。
+// 把相邻同time、且只有一方含汉字的行合成一句，译文挂在原文行的 translation 上。
+function isTranslationPair(first, second) {
+  if (first.skip || second.skip || first.lines.length !== 1 || second.lines.length !== 1) return false;
+  const [left, right] = [first.lines[0], second.lines[0]];
+  if (left.start !== right.start || left.credit || right.credit) return false;
+  return HAN.test(left.text) !== HAN.test(right.text);
+}
+
+// 三行挤在同一个时间戳时无法判断谁是译文，保持原样，交给重复时间戳的校验去报告。
+function pairTranslations(entries) {
+  let index = 0;
+  while (index < entries.length) {
+    const start = entries[index].lines[0]?.start;
+    let end = index + 1;
+    while (start !== undefined && end < entries.length &&
+        entries[end].lines.length === 1 && entries[end].lines[0].start === start) end += 1;
+    if (end - index === 2 && isTranslationPair(entries[index], entries[index + 1])) {
+      // LRC 里原文在前、译文在后，所以先出现的那一行保持主行。
+      const [primary, secondary] = [entries[index], entries[index + 1]];
+      primary.lines[0].translation = secondary.lines[0].text;
+      secondary.lines = [];
+      secondary.translation = true;
+    }
+    index = Math.max(end, index + 1);
+  }
 }
 
 export function buildLyricDocument(entries) {
@@ -109,9 +139,13 @@ function hasFields(value, fields) {
 }
 
 function validLine(line) {
-  if (!hasFields(line, ['start', 'text', 'tokens', 'credit']) || !isTime(line.start) ||
+  if (line === null || typeof line !== 'object' || Array.isArray(line)) return false;
+  const translated = Object.hasOwn(line, 'translation');
+  const fields = translated ? ['start', 'text', 'tokens', 'credit', 'translation'] : ['start', 'text', 'tokens', 'credit'];
+  if (!hasFields(line, fields) || !isTime(line.start) ||
       !isLine(line.text) || !line.text.trim() || typeof line.credit !== 'boolean' ||
       !Array.isArray(line.tokens) || line.tokens.length > MAX_LINE) return false;
+  if (translated && (!isLine(line.translation) || !line.translation.trim())) return false;
   let start = line.start;
   for (const token of line.tokens) {
     if (!hasFields(token, ['start', 'text']) || !isTime(token.start) || token.start < start ||

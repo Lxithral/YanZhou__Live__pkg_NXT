@@ -1,16 +1,21 @@
 import { animateModuleElement, createModuleLayer } from './module-layer.js';
 import { timelineIndex } from './lyrics-model.js';
-import { highlightLyrics, clearLyricHighlight, LYRIC_HIGHLIGHT_CSS } from './lyrics-highlight.js';
 
 const STYLE_ID = 'yanzhou-lyrics-renderer-style';
 const BOARD_HEIGHT = 290;
+const VIEWPORT_HEIGHT = 152;
 const FONT_SIZE = 52;
+const TRANSLATION_RATIO = 0.6;
+const MIN_FONT = 16;
 const STYLES = `
 .lyrics-board .module-body { position: relative; width: 1440px; height: ${BOARD_HEIGHT}px; display: grid; align-items: center; }
-.lyrics-board .lyrics-viewport { position: relative; height: 80px; overflow: hidden; display: grid; align-items: center; }
-.lyrics-board :is(.lyrics-text, .lyrics-outgoing-text) { min-width: 0; white-space: pre; line-height: 1.18; overflow: hidden; text-overflow: ellipsis; text-align: center; font-weight: 650; color: var(--lyrics-text); text-shadow: 0 2px 12px rgba(0,0,0,.55); --highlight-color: var(--lyrics-accent); --highlight-base: color-mix(in srgb, var(--lyrics-text) 48%, transparent); }
+.lyrics-board .lyrics-viewport { position: relative; height: ${VIEWPORT_HEIGHT}px; overflow: hidden; display: grid; align-items: center; }
+.lyrics-board :is(.lyrics-text, .lyrics-outgoing-text) { display: grid; justify-items: center; align-content: center; gap: 4px; min-width: 0; max-width: 100%; }
+.lyrics-board :is(.lyrics-main, .lyrics-translation) { min-width: 0; max-width: 100%; white-space: pre; line-height: 1.16; overflow: hidden; text-overflow: ellipsis; text-align: center; color: var(--lyrics-text); text-shadow: 0 2px 12px rgba(0,0,0,.55); }
+.lyrics-board .lyrics-main { font-weight: 650; }
+.lyrics-board .lyrics-translation { font-weight: 600; color: color-mix(in srgb, var(--lyrics-text) 82%, transparent); }
+.lyrics-board .lyrics-translation:empty { display: none; }
 .lyrics-board .lyrics-outgoing { position: absolute; inset: 0; display: grid; align-items: center; pointer-events: none; }
-${LYRIC_HIGHLIGHT_CSS}
 `;
 
 export function createLyricsRenderer(container, { sample = false } = {}) {
@@ -20,14 +25,20 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     style.textContent = STYLES;
     document.head.append(style);
   }
-  const layer = createModuleLayer(container, { className: 'lyrics-board', bodyHTML: '<div class="lyrics-viewport"><div class="lyrics-text"></div></div>' });
+  const layer = createModuleLayer(container, {
+    className: 'lyrics-board',
+    bodyHTML: '<div class="lyrics-viewport"><div class="lyrics-text"><span class="lyrics-main"></span><span class="lyrics-translation"></span></div></div>',
+  });
   layer.element.setAttribute('aria-label', '歌词字幕');
   const viewport = layer.body.firstElementChild;
   const line = viewport.firstElementChild;
+  const main = line.firstElementChild;
+  const translation = line.lastElementChild;
   let module;
   let clock;
   let raf;
   let lastText = '';
+  let lastTranslation = '';
   let lastSource;
   let lastItems;
   let lastIndex;
@@ -42,15 +53,29 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     line.style.animation = '';
   }
 
+  function fit() {
+    main.style.fontSize = `${FONT_SIZE}px`;
+    let size = FONT_SIZE;
+    if (main.scrollWidth > main.clientWidth) {
+      size = Math.max(MIN_FONT, Math.floor(FONT_SIZE * main.clientWidth / main.scrollWidth));
+      main.style.fontSize = `${size}px`;
+    }
+    let sub = Math.max(MIN_FONT, Math.round(size * TRANSLATION_RATIO));
+    translation.style.fontSize = `${sub}px`;
+    if (translation.scrollWidth > translation.clientWidth) {
+      sub = Math.max(12, Math.floor(sub * translation.clientWidth / translation.scrollWidth));
+      translation.style.fontSize = `${sub}px`;
+    }
+  }
+
   function draw() {
     cancelAnimationFrame(raf);
     if (!module) return;
     const state = clock?.state;
     const selected = state?.armed ? state.source : null;
     let text = '';
-    let current;
+    let sub = '';
     let position;
-    let lineEnd;
     let items;
     let index;
     if (sample && !selected) {
@@ -59,9 +84,9 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
       position = clock.position();
       items = clock.doc;
       index = timelineIndex(clock.doc, position, state.transport.end);
-      current = clock.doc[index];
-      lineEnd = clock.doc[index + 1]?.start ?? state.transport.end;
+      const current = clock.doc[index];
       text = current?.text ?? '';
+      sub = current?.translation ?? '';
       if (state.transport.playing && position < state.transport.end && module.visible && layer.element.isConnected) {
         raf = requestAnimationFrame(draw);
       }
@@ -75,7 +100,8 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
       index = items.length - 1;
     }
 
-    const changed = lastText !== text || lastSource !== selected || lastItems !== items || lastIndex !== index;
+    const changed = lastText !== text || lastTranslation !== sub || lastSource !== selected ||
+      lastItems !== items || lastIndex !== index;
     const previous = lastText;
     const switching = Boolean(lastSource && selected && lastSource !== selected && previous && text);
     const stepping = lastSource === selected && items === lastItems &&
@@ -108,17 +134,14 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     }
     layer.element.dataset.hasContent = String(Boolean(text.trim()));
     lastText = text;
+    lastTranslation = sub;
     lastSource = selected;
     lastItems = items;
     lastIndex = index;
-    if (current) highlightLyrics(line, current, position, lineEnd);
-    else if (changed) clearLyricHighlight(line, text);
+    if (main.textContent !== text) main.textContent = text;
+    if (translation.textContent !== sub) translation.textContent = sub;
     if (!changed) return;
-    line.style.fontSize = `${FONT_SIZE}px`;
-    const { scrollWidth, clientWidth } = line;
-    if (clientWidth && scrollWidth > clientWidth) {
-      line.style.fontSize = `${Math.max(16, Math.floor(FONT_SIZE * clientWidth / scrollWidth))}px`;
-    }
+    fit();
     if (switching) line.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
     else if (scrolling) line.animate([
       { opacity: 0, transform: `translateY(${direction * 56}px)` },
