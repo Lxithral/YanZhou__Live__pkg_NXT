@@ -1062,3 +1062,49 @@ test('management rejects malformed and concurrent changes atomically and preserv
   assert.ok(disk.modules.hosts.people.some((p) => p.id === 'new-a'));
   assert.ok(disk.modules.hosts.people.some((p) => p.id === 'new-b'));
 });
+
+test('program reorder keeps the current programme by identity, persists, syncs and drives navigation', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  const other = await setup.connect(first.wsUrl);
+  await client.waitFor((m) => m.type === 'state');
+  await other.waitFor((m) => m.type === 'state');
+  let sequence = 0;
+  const manage = async (payload) => {
+    const id = 'order-' + ++sequence;
+    client.send({ type: 'program:manage', id, payload });
+    return client.waitFor((m) => (m.type === 'management:result' || m.type === 'error') && m.id === id);
+  };
+  const items = first.app.getState().settings.modules.program.items;
+  const ids = items.map((item) => item.id);
+  await manage({ action: 'select', id: ids[1] });
+  // 把第二个（当前节目）挪到最后，把最后一个挪到最前。
+  const order = [ids.at(-1), ids[0], ...ids.slice(2, -1), ids[1]];
+  assert.equal((await manage({ action: 'reorder', order })).type, 'management:result');
+  const program = first.app.getState().settings.modules.program;
+  assert.deepEqual(program.items.map((item) => item.id), order);
+  assert.equal(program.selectedId, ids[1], 'the programme on air stays the same');
+  assert.equal(program.current, items[1].title);
+  assert.equal(program.next, '', 'it is now last, so there is no next programme');
+  const synced = await other.waitFor((m) => m.type === 'state' && m.settings.modules.program.items[0].id === ids.at(-1));
+  assert.equal(synced.settings.modules.program.selectedId, ids[1]);
+  const disk = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.deepEqual(disk.modules.program.items.map((item) => item.id), order);
+  // 拖动后编号按新顺序重排（原数据里的两个 07 也一并理顺），当前节目编号跟着更新。
+  assert.deepEqual(disk.modules.program.items.map((item) => item.number), order.map((_, i) => String(i + 1).padStart(2, '0')));
+  assert.equal(new Set(disk.modules.program.items.map((item) => item.number)).size, order.length);
+  assert.equal(disk.modules.program.items.find((item) => item.id === ids[1]).number, String(order.length).padStart(2, '0'));
+  await manage({ action: 'navigate', direction: -1 });
+  assert.equal(first.app.getState().settings.modules.program.selectedId, order.at(-2), '← follows the new order');
+  // 不是完整排列的请求被拒绝，已保存的顺序不变。
+  for (const bad of [order.slice(1), [...order.slice(1), order[1]], [...order.slice(0, -1), 'program-missing']]) {
+    const reply = await manage({ action: 'reorder', order: bad });
+    assert.equal(reply.type, 'error');
+  }
+  assert.deepEqual(first.app.getState().settings.modules.program.items.map((item) => item.id), order);
+  await setup.stop(first.app);
+  const after = await setup.start();
+  assert.deepEqual(after.app.getState().settings.modules.program.items.map((item) => item.id), order);
+  assert.equal(after.app.getState().settings.modules.program.selectedId, order.at(-2));
+});
