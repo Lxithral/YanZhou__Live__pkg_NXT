@@ -12,10 +12,10 @@
       "subtitle": "",
       "color": "#FFFFFF",
       "textColor": "#772B2C",
-      "weight": 640,
-      "x": 217,
-      "y": 114,
-      "scale": 0.98,
+      "weight": 600,
+      "x": 118,
+      "y": 109,
+      "scale": 0.95,
       "opacity": 100,
       "animation": {
         "enter": "fade-up",
@@ -32,8 +32,8 @@
       "customColors": false,
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
-      "x": 156,
-      "y": 813,
+      "x": 80,
+      "y": 866,
       "scale": 1,
       "opacity": 100,
       "animation": {
@@ -105,15 +105,15 @@
     "program": {
       "visible": false,
       "label": "正在演出",
-      "current": "身骑白马",
+      "current": "For the First Time in Forever",
       "nextLabel": "接下来",
-      "next": "刻在我心底的名字",
+      "next": "野心家",
       "queue": "",
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
-      "x": 189,
-      "y": 722,
-      "scale": 1,
+      "x": 99,
+      "y": 729,
+      "scale": 1.41,
       "opacity": 100,
       "animation": {
         "enter": "fade-up",
@@ -230,7 +230,7 @@
           "cover": ""
         }
       ],
-      "selectedId": "program-11"
+      "selectedId": "program-8"
     },
     "lyrics": {
       "visible": true,
@@ -253,32 +253,32 @@
       },
       "manual": {
         "lines": null,
-        "index": null,
-        "current": "",
+        "index": 0,
+        "current": "Rolling In The Deep (坠入深渊) (Live) - Adele (阿黛尔)",
         "autoSeconds": 0
       },
       "armed": true,
-      "song": {
-        "id": "08c5fe649671dbd703bc1b4eb1afc5fb",
-        "version": "9d688a04bacb0c24b8041ed370b6b317599259c0b5925d48d9f3dd4e9893b9a8"
-      },
       "songOrder": [
-        "e6cd9155496fcf3752774c7d43defbd9",
-        "18226b58fe79ecc9ff62349d2f856c87",
-        "98481fcff10c1c59a8c7cb042cb45fd8",
-        "45f6962bf5285b34bd7b8e6823e90902",
-        "8578aa16d4afad246e6c735a48f3ea5e",
-        "295d0ae4ca4ff1073182e721c506b754",
-        "a9254444ba8b093ddc61ae1f4fed0c15",
-        "08c5fe649671dbd703bc1b4eb1afc5fb",
-        "cdba90ce13d71099c8504dae8203f909",
-        "bd0f3b4563af448c0f1e654101700f62",
-        "f28e916e3ab138e403a31a005bee17f4",
-        "354855ea86c6afae650414bc6cd3605b"
-      ]
+        "4b1800ed81c9578d9081a1f95746155a",
+        "9f50634dedf338673a73ccfc62cffc87",
+        "41d461c9cbb315e45740ee4ba613bf38",
+        "3d85199925690214422f53fabc3e52e0",
+        "0db7d75d86c2b8e0d54125eb866c0175",
+        "a532d4e1feb3133fa5dfa102e4328618",
+        "68932b2d9b09338bdf6b02527960b2ec",
+        "9f285ea723c5ab1cad4b8a4b4435d3a0",
+        "bbe2ae84c112a2441604178118c96cd1",
+        "6a8eb0e86fc9d7f5131082433155ca1a",
+        "06046e742980304b5a9f8133049ee368",
+        "bbd96a5efacf4665e92ea038114a622e"
+      ],
+      "song": {
+        "id": "41d461c9cbb315e45740ee4ba613bf38",
+        "version": "73c5ed4ecb53ba5f97a2d2b671e4d543eb690cf4e3002e96fb2555ffc6f833aa"
+      }
     }
   },
   "layout": {
-    "autoAvoid": true
+    "autoAvoid": false
   }
 }
