@@ -321,12 +321,6 @@ html[data-theme=light] :is(.text-input, .select-input, .number-unit input, .colo
 .position-presets button { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 28px; padding: 2px; color: var(--muted); border: 0; border-radius: var(--r-ctl); background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); font-size: 12px; }
 .position-presets svg { width: 13px; height: 13px; }
 
-.program-advance-row { flex-direction: row; align-items: center; gap: 12px; padding: 10px 10px 10px 14px; border-radius: 8px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); }
-.program-advance-hint { order: -1; flex: 1; min-width: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.program-advance { flex: none; height: 34px; padding: 0 16px; color: var(--accent-text); background: var(--accent); box-shadow: none; font-weight: 600; }
-.program-advance:hover:not(:disabled) { background: var(--accent-hover); box-shadow: none; }
-.program-advance:disabled { color: var(--muted); background: var(--active); }
-
 .save-status { display: flex; align-items: center; gap: 8px; height: 44px; flex: none; padding: 0 18px; border-top: 1px solid var(--line); background: var(--panel-head); color: var(--ok); font-size: 13px; }
 .save-status svg { width: 15px; height: 15px; stroke-width: 2; }
 .save-status strong { font-weight: 500; }

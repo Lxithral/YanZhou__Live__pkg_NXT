@@ -310,7 +310,6 @@ function updateConnection(state) {
   $('connectionStatus').className = 'connection-status ' + state;
   $('connectionText').textContent = state === 'connected' ? '服务已连接' : state === 'disconnected' ? '连接已断开' : '正在连接';
   $('previewOffline').hidden = state === 'connected';
-  updateProgramAdvance();
   stageControls.render(settings, ready);
   updateSaveStatus();
 }
@@ -445,20 +444,6 @@ function renderControls() {
   $('visibilityTitle').textContent = `显示 ${MODULES[activeModule].name}`;
   $('visibilityHint').textContent = active.visible ? '显示中 · 关闭后按退场动画离开画面' : '已隐藏 · 打开后按出场动画进入画面';
   document.querySelector('.visibility-row').classList.toggle('is-live', Boolean(active.visible));
-  updateProgramAdvance();
-}
-
-function upcomingPrograms() {
-  const { next, queue = '' } = settings.modules.program;
-  return [next, ...queue.split(/\r?\n/u)].map((name) => name.trim()).filter(Boolean);
-}
-
-function updateProgramAdvance() {
-  const upcoming = upcomingPrograms();
-  $('programAdvance').disabled = !ready || !upcoming.length;
-  $('programAdvanceHint').textContent = upcoming.length
-    ? `当前将变为「${upcoming[0]}」${upcoming[1] ? `，预告「${upcoming[1]}」` : ''}`
-    : '后续节目为空';
 }
 
 function updateSummary() {
@@ -1130,9 +1115,6 @@ function bindGlobalControls() {
       target.focus();
     });
   }
-  $('programAdvance').addEventListener('click', () => {
-    stageControls.navigateProgram();
-  });
   $('moduleVisible').addEventListener('change', (event) => edit(activeModule, { visible: event.target.checked }));
   $('previewStage').addEventListener('keydown', (event) => {
     if (event.target !== $('previewStage') || !settings.modules[activeModule].visible) return;
