@@ -494,7 +494,8 @@ test('one LRC load shares all lines with manual and preserves the committed on-a
   const reconnect = await setup.connect(restarted.wsUrl);
   const state = await reconnect.waitFor((message) => message.type === 'lyrics:state');
   clock.apply(state);
-  assert.equal(state.armed, false);
+  assert.equal(state.armed, true);
+  assert.equal(state.source, 'manual');
   assert.deepEqual(clock.lines, demoDoc.map((line) => line.text));
   assert.equal(state.manual.index, 0);
 });
@@ -719,7 +720,7 @@ test('manual auto timer stays independent of source and stops at the last line',
   assert.equal(result.manual.next, '');
 });
 
-test('reconnect gets full state and restart keeps the paused checkpoint disarmed', async (t) => {
+test('reconnect gets full state and restart restores the paused checkpoint push', async (t) => {
   const setup = await fixture(t);
   const first = await setup.start();
   const client = await setup.connect(first.wsUrl);
@@ -743,12 +744,27 @@ test('reconnect gets full state and restart keeps the paused checkpoint disarmed
   const next = await setup.start();
   const nextClient = await setup.connect(next.wsUrl);
   const restarted = await nextClient.waitFor((message) => message.type === 'lyrics:state');
-  assert.equal(restarted.armed, false);
+  assert.equal(restarted.armed, true);
   assert.equal(restarted.source, 'timeline');
   assert.equal(restarted.transport.playing, false);
   assert.ok(restarted.transport.position >= live.transport.position);
   assert.equal(restarted.manual.current, '已确认');
   assert.deepEqual(restarted.doc, demoDoc);
+});
+
+test('stopping the push survives a restart and an asr push never auto-restores', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  await lyricCommand(client, 'lyrics:onair', { source: 'manual' });
+  const stopped = await lyricCommand(client, 'lyrics:onair', { source: null });
+  assert.equal(stopped.armed, false);
+  await setup.stop(first.app);
+  const restarted = await setup.start();
+  const reconnect = await setup.connect(restarted.wsUrl);
+  const idle = await reconnect.waitFor((message) => message.type === 'lyrics:state');
+  assert.equal(idle.armed, false, 'a stopped push stays stopped after a restart');
+  assert.equal(idle.source, 'manual');
 });
 
 test('settings without a lyrics module get a backup before lyrics migration and malformed lyrics preserve the file', async (t) => {

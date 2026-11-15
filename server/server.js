@@ -539,7 +539,7 @@ export async function createPackagingServer({
         ...recognition, ...status, partial: '',
         ...(status.phase === 'loading' && { finals: [] }),
       };
-      if ((status.phase === 'idle' || status.phase === 'error') && lyrics.disarmAsr()) broadcast(lyricState());
+      if ((status.phase === 'idle' || status.phase === 'error') && lyrics.disarmAsr()) publishLyrics();
       broadcast(asrState());
     },
     onResult(event) {

@@ -9,6 +9,7 @@ const MANUAL_BYTES = 15 * 1024;
 
 export const DEFAULT_LYRICS = {
   source: 'timeline',
+  armed: false,
   doc: [],
   transport: { position: 0, rate: 1 },
   manual: { lines: [], index: null, current: '', autoSeconds: 0 },
@@ -30,8 +31,9 @@ function validateIndex(index, lines) {
   if (!Number.isSafeInteger(index) || index < 0 || index >= lines.length) throw new Error('选句位置无效。');
 }
 
-export function validateLyricSettings({ source, doc, transport, manual }) {
+export function validateLyricSettings({ source, doc, transport, manual, armed }) {
   if (!SOURCES.includes(source)) throw new Error('歌词输出源无效。');
+  if (armed !== undefined && typeof armed !== 'boolean') throw new Error('歌词推送状态无效。');
   validateDocument(doc, { allowEmpty: true });
   requireFields(transport, ['position', 'rate']);
   if (!Number.isSafeInteger(transport.position) || transport.position < 0 ||
@@ -42,18 +44,19 @@ export function validateLyricSettings({ source, doc, transport, manual }) {
   if (manual.lines !== null) validateLines(manual.lines);
   if (manual.index !== null) validateIndex(manual.index, manual.lines ?? doc);
   if (!isLine(manual.current) || !AUTO_SECONDS.includes(manual.autoSeconds)) throw new Error('手动字幕设置无效。');
-  return { source, doc, transport, manual };
+  return { source, doc, transport, manual, armed: armed === true };
 }
 
 export function createLyricsSession(initial, onChange) {
-  let { source, doc, transport, manual } = initial;
+  let { source, doc, transport, manual, armed = false } = initial;
+  // 语音识别依赖浏览器采集，重启后续不上，因此只恢复时间轴与手动的推送。
+  if (source === 'asr') armed = false;
   let documentLines = doc.map((line) => line.text);
   if (documentLines.length && manual.lines?.length === 0) {
     manual = { ...manual, lines: null };
   }
   let end = documentEnd(doc);
   let startedAt = null;
-  let armed = false;
   let deadline = null;
   let autoTimer;
   let adjustment;
@@ -258,7 +261,7 @@ export function createLyricsSession(initial, onChange) {
       };
     },
     persisted() {
-      return { source, doc, transport: { ...transport, position: position(performance.now()) }, manual };
+      return { source, armed, doc, transport: { ...transport, position: position(performance.now()) }, manual };
     },
     checkpointNeeded() {
       if (startedAt === null) return false;

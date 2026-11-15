@@ -1135,16 +1135,16 @@ function bindGlobalControls() {
       y: settings.modules[activeModule].y + moves[event.key][1],
     });
   });
-  // 预览底色：未手动选择时跟随界面主题（深色主题用深色底，浅色主题用浅灰棋盘格）；
-  // 手动选过就记住，选回与当前主题默认相同的底色则恢复跟随。
+  // 预览默认用中性灰棋盘格；手动选择单独保存在当前浏览器，不影响 OBS 输出。
+  // 选回棋盘格时清除手动覆盖，恢复默认背景。
   const BACKGROUND_KEY = 'yzb-preview-background';
-  const themeBackground = () => (document.documentElement.dataset.theme === 'light' ? 'checker' : 'dark');
+  const DEFAULT_BACKGROUND = 'checker';
   const readManualBackground = () => {
     try { return localStorage.getItem(BACKGROUND_KEY); } catch { return null; }
   };
   const applyBackground = () => {
     const manual = readManualBackground();
-    const value = ['dark', 'light', 'checker'].includes(manual) ? manual : themeBackground();
+    const value = ['dark', 'light', 'checker'].includes(manual) ? manual : DEFAULT_BACKGROUND;
     $('previewStage').dataset.background = value;
     $('focusStage').dataset.background = value;
     for (const other of document.querySelectorAll('button[data-background]')) {
@@ -1156,7 +1156,7 @@ function bindGlobalControls() {
   for (const button of document.querySelectorAll('button[data-background]')) {
     button.addEventListener('click', () => {
       try {
-        if (button.dataset.background === themeBackground()) localStorage.removeItem(BACKGROUND_KEY);
+        if (button.dataset.background === DEFAULT_BACKGROUND) localStorage.removeItem(BACKGROUND_KEY);
         else localStorage.setItem(BACKGROUND_KEY, button.dataset.background);
       } catch {}
       applyBackground();

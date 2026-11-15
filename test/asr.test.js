@@ -25,6 +25,14 @@ test('lyric matching suppresses ambiguous repeated choruses and very short/noisy
   assert.equal(matchLyric(index, '哈哈哈哈哈', 2100), null);
 });
 
+test('a restored asr push is never re-armed because the capture cannot survive a restart', () => {
+  const restored = createLyricsSession({ ...DEFAULT_LYRICS, source: 'asr', armed: true }, () => {});
+  assert.equal(restored.snapshot().armed, false);
+  assert.equal(restored.snapshot().source, 'asr');
+  const timeline = createLyricsSession({ ...DEFAULT_LYRICS, source: 'timeline', armed: true }, () => {});
+  assert.equal(timeline.snapshot().armed, true);
+});
+
 function running(start) {
   const session = createLyricsSession(DEFAULT_LYRICS, () => {});
   session.apply('lyrics:load', { doc: [line(start, '照亮我的青春'), line(8000, '我们一起唱歌')] });
