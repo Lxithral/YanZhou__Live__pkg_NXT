@@ -647,4 +647,7 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
 }
 
 .stage-management.is-pending button { pointer-events:none; }
+.stage-management.is-pending button.stage-nav-button,
+.stage-management.is-pending button.stage-toggle,
+[data-management=program].is-pending button.stage-quick-cell { pointer-events:auto; }
 .stage-management.is-pending { cursor:progress; }

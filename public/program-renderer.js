@@ -67,6 +67,16 @@ function installStyles() {
 
 const text = (value) => String(value ?? '').trim();
 
+/** 滚动内容的身份。节目编号算在里面：换节目即使演出者、介绍一字不差，也从头滚。 */
+export function programScrollKey(selectedId, text) {
+  return `${selectedId ?? ''}\u0000${text}`;
+}
+
+/** 下屏后的停止计时只安排一次。后面的状态回声不能把停止时间往后推。 */
+export function shouldArmScrollExit({ visible, shown, running, exitArmed }) {
+  return !visible && !exitArmed && Boolean(shown || running);
+}
+
 /** 当前节目与下一个节目：优先读节目资料库（items / selectedId），旧设置没有资料库时用 current / next。 */
 export function programContent(program) {
   const items = Array.isArray(program.items) ? program.items : [];
@@ -121,9 +131,10 @@ export function createProgramRenderer(container) {
   // 滚动器：表演者（竖向无缝循环）和介绍（竖向上滚 + 右侧竖条）共用同一套生命周期：
   // 只在内容 / 显隐 / 字体变化时重新测量；key = 文本 + 测量结果，结果不变就不打断正在进行的动画。
   function createScroller({ host, measure, start }) {
-    const state = { text: '', key: '', measured: false, animations: [], stopTimer: 0 };
+    const state = { text: '', identity: '', key: '', measured: false, animations: [], stopTimer: 0 };
     const stop = () => {
       clearTimeout(state.stopTimer);
+      state.stopTimer = 0;
       for (const animation of state.animations) animation.cancel();
       state.animations = [];
       state.key = '';
@@ -225,16 +236,20 @@ export function createProgramRenderer(container) {
       ticket.numText.textContent = content.number;
       ticket.num.classList.toggle('is-empty', !content.number);
       setText(ticket.title, content.title);
-      const perfChanged = content.performer !== perfScroller.state.text;
+      const perfKey = programScrollKey(program.selectedId, content.performer);
+      const perfChanged = perfKey !== perfScroller.state.identity;
       if (perfChanged) {
         for (const copy of ticket.perfCopies) copy.textContent = content.performer;
         perfScroller.state.text = content.performer;
+        perfScroller.state.identity = perfKey;
       }
       ticket.perf.hidden = !content.performer;
-      const descChanged = content.desc !== introScroller.state.text;
+      const descKey = programScrollKey(program.selectedId, content.desc);
+      const descChanged = descKey !== introScroller.state.identity;
       if (descChanged) {
         ticket.descTrack.textContent = content.desc;
         introScroller.state.text = content.desc;
+        introScroller.state.identity = descKey;
       }
       ticket.desc.hidden = !content.desc;
       setText(ticket.nextLabel, content.nextLabel);
@@ -253,11 +268,13 @@ export function createProgramRenderer(container) {
         const { state } = scroller;
         if (visible) {
           clearTimeout(state.stopTimer);
+          state.stopTimer = 0;
           if (entering || changed) {
             scroller.sync({ restart: true, delay: startDelay({ entering: entering && !firstUpdate, enter: animation.enter, duration: animation.duration }) });
           } else if (!state.measured) scroller.sync();
-        } else if (shown || state.animations.length) {
-          clearTimeout(state.stopTimer);
+        } else if (shouldArmScrollExit({
+          visible, shown, running: state.animations.length > 0, exitArmed: Boolean(state.stopTimer),
+        })) {
           const exitTime = animation.exit && animation.exit !== 'none' ? (Number(animation.duration) || 0) + 40 : 0;
           state.stopTimer = setTimeout(scroller.stop, exitTime);
         }
