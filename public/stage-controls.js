@@ -549,15 +549,12 @@ export function bindStageControls({ send, edit, toast }) {
       }
       count.append(numbers);
       areas.hosts.top.append(count,hostPosition);
-      for (const kind of ['hosts','program']) {
-        const module = settings.modules[kind];
-        const visible = module.visible;
-        const toggle = button(visible ? kind === 'hosts' ? '隐藏全部' : '隐藏节目单' : kind === 'hosts' ? '显示全部' : '显示节目单',
-          () => edit(kind,{ visible:!visible }), 'toggle-' + kind, 'stage-toggle' + (visible ? ' is-live' : ''));
-        toggle.append(kbd('0'));
-        if (kind === 'hosts') areas[kind].top.prepend(toggle);
-        else areas[kind].top.replaceChildren(toggle);
-      }
+      // The shared top switch already controls host visibility.
+      const visible = program.visible;
+      const toggle = button(visible ? '隐藏节目单' : '显示节目单',
+        () => edit('program', { visible:!visible }), 'toggle-program', 'stage-toggle' + (visible ? ' is-live' : ''));
+      toggle.append(kbd('0'));
+      areas.program.top.replaceChildren(toggle);
       renderHostSlots(hosts);
       const index = items.findIndex((p) => p.id === program.selectedId);
       const previousProgram = areas.program.current.dataset.content;
