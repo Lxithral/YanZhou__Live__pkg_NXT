@@ -248,7 +248,7 @@
       "source": "timeline",
       "doc": [],
       "transport": {
-        "position": 32490,
+        "position": 0,
         "rate": 1
       },
       "manual": {
@@ -259,8 +259,8 @@
       },
       "armed": true,
       "song": {
-        "id": "90b5e87f7908c511d07de86ac7298634",
-        "version": "90b5e87f7908c511d07de86ac72986347fb0b153a8fc99af495549c2f946c88f"
+        "id": "08c5fe649671dbd703bc1b4eb1afc5fb",
+        "version": "9d688a04bacb0c24b8041ed370b6b317599259c0b5925d48d9f3dd4e9893b9a8"
       },
       "songOrder": [
         "e6cd9155496fcf3752774c7d43defbd9",
@@ -274,8 +274,7 @@
         "cdba90ce13d71099c8504dae8203f909",
         "bd0f3b4563af448c0f1e654101700f62",
         "f28e916e3ab138e403a31a005bee17f4",
-        "354855ea86c6afae650414bc6cd3605b",
-        "90b5e87f7908c511d07de86ac7298634"
+        "354855ea86c6afae650414bc6cd3605b"
       ]
     }
   },
