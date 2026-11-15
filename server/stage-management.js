@@ -131,10 +131,13 @@ export function applyManagement(module, kind, payload) {
     if (kind === 'hosts' && (!Number.isInteger(payload.index) || !slot)) throw new Error('槽位编号无效。');
     const selected = kind === 'hosts' ? slot.personId : next.selectedId;
     const from = records.findIndex(({ id }) => id === selected);
-    const target = from < 0 ? (payload.direction > 0 ? records[0] : records.at(-1)) : records[from + payload.direction];
-    if (target) {
-      if (slot) slot.personId = target.id;
-      else next.selectedId = target.id;
+    // 空字幕条没有当前人物。左右切换不能替它从资料库里挑一个人送上画面。
+    if (!(kind === 'hosts' && from < 0)) {
+      const target = from < 0 ? (payload.direction > 0 ? records[0] : records.at(-1)) : records[from + payload.direction];
+      if (target) {
+        if (slot) slot.personId = target.id;
+        else next.selectedId = target.id;
+      }
     }
   } else throw new Error('管理操作无效。');
   Object.assign(next, validateManagement(next, kind));
