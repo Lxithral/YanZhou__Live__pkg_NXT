@@ -8,3 +8,6 @@ settings.json.pre-lyrics.bak
 .tmp*
 desktop.ini
 desktop.ini
+.venv-qwen-asr/
+__pycache__/
+*.pyc

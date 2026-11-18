@@ -11,7 +11,8 @@ const STYLES = `
 .lyrics-board .module-body { position: relative; width: 1440px; height: ${BOARD_HEIGHT}px; display: grid; align-items: center; }
 .lyrics-board .lyrics-viewport { position: relative; height: ${VIEWPORT_HEIGHT}px; overflow: hidden; display: grid; align-items: center; }
 .lyrics-board :is(.lyrics-text, .lyrics-outgoing-text) { display: grid; justify-items: center; align-content: center; gap: 4px; min-width: 0; max-width: 100%; }
-.lyrics-board :is(.lyrics-main, .lyrics-translation) { min-width: 0; max-width: 100%; white-space: pre; line-height: 1.16; overflow: hidden; text-overflow: ellipsis; text-align: center; color: var(--lyrics-text); text-shadow: 0 2px 12px rgba(0,0,0,.55); }
+/* MiSans 的下伸部和阴影会超出紧凑行框；统一由外层 viewport 裁剪换行动画。 */
+.lyrics-board :is(.lyrics-main, .lyrics-translation) { min-width: 0; max-width: 100%; white-space: pre; line-height: 1.4; overflow: visible; text-align: center; color: var(--lyrics-text); text-shadow: 0 2px 12px rgba(0,0,0,.55); }
 .lyrics-board .lyrics-main { font-weight: 650; }
 .lyrics-board .lyrics-translation { font-weight: 600; color: color-mix(in srgb, var(--lyrics-text) 82%, transparent); }
 .lyrics-board .lyrics-translation:empty { display: none; }

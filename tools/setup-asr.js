@@ -1,58 +1,46 @@
-import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
-import { mkdir, mkdtemp, rename, rm, stat, unlink } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { pipeline } from 'node:stream/promises';
-import { Readable } from 'node:stream';
-import { promisify } from 'node:util';
+import { spawn, execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { ASR_MODELS, MODEL_ROOT, modelAvailable } from '../server/asr-models.js';
+import { fileURLToPath } from 'node:url';
+import { ASR_MODELS, QWEN_SERVICE_URL, serviceUrl } from '../server/asr-models.js';
 
-const exec = promisify(execFile);
-const modes = process.argv.slice(2);
-if (!modes.length) modes.push(...Object.keys(ASR_MODELS));
-if (modes.some((mode) => !Object.hasOwn(ASR_MODELS, mode))) throw new Error('用法：npm run asr:setup -- [bilingual|trilingual]');
-await mkdir(MODEL_ROOT, { recursive: true });
-
-async function download(url, file, check) {
-  console.log(`下载 ${path.basename(file)}`);
-  const response = await fetch(url, { signal: AbortSignal.timeout(15 * 60_000) });
-  if (!response.ok || !response.body) throw new Error(`下载失败：HTTP ${response.status}`);
-  await pipeline(Readable.fromWeb(response.body), createWriteStream(file, { flags: 'wx' }));
-  const size = (await stat(file)).size;
-  if (check.size !== undefined && size !== check.size) throw new Error('模型文件大小校验失败。');
-  const hash = createHash(check.gitSha1 ? 'sha1' : 'sha256');
-  if (check.gitSha1) hash.update(`blob ${size}\0`);
-  for await (const chunk of createReadStream(file)) hash.update(chunk);
-  if (hash.digest('hex') !== (check.gitSha1 ?? check.sha256)) throw new Error('模型文件哈希校验失败。');
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const [action = 'setup', model = '0.6b'] = process.argv.slice(2);
+if (!['setup', 'start', 'check'].includes(action) || !['0.6b', '1.7b'].includes(model)) {
+  throw new Error('用法：npm run asr:setup [-- 0.6b|1.7b]；npm run asr:start [-- 0.6b|1.7b]；npm run asr:check');
 }
-
-async function install(mode) {
-  if (await modelAvailable(mode)) {
-    console.log(`${mode} 模型已就绪。`);
-    return;
-  }
-  const model = ASR_MODELS[mode];
-  const staging = await mkdtemp(path.join(MODEL_ROOT, '.install-'));
-  const candidate = path.join(staging, model.name);
+if (action === 'check') {
   try {
-    if (model.archiveHash) {
-      const archive = path.join(staging, `${model.name}.tar.bz2`);
-      const base = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models';
-      await download(`${base}/${path.basename(archive)}`, archive, { sha256: model.archiveHash });
-      await exec('tar', ['-xf', archive, '-C', staging], { windowsHide: true });
-      await unlink(archive);
-    } else {
-      await mkdir(candidate);
-      const base = `https://huggingface.co/csukuangfj/${model.name}/resolve/${model.revision}`;
-      for (const [file, check] of Object.entries(model.files)) await download(`${base}/${file}`, path.join(candidate, file), check);
-    }
-    if (!await modelAvailable(mode, staging)) throw new Error('模型安装不完整。');
-    await rename(candidate, path.join(MODEL_ROOT, model.name));
-    console.log(`${mode} 模型安装完成。`);
-  } finally {
-    await rm(staging, { recursive: true, force: true });
+    const token = process.env.YZ_QWEN_ASR_TOKEN;
+    const response = await fetch(serviceUrl(QWEN_SERVICE_URL, '/health'), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}, signal: AbortSignal.timeout(3000),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const state = await response.json();
+    if (!Object.hasOwn(ASR_MODELS, state.model) || state.sampleRate !== 16000) throw new Error('服务协议不匹配');
+    console.log(`${ASR_MODELS[state.model].label}：${state.ready ? '就绪' : state.message}`);
+    if (!state.ready) process.exitCode = 1;
+  } catch (error) {
+    console.error(`Qwen 服务未就绪（${QWEN_SERVICE_URL}）：${error.message}`);
+    process.exitCode = 1;
   }
+} else {
+  let command = 'bash';
+  let args = [path.join(root, 'tools', 'qwen-asr.sh'), action, model];
+  if (process.platform === 'win32') {
+    try {
+      const linuxRoot = execFileSync('wsl.exe', ['--exec', 'wslpath', '-u', root], { encoding: 'utf8', windowsHide: true }).trim();
+      if (!linuxRoot.startsWith('/')) throw new Error('WSL 路径转换失败');
+      // Pass arguments directly; do not interpolate Windows paths or tokens into a shell command.
+      const envArgs = ['YZ_QWEN_GPU_MEMORY', 'YZ_QWEN_ASR_TOKEN', 'YZ_QWEN_HOST']
+        .filter((key) => process.env[key]).map((key) => `${key}=${process.env[key]}`);
+      command = 'wsl.exe';
+      args = ['--exec', 'env', ...envArgs, 'bash', linuxRoot + '/tools/qwen-asr.sh', action, model];
+    } catch {
+      console.error('Qwen 官方流式引擎需要 Linux / WSL2、Python 3.11/3.12 和可用的 NVIDIA CUDA。请在实际直播机准备 WSL2 Ubuntu 后重试；详见 README 的 Qwen 部署说明。');
+      process.exit(1);
+    }
+  }
+  const child = spawn(command, args, { cwd: root, stdio: 'inherit', windowsHide: true });
+  child.on('error', (error) => { console.error(`Qwen ${action} 启动失败：${error.message}`); process.exitCode = 1; });
+  child.on('exit', (code, signal) => { process.exitCode = code ?? (signal ? 1 : 0); });
 }
-
-await Promise.all(modes.map(install));

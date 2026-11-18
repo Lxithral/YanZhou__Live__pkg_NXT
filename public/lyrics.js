@@ -6,7 +6,7 @@ import { bindAsrControls } from './asr-controls.js';
 const $ = (id) => document.getElementById(id);
 const clock = createLyricsClock();
 const preview = createLyricsRenderer($('mini-canvas'));
-const asr = bindAsrControls({ correct: (enabled) => send('lyrics:correct', { enabled }), timecode });
+const asr = bindAsrControls({ command: (type) => { if (ready) socket.send(JSON.stringify({ type })); }, correct: (enabled) => send('lyrics:correct', { enabled }), timecode });
 const liveControls = [...document.querySelectorAll('[data-live]')];
 const playButtons = [...document.querySelectorAll('[data-play]')];
 const pending = new Map();

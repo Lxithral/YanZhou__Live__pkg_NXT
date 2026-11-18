@@ -7,18 +7,20 @@ import { readFile, stat, mkdir, copyFile } from 'node:fs/promises';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSettings } from './lyrics-session.js';
 import { createAsrCapture } from './asr-capture.js';
+import { createSpeechSession } from './speech-session.js';
 import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-library.js';
 
 // 服务代码在 server/ 下；设置、public/、assets/ 都在项目根目录。
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics'];
+export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics', 'speech'];
 const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 
 const FIELD_RULES = {
   visible: { kind: 'boolean', label: '显示状态' },
+  holdSeconds: { kind: 'number', min: 1, max: 30, label: '停顿清屏秒数' },
   showMark: { kind: 'boolean', label: '显示校徽' },
   title: { kind: 'text', max: 80, label: '主标题' },
   subtitle: { kind: 'text', max: 120, label: '副标题' },
@@ -48,6 +50,7 @@ const MODULE_FIELDS = {
   hosts: ['visible', 'label', 'names', 'slotCount', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  speech: ['visible', 'textColor', 'holdSeconds', 'x', 'y', 'scale', 'opacity'],
 };
 
 const clone = (value) => structuredClone(value);
@@ -104,6 +107,11 @@ export const DEFAULT_SETTINGS = {
       x: 240, y: 678, scale: 1, opacity: 100,
       animation: { enter: 'none', exit: 'none', duration: 200 },
       ...clone(DEFAULT_LYRICS),
+    },
+    speech: {
+      visible: false, textColor: '#F4F0E8', holdSeconds: 6,
+      x: 240, y: 848, scale: 1, opacity: 100,
+      animation: { enter: 'fade', exit: 'fade', duration: 200 },
     },
   },
 };
@@ -348,7 +356,7 @@ export async function createPackagingServer({
   settingsPath = path.join(ROOT, 'settings.json'),
   saveDelayMs = 120,
   rootDir = ROOT,
-  asrModelRoot,
+  asrServiceUrl,
 } = {}) {
   let settings;
   let savedAt;
@@ -531,18 +539,21 @@ export async function createPackagingServer({
     publishLyrics(include, id);
     broadcast(asrState());
   }
-  let recognition = { phase: 'idle', mode: null, message: '', partial: '', finals: [] };
+  const speech = createSpeechSession({ holdSeconds: () => settings.modules.speech.holdSeconds, onChange: broadcast });
+  let recognition = { phase: 'idle', mode: null, owner: null, message: '', partial: '', finals: [] };
   const capture = await createAsrCapture({
-    modelRoot: asrModelRoot,
+    serviceBase: asrServiceUrl,
     onStatus(status) {
       recognition = {
         ...recognition, ...status, partial: '',
         ...(status.phase === 'loading' && { finals: [] }),
       };
+      if (status.phase !== 'listening') speech.clear();
       if ((status.phase === 'idle' || status.phase === 'error') && lyrics.disarmAsr()) publishLyrics();
       broadcast(asrState());
     },
     onResult(event) {
+      speech.accept(event);
       if (event.final) {
         recognition = {
           ...recognition, partial: '',
@@ -554,7 +565,7 @@ export async function createPackagingServer({
     },
   });
   const asrState = () => ({
-    type: 'lyrics:asr', ...recognition, available: capture.available, correction: lyrics.correction(),
+    type: 'lyrics:asr', ...recognition, available: capture.available, serviceMessage: capture.message, correction: lyrics.correction(),
   });
 
   function scheduleSave() {
@@ -671,7 +682,7 @@ export async function createPackagingServer({
     client.on('pong', () => { client.isAlive = true; });
     client.on('error', () => {});
     if (url.pathname === '/asr') {
-      capture.attach(client, url.searchParams.get('mode'));
+      capture.attach(client, url.searchParams.get('mode'), url.searchParams.get('owner') || 'lyrics');
       return;
     }
     clients.add(client);
@@ -680,6 +691,7 @@ export async function createPackagingServer({
     send(client, lyricState({ doc: true, lines: true }));
     send(client, songState());
     send(client, asrState());
+    send(client, speech.snapshot());
     const handleMessage = async (data, isBinary) => {
       let id;
       try {
@@ -688,6 +700,21 @@ export async function createPackagingServer({
         const message = JSON.parse(data.toString());
         id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
         if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
+        if (['asr:refresh', 'asr:stop', 'speech:clear'].includes(message.type)) {
+          if (Object.keys(message).some((key) => !['type', 'id'].includes(key))) throw new Error('识别控制消息包含未知字段。');
+          if (message.type === 'asr:refresh') {
+            await capture.refresh();
+            if (recognition.phase === 'error' && Object.values(capture.available).some(Boolean)) {
+              recognition = { ...recognition, phase: 'idle', message: '' };
+            }
+            broadcast({ ...asrState(), id });
+            return;
+          }
+          else if (message.type === 'asr:stop') capture.stop();
+          else speech.clear();
+          send(client, { ...asrState(), id });
+          return;
+        }
         if (['hosts:manage', 'program:manage'].includes(message.type)) {
           if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) throw new Error('管理消息包含未知字段。');
           const kind = message.type.split(':')[0];
@@ -818,6 +845,7 @@ export async function createPackagingServer({
       clearInterval(lyricHeartbeat);
       clearInterval(lyricCheckpoint);
       capture.close();
+      speech.close();
       await commandQueue;
       await songQueue;
       lyrics.close();

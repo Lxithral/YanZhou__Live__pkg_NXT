@@ -5,9 +5,11 @@ import { createProgramRenderer } from './program-renderer.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
 import { createLyricsClock, timecode } from './lyrics-clock.js';
 import { createAvoidance } from './stage-avoidance.js';
+import { createSpeechRenderer } from './speech-renderer.js';
+import { bindAsrControls } from './asr-controls.js';
 
 const $ = (id) => document.getElementById(id);
-const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics'];
+const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics', 'speech'];
 const lyricsClock = createLyricsClock();
 const ANIMATION_OPTIONS = [
   ['none', '无动画'],
@@ -23,6 +25,19 @@ const GEOMETRY_KEYS = new Set(['x', 'y', 'scale']);
 const NO_CLAMP_KEYS = new Set(['x', 'y', 'scale', 'opacity', 'visible', 'animation', 'color', 'textColor', 'accentColor', 'queue']);
 
 const MODULES = {
+  speech: {
+    name: '主持人语音字幕',
+    create: createSpeechRenderer,
+    fields: [
+      { key: 'textColor', id: 'speechTextColor', hexId: 'speechTextColorHex', kind: 'color' },
+      { key: 'scale', id: 'speechScale', numberId: 'speechScaleNumber', kind: 'percent' },
+      { key: 'opacity', id: 'speechOpacity', numberId: 'speechOpacityNumber', kind: 'opacity' },
+      { key: 'holdSeconds', id: 'speechHold', numberId: 'speechHoldNumber', kind: 'raw' },
+    ],
+    position: { x: 'speechX', xRange: 'speechXRange', xMax: 'speechXMax', y: 'speechY', yRange: 'speechYRange', yMax: 'speechYMax' },
+    animation: { enter: 'speechEnter', exit: 'speechExit', duration: 'speechDuration', durationNumber: 'speechDurationNumber' },
+    summary() { return '主持人语音字幕'; },
+  },
   logo: {
     name: 'Logo 挂角',
     create: createLogoRenderer,
@@ -90,6 +105,7 @@ const FALLBACK_SETTINGS = {
   version: 2,
   canvas: { width: 1920, height: 1080 },
   modules: {
+    speech: { visible: false, textColor: '#F4F0E8', holdSeconds: 6, x: 240, y: 848, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#FFFFFF', textColor: '#F4F0E8', weight: 500, x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1144, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
@@ -133,6 +149,12 @@ function scheduleRender() {
 let focusRenderer = null;
 let lyricsProgressTimer;
 let playlistRequest = 0;
+let speechState;
+let sharedAsr;
+const speechAsr = bindAsrControls({ prefix: 'speech-', owner: 'speech', timecode,
+  command: (type) => { if (ready) socket.send(JSON.stringify({ type })); },
+});
+$('speech-clear').onclick = () => { if (ready) socket.send(JSON.stringify({ type: 'speech:clear' })); };
 
 function setInput(id, value) {
   const input = $(id);
@@ -485,13 +507,16 @@ function fitFocus() {
 function rebuildFocus() {
   focusRenderer?.dispose?.();
   $('focusCanvas').replaceChildren();
-  focusRenderer = MODULES[activeModule].create($('focusCanvas'), { sample: activeModule === 'lyrics' });
+  focusRenderer = MODULES[activeModule].create($('focusCanvas'), { sample: ['lyrics', 'speech'].includes(activeModule) });
   focusRenderer.updateLyrics?.(lyricsClock);
+  if (speechState) focusRenderer.updateSpeech?.(speechState);
   fitFocus();
 }
 
 function render() {
   stageControls.render(settings, ready);
+  speechAsr.update(sharedAsr, ready);
+  $('speech-clear').disabled = !ready;
   for (const moduleId of MODULE_ORDER) previewRenderers[moduleId].update(settings.modules[moduleId]);
   updateActiveUI();
   renderControls();
@@ -517,6 +542,7 @@ function applyServerState(message) {
   settings = structuredClone(message.settings);
   if (Array.isArray(message.stage?.showOrder)) showOrder = message.stage.showOrder;
   settings.modules.lyrics ??= structuredClone(FALLBACK_SETTINGS.modules.lyrics);
+  settings.modules.speech ??= structuredClone(FALLBACK_SETTINGS.modules.speech);
   if (message.id) sentPatches.delete(message.id);
   for (const [path, intent] of localIntent) {
     if (readValue(intent.module, intent.key) === intent.value) localIntent.delete(path);
@@ -624,7 +650,16 @@ function connect() {
     } else if (message.type === 'lyrics:songs') {
       renderLyricsPlaylist(message);
       renderSkipNotice(message.skipped);
+    } else if (message.type === 'speech:state') {
+      speechState = message;
+      previewRenderers.speech.updateSpeech(message);
+      focusRenderer?.updateSpeech?.(message);
+      $('speech-caption-status').textContent = !message.text ? '字幕待推送' :
+        message.partial ? '临时识别 · 随语音更新' : '已确认 · 停顿后自动清屏';
+      avoidance.schedule();
     } else if (message.type === 'lyrics:asr') {
+      sharedAsr = message;
+      speechAsr.update(message, ready);
       lyricsClock.applyAsr(message);
       previewRenderers.lyrics.updateLyrics(lyricsClock);
       focusRenderer?.updateLyrics?.(lyricsClock);
@@ -663,6 +698,9 @@ function connect() {
   socket.addEventListener('close', () => {
     ready = false;
     stageControls.disconnected();
+    speechAsr.update(sharedAsr, false);
+    previewRenderers.speech.updateSpeech({ text: '' });
+    focusRenderer?.updateSpeech?.({ text: '' });
     clearTimeout(lyricsProgressTimer);
     for (const intent of localIntent.values()) addPending(intent.module, intent.key, intent.value);
     updateConnection('disconnected');
@@ -1017,7 +1055,7 @@ function bindDrag() {
     const element = previewRenderers[moduleId].element;
     element.addEventListener('pointerdown', (event) => {
       if (event.button !== 0 || !settings.modules[moduleId].visible) return;
-      if (moduleId === 'lyrics' && element.dataset.hasContent !== 'true') return;
+      if (['lyrics', 'speech'].includes(moduleId) && element.dataset.hasContent !== 'true') return;
       const wasSelected = activeModule === moduleId;
       event.preventDefault();
       selectModule(moduleId);

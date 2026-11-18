@@ -645,3 +645,51 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
 .stage-management.is-pending button.stage-toggle,
 [data-management=program].is-pending button.stage-quick-cell { pointer-events:auto; }
 .stage-management.is-pending { cursor:progress; }
+
+/* 主持人字幕沿用现有模块设置，不另开页面。 */
+.module-list { overflow-y: auto; }
+.speech-status, .speech-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+.speech-engine-row { display: flex; gap: 8px; align-items: center; }
+.speech-engine-row select { flex: 1; min-width: 0; }
+.speech-engine-row button { flex: none; }
+.speech-actions { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+.speech-transcript { min-height: 52px; margin: 0; padding: 10px; border-radius: 8px; background: var(--field); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.speech-caption-status { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.preview-canvas .speech-board { pointer-events: none; }
+.preview-canvas .speech-board[data-has-content=true] .speech-text { pointer-events: auto; }
+.preview-canvas .speech-board[data-has-content=false].is-selected { outline: none; box-shadow: none; }
+
+/* 主持人采集控件与歌词台曲库使用同款主题菜单。 */
+:is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option { background: var(--panel); color: var(--text); }
+:is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:disabled { color: var(--faint); }
+@supports (appearance: base-select) {
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device), :is(#speech-asr-model, #speech-audio-source, #speech-audio-device)::picker(select) { appearance: base-select; }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) { align-items: center; gap: 10px; padding-inline-end: 12px; background: var(--raised); }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) > button { display: flex; align-items: center; flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; box-shadow: none; text-align: left; }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) selectedcontent { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device)::picker-icon { content: ''; flex: none; width: 10px; height: 6px; margin-inline-start: auto; background: var(--chevron) no-repeat center; transition: transform 160ms var(--ease); }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device):open { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device):open::picker-icon { transform: rotate(180deg); }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device)::picker(select) {
+    width: max(anchor-size(width), 280px);
+    max-width: calc(100vw - 24px);
+    max-height: min(380px, 56dvh);
+    margin-block: 6px;
+    padding: 6px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-panel);
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: var(--shadow-pop);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-3) transparent;
+  }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 8px 10px; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:disabled { color: var(--faint); opacity: .65; cursor: not-allowed; }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:checked { background: var(--accent-soft); color: var(--on-text); }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:is(:hover, :focus-visible) { background: var(--hover); outline: none; }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:checked:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); }
+  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option::checkmark { order: 1; flex: none; margin-inline-start: auto; color: var(--accent); }
+}
