@@ -4,6 +4,7 @@ import { createProgramRenderer } from './program-renderer.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
 import { createLyricsClock } from './lyrics-clock.js';
 import { createAvoidance } from './stage-avoidance.js';
+import { createSpeechRenderer } from './speech-renderer.js';
 
 const canvas = document.getElementById('overlay-canvas');
 const RENDERERS = {
@@ -11,6 +12,7 @@ const RENDERERS = {
   hosts: createHostsRenderer(canvas),
   program: createProgramRenderer(canvas),
   lyrics: createLyricsRenderer(canvas),
+  speech: createSpeechRenderer(canvas),
 };
 const lyricsClock = createLyricsClock();
 let stage = { settings: null, showOrder: null };
@@ -40,6 +42,9 @@ function connect() {
     if (message.type === 'state') {
       reconnectAttempt = 0;
       applyState(message.settings, message.stage?.showOrder);
+    } else if (message.type === 'speech:state') {
+      RENDERERS.speech.updateSpeech(message);
+      avoidance.schedule();
     } else if (message.type === 'lyrics:state') {
       lyricsClock.apply(message);
       RENDERERS.lyrics.updateLyrics(lyricsClock);
@@ -52,6 +57,7 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     if (disposed) return;
+    RENDERERS.speech.updateSpeech({ text: '' });
     const delay = Math.min(500 * 2 ** reconnectAttempt, 5000);
     reconnectAttempt += 1;
     setTimeout(connect, delay);

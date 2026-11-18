@@ -1,5 +1,5 @@
 const CABLE = /cable output|vb-audio|vb-cable/i;
-const MODE_NAMES = { bilingual: '普通话／英语', trilingual: '普通话／粤语／英语' };
+const MODE_NAMES = { 'qwen3-asr-0.6b': 'Qwen3-ASR · 0.6B', 'qwen3-asr-1.7b': 'Qwen3-ASR · 1.7B' };
 const AUDIO_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
 const stopTracks = (stream) => stream?.getTracks().forEach((track) => track.stop());
 
@@ -10,11 +10,12 @@ function explain(error) {
   return error.message || '音频采集启动失败。';
 }
 
-export function bindAsrControls({ correct, timecode }) {
-  const $ = (id) => document.getElementById(id);
+export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyrics', command = () => {} }) {
+  const $ = (id) => document.getElementById(prefix + id);
   const media = navigator.mediaDevices;
   const source = $('audio-source');
   const device = $('audio-device');
+  const deviceButton = device.querySelector(':scope > button');
   const model = $('asr-model');
   const start = $('asr-start');
   const stop = $('asr-stop');
@@ -29,7 +30,8 @@ export function bindAsrControls({ correct, timecode }) {
     const previous = device.value;
     const inputs = (await media.enumerateDevices()).filter(({ kind, label }) =>
       kind === 'audioinput' && (source.value === 'cable' ? CABLE.test(label) : !CABLE.test(label)));
-    device.replaceChildren(new Option(source.value === 'cable' ? '自动选择 CABLE Output' : '系统默认麦克风', ''));
+    device.replaceChildren(...(deviceButton ? [deviceButton] : []),
+      new Option(source.value === 'cable' ? '自动选择 CABLE Output' : '系统默认麦克风', ''));
     for (const [index, input] of inputs.entries()) {
       if (input.deviceId && input.deviceId !== 'default') {
         device.add(new Option(input.label || `音频输入 ${index + 1}`, input.deviceId));
@@ -42,22 +44,30 @@ export function bindAsrControls({ correct, timecode }) {
   function render() {
     const phase = shared?.phase;
     const busy = phase === 'listening' || phase === 'loading';
+    if (!busy && !local && !shared?.available?.[model.value]) {
+      const installed = Object.keys(shared?.available ?? {}).find((id) => shared.available[id]);
+      if (installed) model.value = installed;
+    }
+    for (const option of model.options) option.disabled = !shared?.available?.[option.value];
     const available = shared?.available?.[model.value];
     start.disabled = !online || !media || !available || Boolean(local) || busy;
-    stop.disabled = !local;
-    model.disabled = Boolean(local);
-    source.disabled = Boolean(local);
-    device.disabled = Boolean(local) || source.value === 'tab';
-    $('asr-correct').disabled = !online;
-    $('asr-correct').checked = Boolean(shared?.correction?.enabled);
+    stop.disabled = !online || (!local && !busy);
+    model.disabled = Boolean(local) || busy;
+    source.disabled = Boolean(local) || busy;
+    device.disabled = Boolean(local) || busy || source.value === 'tab';
+    if ($('asr-refresh')) $('asr-refresh').disabled = !online || busy || Boolean(local);
+    if ($('asr-correct')) {
+      $('asr-correct').disabled = !online;
+      $('asr-correct').checked = Boolean(shared?.correction?.enabled);
+    }
     $('asr-status').textContent = failure || (!media ? '当前浏览器不支持音频采集，请用 Chrome 打开本机地址。' :
       phase === 'error' ? shared.message :
-      phase === 'listening' ? `正在识别 · ${MODE_NAMES[shared.mode]}` :
-      local || phase === 'loading' ? '正在打开音源与离线模型…' :
-      available ? '离线引擎就绪' : '模型未安装 · npm run asr:setup');
-    $('asr-partial').textContent = shared?.partial || '等待语音';
+      phase === 'listening' ? `正在识别 · ${MODE_NAMES[shared.mode]} · 共用${shared.owner === 'speech' ? '主控台' : '歌词台'}音源` :
+      local || phase === 'loading' ? '正在连接音源与 Qwen…' :
+      available ? 'Qwen 本地引擎就绪 · 主持人与歌词共用音源' : shared?.serviceMessage || 'Qwen 服务未就绪，请启动后刷新状态');
+    $('asr-partial').textContent = shared?.partial || (owner === 'speech' ? shared?.finals?.at(-1)?.text : '') || '等待语音';
     const finals = shared?.finals;
-    if (finals !== lastFinals) {
+    if ($('asr-finals') && finals !== lastFinals) {
       lastFinals = finals;
       $('asr-finals').replaceChildren(...(finals ?? []).slice(-8).map(({ text, at }) => {
         const row = document.createElement('li');
@@ -65,6 +75,7 @@ export function bindAsrControls({ correct, timecode }) {
         return row;
       }).reverse());
     }
+    if (!$('asr-alignment')) return;
     const correction = shared?.correction;
     const offset = correction?.offset == null ? '—' : `${correction.offset > 0 ? '+' : ''}${(correction.offset / 1000).toFixed(2)} 秒`;
     const score = correction?.confidence == null ? '—' : `${Math.round(correction.confidence * 100)}%`;
@@ -86,6 +97,7 @@ export function bindAsrControls({ correct, timecode }) {
     local = undefined;
     clearTimeout(session.startTimer);
     if (message) failure = message;
+    session.worklet?.disconnect();
     session.socket?.close();
     stopTracks(session.stream);
     session.context?.close().catch(() => {});
@@ -150,6 +162,7 @@ export function bindAsrControls({ correct, timecode }) {
       if (local !== session) return;
       const url = new URL('/asr', location.href.replace(/^http/, 'ws'));
       url.searchParams.set('mode', session.mode);
+      url.searchParams.set('owner', owner);
       const socket = new WebSocket(url);
       session.socket = socket;
       socket.onmessage = ({ data }) => {
@@ -158,6 +171,7 @@ export function bindAsrControls({ correct, timecode }) {
         if (packet.type === 'error') stopCapture(packet.message);
         if (packet.type !== 'ready') return;
         clearTimeout(session.startTimer);
+        session.started = true;
         try {
           const input = session.context.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
           const worklet = new AudioWorkletNode(session.context, 'yanzhou-pcm-capture');
@@ -183,10 +197,12 @@ export function bindAsrControls({ correct, timecode }) {
   }
 
   start.onclick = startCapture;
-  stop.onclick = () => stopCapture();
+  stop.onclick = () => { if (local) stopCapture(); else command('asr:stop'); };
+  if ($('asr-refresh')) $('asr-refresh').onclick = () => { failure = ''; command('asr:refresh'); render(); };
   source.onchange = () => { refreshDevices().catch(() => {}); render(); };
   model.onchange = () => { failure = ''; render(); };
-  $('asr-correct').onchange = ({ target }) => correct(target.checked);
+  if ($('asr-correct')) $('asr-correct').onchange = ({ target }) => correct?.(target.checked);
+  window.addEventListener('pagehide', () => stopCapture());
   media?.addEventListener('devicechange', () => refreshDevices().catch(() => {}));
   if (media) refreshDevices().catch(() => {});
   return {
@@ -194,6 +210,7 @@ export function bindAsrControls({ correct, timecode }) {
       shared = state;
       online = connected;
       if (!online && local) stopCapture('与本机服务断开，已停止采集。');
+      else if (local?.started && !['listening', 'loading'].includes(shared?.phase)) stopCapture();
       render();
     },
   };

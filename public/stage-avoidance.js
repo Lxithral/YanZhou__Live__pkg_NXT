@@ -168,7 +168,7 @@ function offsetWithin(node, root) {
 export function measureModule(moduleId, renderer, module) {
   const element = renderer.element;
   if (!module?.visible || element.hidden) return null;
-  if (moduleId === 'lyrics' && element.dataset.hasContent !== 'true') return null;
+  if (['lyrics', 'speech'].includes(moduleId) && element.dataset.hasContent !== 'true') return null;
   const scale = Number(module.scale) || 1;
   const rect = (node, fit = 1, anchorRight = false) => {
     const { x, y } = offsetWithin(node, element);
@@ -192,7 +192,8 @@ export function measureModule(moduleId, renderer, module) {
     rects.nodes = nodes;
     return rects.length ? rects : null;
   }
-  const target = moduleId === 'lyrics' ? element.querySelector('.lyrics-viewport') ?? renderer.body : renderer.body;
+  const target = moduleId === 'lyrics' ? element.querySelector('.lyrics-viewport') ?? renderer.body :
+    moduleId === 'speech' ? element.querySelector('.speech-viewport') ?? renderer.body : renderer.body;
   return [rect(target)];
 }
 

@@ -111,7 +111,7 @@ test('a control change immediately reaches another client and is saved on disk',
   const overlayInitial = await overlay.waitFor((message) => message.type === 'state');
   assert.deepEqual(overlayInitial.settings, initial.settings);
   assert.equal(initial.settings.version, 5);
-  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics']);
+  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics', 'speech']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
     title: '校园开放日', subtitle: 'LIVE · 2026', color: '#123456', textColor: '#abcdef',
@@ -673,18 +673,18 @@ test('only a supported source is armed and a rejected payload does not change st
   assert.deepEqual(stopped.manual, pushed.manual);
 });
 
-test('recognition capture is same-origin and missing models preserve existing playout', async (t) => {
+test('recognition capture is same-origin and an unavailable Qwen service preserves existing playout', async (t) => {
   const setup = await fixture(t);
-  const { url, wsUrl } = await setup.start({ asrModelRoot: setup.directory });
+  const { url, wsUrl } = await setup.start({ asrServiceUrl: 'http://127.0.0.1:1' });
   const client = await setup.connect(wsUrl);
   const initial = await client.waitFor((message) => message.type === 'lyrics:asr');
-  assert.deepEqual(initial.available, { bilingual: false, trilingual: false });
-  const audio = wsUrl.replace('/ws', '/asr?mode=bilingual');
+  assert.deepEqual(initial.available, { 'qwen3-asr-0.6b': false, 'qwen3-asr-1.7b': false });
+  const audio = wsUrl.replace('/ws', '/asr?mode=qwen3-asr-0.6b');
   await assert.rejects(setup.connect(audio, { origin: 'https://other.invalid' }), /403/);
   await assert.rejects(setup.connect(audio), /403/);
   const capture = await setup.connect(audio, { origin: url });
   const failed = await capture.waitFor((message) => message.type === 'error');
-  assert.match(failed.message, /模型未安装/);
+  assert.match(failed.message, /Qwen.*服务/);
   const manual = await lyricCommand(client, 'lyrics:onair', { source: 'manual' });
   assert.equal(manual.source, 'manual');
 });
