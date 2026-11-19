@@ -14,7 +14,7 @@
 
 ## 启动与 OBS 接入
 
-1. 双击 `start.cmd`，或者在项目目录运行 `npm start`。保留服务窗口。
+1. Windows 双击 `start.cmd`；也可使用 Node.js 22 以上版本，在项目目录运行 `npm ci`（首次）和 `npm start`。保留启动窗口。
 2. 浏览器打开 `http://localhost:3000/control.html`。
 3. 在 OBS 添加「浏览器」来源，URL 填 `http://localhost:3000/overlay.html`，宽度 1920、高度 1080。
 4. 浏览器来源自定义帧率设为 60；为保持实时控制，关闭「不可见时关闭来源」与「场景激活时刷新浏览器」。OBS 输出帧率也建议设为 60。
@@ -56,17 +56,22 @@
 
 ### Qwen 本地部署
 
-在实际直播机准备 NVIDIA CUDA 驱动、WSL2 Ubuntu（或 Linux）及 Python 3.11/3.12 的 venv 支持。首次安装需联网，模型下载来自官方 ModelScope；0.6B 权重约 1.88 GB，1.7B 约 4.70 GB。项目需要放在 WSL 可访问的本地磁盘上。
+首次双击 `start.cmd` 时，缺少 Node.js 或项目依赖会自动安装。主控台与 OBS 输出随后上线，启动窗口在后台准备 WSL2、Python 依赖并从官方 ModelScope 下载 **Qwen3-ASR 0.6B**（约 1.88 GB）。首次需联网，为 Python 推理依赖及模型留出足够磁盘空间。识别就绪后主控台和歌词台自动更新状态，无需另开终端。后续启动直接复用已经安装的依赖和完整模型。
+
+实际直播机需有支持 CUDA 的 NVIDIA 显卡及驱动；Windows 需支持 WSL2，项目需放在 WSL 可访问的本地磁盘上。若 Windows 第一次启用 WSL2 时弹出权限确认或要求重启，请完成后再次双击 `start.cmd`。配置失败时包装服务仍可使用，识别面板和启动窗口会显示状态。Linux 启动前需有 Python 3.11/3.12（含 venv）、C/C++ 编译器和 CUDA 驱动。
+
+Windows 安装时按 `wsl --list --online` 提供的名称选择 Ubuntu；旧版列表未列出 `Ubuntu-24.04` 时可使用 `Ubuntu`。Ubuntu 缺少兼容系统 Python 时会为 Qwen 单独下载 Python 3.12。若 Ubuntu 需要首次初始化，可从开始菜单打开 Ubuntu 完成设置后再启动本项目。
+
+默认不会下载 1.7B。需要它时，启动前设置 `YZ_QWEN_MODEL=1.7b`（约 4.70 GB）。权重保存在项目的 `.asr-models/`。新装的 Windows 推理环境位于 WSL 用户的 `~/.cache/yanzhou-live/qwen-venv/`，已有项目内 `.venv-qwen-asr/` 仍可复用；Linux 使用项目内环境。可通过 `YZ_QWEN_WSL_DISTRO` 指定已有 WSL2 发行版。
+
+需要手动配置和运行时，设置 `YZ_QWEN_AUTO_SETUP=0` 跳过本地自动配置，识别服务使用以下命令；`npm run asr:check` 可检查状态。
 
 ```sh
-npm install
 npm run asr:setup
 npm run asr:start
 ```
 
-Windows 的 setup/start 命令会进入默认 WSL 发行版；Linux 下直接执行相同命令。缺少 WSL 或 CUDA 时，会显示错误而不会切回其他识别模型。在识别服务终端保持运行的同时，另一个终端执行 `npm start`。主控台或歌词台点击「刷新状态」即可连接，启动顺序不限；`npm run asr:check` 可检查引擎是否就绪。
-
-需要 1.7B 时，安装和启动都加 `-- 1.7b`。Python 依赖隔离在 `.venv-qwen-asr/`，权重在 `.asr-models/Qwen3-ASR-0.6B/` 或 `Qwen3-ASR-1.7B/`。仅安装一次，运行时使用本地模型目录。WSL2 需启用从 Windows 访问其 localhost 服务的转发。
+手动配置 1.7B 时，安装和启动都加 `-- 1.7b`。WSL2 需启用从 Windows 访问其 localhost 服务的转发。
 
 为了给直播留余量，默认只加载一个模型、单路推理、关闭 CUDA Graph，显存预算比例为 0.4。可在启动前设置 `YZ_QWEN_GPU_MEMORY`（0.1–0.9）调整；这只是 vLLM 显存预算，不能保证直播不掉帧。模型加载失败时先查看识别服务终端；只有确定仍有显存余量时再增加预算。Node 服务不需要 sherpa-onnx。
 

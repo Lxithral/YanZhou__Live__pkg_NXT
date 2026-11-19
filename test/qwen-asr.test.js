@@ -7,9 +7,20 @@ import path from 'node:path';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createPackagingServer } from '../server/server.js';
 import { createSpeechSession } from '../server/speech-session.js';
+import { ubuntuInstallArgs } from '../tools/setup-asr.js';
 
 const MODE = 'qwen3-asr-0.6b';
 const PCM = Buffer.alloc(1280);
+
+test('WSL selects a distro from the machine catalog and omits unsupported flags', () => {
+  assert.deepEqual(ubuntuInstallArgs('NAME  FRIENDLY NAME\r\nUbuntu  Ubuntu\r\nUbuntu-22.04  Ubuntu 22.04 LTS', '  --no-launch, -n'), {
+    distro: 'Ubuntu', flags: ['--install', '-d', 'Ubuntu', '--no-launch'],
+  });
+  assert.deepEqual(ubuntuInstallArgs('NAME  FRIENDLY NAME\nUbuntu  Ubuntu\nUbuntu-24.04  Ubuntu 24.04 LTS', '--web-download'), {
+    distro: 'Ubuntu-24.04', flags: ['--install', '-d', 'Ubuntu-24.04'],
+  });
+  assert.deepEqual(ubuntuInstallArgs('', ''), { distro: 'Ubuntu', flags: ['--install', '-d', 'Ubuntu'] });
+});
 
 function client(url, options) {
   const socket = new WebSocket(url, options);
@@ -35,9 +46,13 @@ function client(url, options) {
   };
 }
 
-async function fixture(t) {
+async function fixture(t, { online = true } = {}) {
   const state = { ready: true, opens: 0, frames: 0, response: null, upstream: null };
   const engine = http.createServer((_req, res) => {
+    if (!online) {
+      res.writeHead(503).end();
+      return;
+    }
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ model: MODE, ready: state.ready, sampleRate: 16000, message: 'Qwen loading' }));
   });
@@ -73,8 +88,42 @@ async function fixture(t) {
     await new Promise((resolve) => wss.close(resolve));
     await new Promise((resolve) => engine.close(resolve));
   });
-  return { state, app, connect, settingsPath, serviceBase };
+  return { state, app, connect, settingsPath, serviceBase, enableEngine() { online = true; } };
 }
+
+test('first startup prepares only 0.6B in the background and publishes readiness to connected pages', async (t) => {
+  const setup = await fixture(t, { online: false });
+  const control = await setup.connect();
+  const lyrics = await setup.connect();
+  const installed = new Promise((resolve) => {
+    setup.app.startAsr({
+      install: true,
+      async configure(action, model, { report, signal }) {
+        resolve({ action, model, signal });
+        report('正在下载 Qwen3-ASR 0.6B');
+      },
+    });
+  });
+  const { action, model, signal } = await installed;
+  assert.equal(action, 'auto');
+  assert.equal(model, '0.6b');
+  const installing = await control.wait((m) => m.type === 'lyrics:asr' && m.serviceMessage === '正在下载 Qwen3-ASR 0.6B');
+  assert.equal(installing.available[MODE], false);
+  setup.enableEngine();
+  assert.equal((await control.wait((m) => m.type === 'lyrics:asr' && m.available[MODE])).serviceMessage, '');
+  assert.equal((await lyrics.wait((m) => m.type === 'lyrics:asr' && m.available[MODE])).available['qwen3-asr-1.7b'], false);
+  await setup.app.close();
+  assert.equal(signal.aborted, true);
+});
+
+test('a reachable Qwen service is reused without a second installation', async (t) => {
+  const setup = await fixture(t);
+  let installs = 0;
+  setup.app.startAsr({ install: true, async configure() { installs += 1; } });
+  const control = await setup.connect();
+  assert.equal((await control.wait((m) => m.type === 'lyrics:asr')).available[MODE], true);
+  assert.equal(installs, 0);
+});
 
 test('one Qwen capture feeds host captions and lyric ASR; clear/stop never save transcripts', async (t) => {
   const setup = await fixture(t);

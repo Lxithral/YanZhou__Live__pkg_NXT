@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws';
-import { ASR_MODELS, FRAME_SAMPLES, QWEN_SERVICE_URL, SAMPLE_RATE, serviceUrl } from './asr-models.js';
+import { ASR_MODELS, FRAME_SAMPLES, QWEN_SERVICE_URL, SAMPLE_RATE, readQwenHealth, serviceUrl } from './asr-models.js';
 
 const FRAME_MS = FRAME_SAMPLES * 1000 / SAMPLE_RATE;
 const MAX_PENDING = 150; // Bound queued audio to six seconds.
@@ -8,26 +8,25 @@ export async function createAsrCapture({ onStatus, onResult, serviceBase = QWEN_
   token = process.env.YZ_QWEN_ASR_TOKEN || '', connectTimeoutMs = 10_000 } = {}) {
   const available = Object.fromEntries(Object.keys(ASR_MODELS).map((id) => [id, false]));
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  const healthUrl = serviceUrl(serviceBase, '/health');
+  serviceUrl(serviceBase, '/health');
   let active;
   let closed = false;
   let message = '';
+  let connected = false;
   let refreshTask;
 
   async function checkHealth() {
-    Object.keys(available).forEach((id) => { available[id] = false; });
+    let ready;
     try {
-      const response = await fetch(healthUrl, { headers, signal: AbortSignal.timeout(1500) });
-      if (!response.ok) throw new Error(`服务返回 HTTP ${response.status}`);
-      const health = await response.json();
-      if (!Object.hasOwn(ASR_MODELS, health.model) || health.sampleRate !== SAMPLE_RATE) {
-        throw new Error('服务协议或模型不匹配');
-      }
-      available[health.model] = health.ready === true;
-      message = health.ready ? '' : (health.message || 'Qwen 模型正在加载，请稍后刷新引擎状态。');
+      const health = await readQwenHealth(serviceBase, token);
+      connected = true;
+      if (health.ready) ready = health.model;
+      message = ready ? '' : (typeof health.message === 'string' && health.message.slice(0, 500) || 'Qwen 模型正在加载…');
     } catch {
-      message = '未连接 Qwen 本地服务，请先启动识别服务，再刷新引擎状态。';
+      connected = false;
+      message = '未连接 Qwen 识别服务。';
     }
+    for (const id of Object.keys(available)) available[id] = id === ready;
     return { ...available };
   }
   function refresh() {
@@ -121,7 +120,7 @@ export async function createAsrCapture({ onStatus, onResult, serviceBase = QWEN_
       upstream.send(pcm, { binary: true }, (error) => { if (error) stop(session, '音频无法发送到 Qwen 服务。'); });
     });
   }
-  return { available, get message() { return message; }, refresh, attach,
+  return { available, get message() { return message; }, get connected() { return connected; }, refresh, attach,
     stop() { if (active) stop(active); },
     close() { closed = true; if (active) stop(active); },
   };

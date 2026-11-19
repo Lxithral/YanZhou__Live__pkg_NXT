@@ -7,8 +7,10 @@ import { readFile, stat, mkdir, copyFile } from 'node:fs/promises';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSettings } from './lyrics-session.js';
 import { createAsrCapture } from './asr-capture.js';
+import { DEFAULT_QWEN_MODEL, DEFAULT_QWEN_SERVICE_URL, QWEN_SERVICE_URL } from './asr-models.js';
 import { createSpeechSession } from './speech-session.js';
 import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-library.js';
+import { configureQwen } from '../tools/setup-asr.js';
 
 // 服务代码在 server/ 下；设置、public/、assets/ 都在项目根目录。
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -541,6 +543,9 @@ export async function createPackagingServer({
   }
   const speech = createSpeechSession({ holdSeconds: () => settings.modules.speech.holdSeconds, onChange: broadcast });
   let recognition = { phase: 'idle', mode: null, owner: null, message: '', partial: '', finals: [] };
+  let asrStartupMessage = '';
+  let asrMonitor;
+  const asrStartup = new AbortController();
   const capture = await createAsrCapture({
     serviceBase: asrServiceUrl,
     onStatus(status) {
@@ -565,8 +570,16 @@ export async function createPackagingServer({
     },
   });
   const asrState = () => ({
-    type: 'lyrics:asr', ...recognition, available: capture.available, serviceMessage: capture.message, correction: lyrics.correction(),
+    type: 'lyrics:asr', ...recognition, available: capture.available,
+    serviceMessage: capture.connected ? capture.message : asrStartupMessage || capture.message, correction: lyrics.correction(),
   });
+
+  async function refreshAsr() {
+    await capture.refresh();
+    if (recognition.phase === 'error' && Object.values(capture.available).some(Boolean)) {
+      recognition = { ...recognition, phase: 'idle', message: '' };
+    }
+  }
 
   function scheduleSave() {
     clearTimeout(saveTimer);
@@ -703,10 +716,7 @@ export async function createPackagingServer({
         if (['asr:refresh', 'asr:stop', 'speech:clear'].includes(message.type)) {
           if (Object.keys(message).some((key) => !['type', 'id'].includes(key))) throw new Error('识别控制消息包含未知字段。');
           if (message.type === 'asr:refresh') {
-            await capture.refresh();
-            if (recognition.phase === 'error' && Object.values(capture.available).some(Boolean)) {
-              recognition = { ...recognition, phase: 'idle', message: '' };
-            }
+            await refreshAsr();
             broadcast({ ...asrState(), id });
             return;
           }
@@ -829,6 +839,28 @@ export async function createPackagingServer({
   return {
     server,
     getState,
+    startAsr({ install, model = DEFAULT_QWEN_MODEL, configure = configureQwen } = {}) {
+      if (asrMonitor || closing) return;
+      const report = (message) => {
+        if (closing) return;
+        asrStartupMessage = message;
+        console.log(message);
+        broadcast(asrState());
+      };
+      asrMonitor = setInterval(async () => {
+        if (recognition.phase === 'listening' || recognition.phase === 'loading') return;
+        const before = JSON.stringify(asrState());
+        await refreshAsr();
+        const after = asrState();
+        if (!closing && JSON.stringify(after) !== before) broadcast(after);
+      }, 2000);
+      asrMonitor.unref();
+      if (install && !capture.connected) {
+        configure('auto', model, { report, signal: asrStartup.signal }).catch((error) => {
+          report(`Qwen 自动配置未就绪：${error.message}`);
+        });
+      }
+    },
     listen(port = 3000, host = '127.0.0.1') {
       return new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -841,6 +873,8 @@ export async function createPackagingServer({
     async close() {
       if (closing) return;
       closing = true;
+      asrStartup.abort();
+      clearInterval(asrMonitor);
       clearInterval(heartbeat);
       clearInterval(lyricHeartbeat);
       clearInterval(lyricCheckpoint);
@@ -877,6 +911,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+    app.startAsr({
+      install: QWEN_SERVICE_URL === DEFAULT_QWEN_SERVICE_URL && process.env.YZ_QWEN_AUTO_SETUP !== '0',
+      model: process.env.YZ_QWEN_MODEL || undefined,
+    });
   } catch (error) {
     console.error(`启动失败：${error.code === 'EADDRINUSE' ? '端口已被占用，请关闭该端口的旧服务或通过 PORT 指定其他端口。' : error.message}`);
     if (app) await app.close().catch(() => {});

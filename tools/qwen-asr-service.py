@@ -4,6 +4,9 @@ import asyncio
 import hmac
 import logging
 import os
+import signal
+import sys
+from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -33,6 +36,7 @@ def main():
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--model", choices=MODELS, default="qwen3-asr-0.6b")
     parser.add_argument("--model-dir", type=Path, required=True, help="Downloaded local checkpoint directory")
+    parser.add_argument("--managed", action="store_true", help="Stop when the launcher's stdin pipe closes")
     parser.add_argument("--gpu-memory-utilization", type=float, default=float(os.getenv("YZ_QWEN_GPU_MEMORY", "0.4")))
     args = parser.parse_args()
     if not (args.model_dir / "config.json").is_file():
@@ -117,6 +121,12 @@ def main():
             state["message"] = "Qwen 加载失败，请检查 CUDA、模型目录和显存预算，然后重启识别服务。"
 
     async def lifecycle(_app):
+        if args.managed:
+            def watch_launcher():
+                sys.stdin.buffer.read()
+                os.kill(os.getpid(), signal.SIGTERM)
+
+            Thread(target=watch_launcher, daemon=True).start()
         task = asyncio.create_task(load_model())
         yield
         if state["active"] is not None:

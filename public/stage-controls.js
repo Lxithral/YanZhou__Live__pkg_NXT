@@ -66,7 +66,7 @@ export function bindStageControls({ send, edit, toast }) {
     const status = node('div', '', 'stage-source');
     status.setAttribute('role', 'status');
     title.append(status);
-    const top = node('div', undefined, 'stage-top');
+    const top = kind === 'hosts' ? node('div', undefined, 'stage-top') : null;
     const slots = node('div', undefined, 'stage-slots');
     const current = node('div', undefined, 'stage-current');
     const next = node('div', undefined, 'stage-next');
@@ -102,7 +102,9 @@ export function bindStageControls({ send, edit, toast }) {
     };
     const now = node('div', undefined, 'stage-now');
     now.append(current, next);
-    area.append(title, top, hotkeys, now, quickHead, quick, slots, libraryHead, list);
+    area.append(title);
+    if (top) area.append(top);
+    area.append(hotkeys, now, quickHead, quick, slots, libraryHead, list);
     grid.append(area);
     areas[kind] = { area, badge, state, status, top, slots, current, next, quick, list, libraryCount };
   }
@@ -549,12 +551,6 @@ export function bindStageControls({ send, edit, toast }) {
       }
       count.append(numbers);
       areas.hosts.top.append(count,hostPosition);
-      // The shared top switch already controls host visibility.
-      const visible = program.visible;
-      const toggle = button(visible ? '隐藏节目单' : '显示节目单',
-        () => edit('program', { visible:!visible }), 'toggle-program', 'stage-toggle' + (visible ? ' is-live' : ''));
-      toggle.append(kbd('0'));
-      areas.program.top.replaceChildren(toggle);
       renderHostSlots(hosts);
       const index = items.findIndex((p) => p.id === program.selectedId);
       const previousProgram = areas.program.current.dataset.content;
