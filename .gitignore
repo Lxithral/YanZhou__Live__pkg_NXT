@@ -9,5 +9,6 @@ settings.json.pre-lyrics.bak
 desktop.ini
 desktop.ini
 .venv-qwen-asr/
+.runtime-node/
 __pycache__/
 *.pyc
