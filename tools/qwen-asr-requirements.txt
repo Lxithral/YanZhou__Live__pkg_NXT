@@ -1,3 +1,0 @@
-qwen-asr[vllm]==0.0.6
-aiohttp>=3.9,<4
-modelscope>=1.20,<2

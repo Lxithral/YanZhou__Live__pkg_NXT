@@ -10,7 +10,7 @@
 }
 
 /* 通用控件 */
-.lyric-page button:not([data-theme-option], .lyric-row), .lyric-page select,
+.lyric-page button:not([data-theme-option], .lyric-row, .select-display), .lyric-page select,
 .lyric-page input:not([type=checkbox], [type=file]), .lyric-page textarea {
   font: inherit;
   font-size: 13px;
@@ -24,10 +24,10 @@
   transition: background-color 120ms, box-shadow 120ms, color 120ms;
 }
 html[data-theme=light] .lyric-page :is(select, input:not([type=checkbox], [type=file]), textarea) { box-shadow: inset 0 0 0 1px var(--line-3); }
-.lyric-page button:not([data-theme-option], .lyric-row) { background: var(--raised); font-weight: 500; white-space: nowrap; }
-html[data-theme=light] .lyric-page button:not([data-theme-option], .lyric-row) { box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 1px #0b0d120a; }
-.lyric-page button:hover:not(:disabled, [data-theme-option], .lyric-row) { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-3); }
-.lyric-page button:active:not(:disabled, [data-theme-option], .lyric-row) { background: var(--active); }
+.lyric-page button:not([data-theme-option], .lyric-row, .select-display) { background: var(--raised); font-weight: 500; white-space: nowrap; }
+html[data-theme=light] .lyric-page button:not([data-theme-option], .lyric-row, .select-display) { box-shadow: inset 0 0 0 1px var(--line-2), 0 1px 1px #0b0d120a; }
+.lyric-page button:hover:not(:disabled, [data-theme-option], .lyric-row, .select-display) { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-3); }
+.lyric-page button:active:not(:disabled, [data-theme-option], .lyric-row, .select-display) { background: var(--active); }
 .lyric-page select { appearance: none; padding-inline-end: 30px; background: var(--raised) var(--chevron) no-repeat right 11px center; cursor: pointer; }
 .lyric-page textarea { display: block; width: 100%; height: auto; padding: 8px 10px; resize: vertical; max-height: 140px; font: 13px/1.6 var(--mono); }
 .lyric-page :is(select, input, textarea):focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
@@ -113,37 +113,7 @@ html[data-theme=light] .lyric-column { box-shadow: 0 0 0 1px var(--line), 0 1px 
 .tool-row > label { color: var(--muted); font-size: 13px; }
 .tool-row input:not([type=file]) { flex: 1; }
 #song-select { flex: 1; min-width: 0; }
-@supports (appearance: base-select) {
-  #song-select, #song-select::picker(select) { appearance: base-select; }
-  #song-select { align-items: center; gap: 10px; padding-inline-end: 12px; background: var(--raised); }
-  #song-select > button { display: flex; align-items: center; flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; box-shadow: none; text-align: left; }
-  #song-select selectedcontent { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #song-select::picker-icon { content: ''; flex: none; width: 10px; height: 6px; margin-inline-start: auto; background: var(--chevron) no-repeat center; transition: transform 160ms var(--ease); }
-  #song-select:open { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
-  #song-select:open::picker-icon { transform: rotate(180deg); }
-  #song-select::picker(select) {
-    width: max(anchor-size(width), 280px);
-    max-width: calc(100vw - 24px);
-    max-height: min(380px, 56dvh);
-    margin-block: 6px;
-    padding: 6px;
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-panel);
-    background: var(--panel);
-    color: var(--text);
-    box-shadow: var(--shadow-pop);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--line-3) transparent;
-  }
-  #song-select option { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 8px 10px; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
-  #song-select option[value=""] { color: var(--faint); font-size: 12px; }
-  #song-select option:checked { background: var(--accent-soft); color: var(--on-text); }
-  #song-select option:is(:hover, :focus-visible) { background: var(--hover); outline: none; }
-  #song-select option:checked:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); }
-  #song-select option::checkmark { order: 1; flex: none; margin-inline-start: auto; color: var(--accent); }
-}
+.lyric-page .tool-row select:not(#rate) { flex: 1 1 140px; min-width: 0; max-width: 100%; }
 .tool-row output, #position { font: 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--text); }
 #position { display: inline-flex; align-items: center; height: 32px; padding: 0 10px; border-radius: var(--r-ctl); background: var(--field); box-shadow: inset 0 0 0 1px var(--line-2); }
 .on-air { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 11px; background: var(--live); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }

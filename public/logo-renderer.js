@@ -4,7 +4,7 @@ const STYLE_ID = 'yanzhou-logo-renderer-style';
 
 const STYLES = `
 .logo-body { display: flex; align-items: center; gap: 18px; width: max-content; }
-.logo-emblem { display: block; flex: 0 0 88px; width: 88px; height: 88px; background: var(--logo-color); -webkit-mask: url('/assets/logo-mask.png') center / contain no-repeat; mask: url('/assets/logo-mask.png') center / contain no-repeat; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.28)); }
+.logo-emblem { display: block; flex: 0 0 88px; width: 88px; height: 88px; object-fit: contain; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.28)); }
 .logo-copy { display: flex; flex-direction: column; justify-content: center; gap: 11px; color: var(--logo-text-color); white-space: pre; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.38); font-weight: var(--logo-weight, 500); }
 .logo-copy.is-stretched { height: 88px; justify-content: space-between; gap: 0; }
 .logo-emblem[hidden], .logo-copy[hidden], .logo-title[hidden], .logo-subtitle[hidden] { display: none; }
@@ -26,7 +26,7 @@ export function createLogoRenderer(container) {
   installStyles();
   const layer = createModuleLayer(container, {
     className: 'logo-lockup',
-    bodyHTML: '<div class="logo-body"><span class="logo-emblem" aria-hidden="true"></span><div class="logo-copy"><div class="logo-title"></div><div class="logo-subtitle"></div></div></div>',
+    bodyHTML: '<div class="logo-body"><img class="logo-emblem" src="/assets/A12.png" alt="" width="88" height="88"><div class="logo-copy"><div class="logo-title"></div><div class="logo-subtitle"></div></div></div>',
   });
   const { element, body } = layer;
   const copy = body.querySelector('.logo-copy');
@@ -38,7 +38,6 @@ export function createLogoRenderer(container) {
   function update(logo) {
     lastLogo = logo;
     layer.update(logo);
-    element.style.setProperty('--logo-color', logo.color);
     element.style.setProperty('--logo-text-color', logo.textColor);
     element.style.setProperty('--logo-weight', String(logo.weight ?? 500));
     title.textContent = logo.title;

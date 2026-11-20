@@ -1,26 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createPackagingServer } from '../server/server.js';
 import { createSpeechSession } from '../server/speech-session.js';
-import { ubuntuInstallArgs } from '../tools/setup-asr.js';
-
-const MODE = 'qwen3-asr-0.6b';
+import { readDashScopeConfig } from '../server/asr-capture.js';
+const EVENTS = 'conversation.item.input_audio_transcription.';
 const PCM = Buffer.alloc(1280);
-
-test('WSL selects a distro from the machine catalog and omits unsupported flags', () => {
-  assert.deepEqual(ubuntuInstallArgs('NAME  FRIENDLY NAME\r\nUbuntu  Ubuntu\r\nUbuntu-22.04  Ubuntu 22.04 LTS', '  --no-launch, -n'), {
-    distro: 'Ubuntu', flags: ['--install', '-d', 'Ubuntu', '--no-launch'],
-  });
-  assert.deepEqual(ubuntuInstallArgs('NAME  FRIENDLY NAME\nUbuntu  Ubuntu\nUbuntu-24.04  Ubuntu 24.04 LTS', '--web-download'), {
-    distro: 'Ubuntu-24.04', flags: ['--install', '-d', 'Ubuntu-24.04'],
-  });
-  assert.deepEqual(ubuntuInstallArgs('', ''), { distro: 'Ubuntu', flags: ['--install', '-d', 'Ubuntu'] });
-});
 
 function client(url, options) {
   const socket = new WebSocket(url, options);
@@ -46,37 +35,64 @@ function client(url, options) {
   };
 }
 
-async function fixture(t, { online = true } = {}) {
-  const state = { ready: true, opens: 0, frames: 0, response: null, upstream: null };
-  const engine = http.createServer((_req, res) => {
-    if (!online) {
-      res.writeHead(503).end();
+async function fixture(t, { statusCode = 0, autoFinish = true } = {}) {
+  const asr = { apiKey: 'test-only-key-do-not-use', workspaceId: 'llm-example', connectTimeoutMs: 600, finishTimeoutMs: 150 };
+  const state = { opens: 0, frames: 0, response: null, upstream: null, statusCode, finishes: 0 };
+  const engine = http.createServer();
+  const wss = new WebSocketServer({ noServer: true });
+  engine.on('upgrade', (req, socket, head) => {
+    assert.equal(req.headers.authorization, 'Bearer ' + asr.apiKey);
+    if (state.statusCode) {
+      socket.end(`HTTP/1.1 ${state.statusCode} Rejected\r\nConnection: close\r\n\r\n`);
       return;
     }
-    res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ model: MODE, ready: state.ready, sampleRate: 16000, message: 'Qwen loading' }));
+    wss.handleUpgrade(req, socket, head, (connection) => wss.emit('connection', connection));
   });
-  const wss = new WebSocketServer({ server: engine });
   wss.on('connection', (socket) => {
     state.opens += 1;
     state.upstream = socket;
-    socket.send(JSON.stringify({ type: 'ready', model: MODE, sampleRate: 16000 }));
-    socket.on('message', (pcm) => {
-      assert.equal(pcm.length, 1280);
-      state.frames += 1;
-      socket.send(JSON.stringify({ type: 'frame', event: state.response && { ...state.response, audioMs: state.frames * 40 } }));
+    let frames = 0;
+    socket.on('message', (data, binary) => {
+      assert.equal(binary, false);
+      const message = JSON.parse(data);
+      assert.equal(typeof message.event_id, 'string');
+      if (message.type === 'session.update') {
+        assert.equal(message.session.sample_rate, 16000);
+        assert.equal(message.session.input_audio_format, 'pcm');
+        assert.equal(message.session.turn_detection.type, 'server_vad');
+        socket.send(JSON.stringify({ type: 'session.updated' }));
+      } else if (message.type === 'session.finish') {
+        state.finishes += 1;
+        if (autoFinish) socket.send(JSON.stringify({ type: 'session.finished' }));
+      } else {
+        assert.equal(message.type, 'input_audio_buffer.append');
+        assert.deepEqual(Buffer.from(message.audio, 'base64'), PCM);
+        state.frames += 1;
+        frames += 1;
+        const result = state.response;
+        if (!result) return;
+        const item_id = result.item ?? 'item-1';
+        if (result.final) {
+          if (result.timed !== false) socket.send(JSON.stringify({ type: 'input_audio_buffer.speech_stopped', item_id, audio_end_ms: frames * 40 }));
+          socket.send(JSON.stringify({ type: EVENTS + 'completed', item_id, transcript: result.text }));
+        } else socket.send(JSON.stringify({ type: EVENTS + 'text', item_id, text: result.text, stash: result.stash }));
+      }
     });
   });
   await new Promise((resolve) => engine.listen(0, '127.0.0.1', resolve));
-  const serviceBase = `http://127.0.0.1:${engine.address().port}`;
-  const directory = await mkdtemp(path.join(tmpdir(), 'yanzhou-qwen-test-'));
+  asr.connect = (url, options) => {
+    assert.equal(url.href, 'wss://llm-example.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime');
+    assert.equal(options.followRedirects, false);
+    return new WebSocket(`ws://127.0.0.1:${engine.address().port}`, options);
+  };
+  const directory = await mkdtemp(path.join(tmpdir(), 'yanzhou-cloud-asr-test-'));
   const settingsPath = path.join(directory, 'settings.json');
-  const app = await createPackagingServer({ settingsPath, asrServiceUrl: serviceBase });
+  const app = await createPackagingServer({ settingsPath, asr });
   const address = await app.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const opened = [];
   async function connect(audio = false) {
-    const connection = client(base.replace('http', 'ws') + (audio ? `/asr?mode=${MODE}&owner=speech` : '/ws'), audio ? { origin: base } : undefined);
+    const connection = client(base.replace('http', 'ws') + (audio ? '/asr?owner=speech' : '/ws'), audio ? { origin: base } : undefined);
     opened.push(connection);
     await connection.ready;
     return connection;
@@ -88,59 +104,52 @@ async function fixture(t, { online = true } = {}) {
     await new Promise((resolve) => wss.close(resolve));
     await new Promise((resolve) => engine.close(resolve));
   });
-  return { state, app, connect, settingsPath, serviceBase, enableEngine() { online = true; } };
+  return { state, app, connect, settingsPath, asr };
 }
 
-test('first startup prepares only 0.6B in the background and publishes readiness to connected pages', async (t) => {
-  const setup = await fixture(t, { online: false });
+test('the explicit connection test sends no PCM and reports auth failure and recovery to both pages', async (t) => {
+  const setup = await fixture(t, { statusCode: 401 });
   const control = await setup.connect();
   const lyrics = await setup.connect();
-  const installed = new Promise((resolve) => {
-    setup.app.startAsr({
-      install: true,
-      async configure(action, model, { report, signal }) {
-        resolve({ action, model, signal });
-        report('正在下载 Qwen3-ASR 0.6B');
-      },
-    });
+  await control.wait((m) => m.type === 'lyrics:asr' && m.configured);
+  assert.equal(setup.state.opens, 0);
+  control.send({ type: 'asr:test' });
+  await control.wait((m) => m.testing);
+  const denied = await lyrics.wait((m) => m.type === 'lyrics:asr' && /鉴权失败/.test(m.serviceMessage));
+  assert.equal(denied.testing, false);
+  assert.ok(!JSON.stringify(denied).includes(setup.asr.apiKey));
+  setup.state.statusCode = 0;
+  lyrics.send({ type: 'asr:test' });
+  await control.wait((m) => m.type === 'lyrics:asr' && !m.testing && /连接正常/.test(m.serviceMessage));
+  assert.equal(setup.state.frames, 0);
+  assert.equal(setup.state.finishes, 1);
+});
+
+test('only ASR credentials are read from the local dotenv file, with process values taking priority', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'yanzhou-asr-config-'));
+  const file = path.join(directory, '.env');
+  const missing = await readDashScopeConfig(file, {});
+  assert.equal(missing.apiKey, undefined);
+  await writeFile(file, '\uFEFFDASHSCOPE_API_KEY="local-test-key"\nDASHSCOPE_WORKSPACE_ID=llm-example\nPORT=8080\n');
+  assert.deepEqual(await readDashScopeConfig(file, { DASHSCOPE_API_KEY: 'env-test-key' }), {
+    apiKey: 'env-test-key', workspaceId: 'llm-example',
   });
-  const { action, model, signal } = await installed;
-  assert.equal(action, 'auto');
-  assert.equal(model, '0.6b');
-  const installing = await control.wait((m) => m.type === 'lyrics:asr' && m.serviceMessage === '正在下载 Qwen3-ASR 0.6B');
-  assert.equal(installing.available[MODE], false);
-  setup.enableEngine();
-  assert.equal((await control.wait((m) => m.type === 'lyrics:asr' && m.available[MODE])).serviceMessage, '');
-  assert.equal((await lyrics.wait((m) => m.type === 'lyrics:asr' && m.available[MODE])).available['qwen3-asr-1.7b'], false);
-  await setup.app.close();
-  assert.equal(signal.aborted, true);
 });
 
-test('a reachable Qwen service is reused without a second installation', async (t) => {
-  const setup = await fixture(t);
-  let installs = 0;
-  setup.app.startAsr({ install: true, async configure() { installs += 1; } });
-  const control = await setup.connect();
-  assert.equal((await control.wait((m) => m.type === 'lyrics:asr')).available[MODE], true);
-  assert.equal(installs, 0);
-});
-
-test('one Qwen capture feeds host captions and lyric ASR; clear/stop never save transcripts', async (t) => {
+test('one cloud session feeds host captions and lyric ASR without saving text or credentials', async (t) => {
   const setup = await fixture(t);
   const control = await setup.connect();
   const overlay = await setup.connect();
   await overlay.wait((m) => m.type === 'speech:state' && !m.text);
-  await control.wait((m) => m.type === 'speech:state' && !m.text);
-  const initial = await control.wait((m) => m.type === 'lyrics:asr');
-  assert.deepEqual(initial.available, { [MODE]: true, 'qwen3-asr-1.7b': false });
+  assert.equal((await control.wait((m) => m.type === 'lyrics:asr')).configured, true);
   control.send({ type: 'patch', id: 'speech-style', patch: { modules: { speech: { visible: true, holdSeconds: 1, textColor: '#abcdef' } } } });
   await control.wait((m) => m.type === 'state' && m.id === 'speech-style');
   const audio = await setup.connect(true);
   await audio.wait((m) => m.type === 'ready');
-  setup.state.response = { text: '欢迎来到校园歌手大赛', final: false };
+  setup.state.response = { text: '欢迎来到', stash: '校园歌手大赛' };
   audio.socket.send(PCM);
   const partial = await overlay.wait((m) => m.type === 'speech:state' && m.text);
-  assert.equal(partial.text, setup.state.response.text);
+  assert.equal(partial.text, '欢迎来到校园歌手大赛');
   assert.equal(partial.partial, true);
   assert.equal(partial.expiresAt - partial.updatedAt, 1000);
   const lyric = await control.wait((m) => m.type === 'lyrics:asr' && m.partial);
@@ -158,35 +167,26 @@ test('one Qwen capture feeds host captions and lyric ASR; clear/stop never save 
   assert.equal(current.expiresAt - current.updatedAt, 1000);
   const expired = await overlay.wait((m) => m.type === 'speech:state' && !m.text);
   assert.ok(expired.serverTime >= current.expiresAt);
-  control.send({ type: 'speech:clear', id: 'clear' });
-  await control.wait((m) => m.id === 'clear');
   control.send({ type: 'asr:stop', id: 'stop' });
-  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'idle');
+  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'stopping');
+  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'idle' && m.finals.length);
+  assert.equal(setup.state.finishes, 1);
   await setup.app.close();
   const disk = await readFile(setup.settingsPath, 'utf8');
-  assert.ok(!disk.includes('欢迎来到'));
+  assert.ok(!disk.includes('欢迎来到') && !disk.includes(setup.asr.apiKey));
   assert.equal(JSON.parse(disk).modules.speech.textColor, '#ABCDEF');
-  const restarted = await createPackagingServer({ settingsPath: setup.settingsPath, asrServiceUrl: setup.serviceBase });
+  const restarted = await createPackagingServer({ settingsPath: setup.settingsPath, asr: setup.asr });
   const address = await restarted.listen(0, '127.0.0.1');
   const fresh = client(`ws://127.0.0.1:${address.port}/ws`);
   try { await fresh.ready; assert.equal((await fresh.wait((m) => m.type === 'speech:state')).text, ''); }
   finally { fresh.socket.terminate(); await restarted.close(); }
 });
 
-test('Qwen health can be refreshed after startup and a service failure clears captions and disarms lyric ASR', async (t) => {
+test('a cloud disconnect clears captions and releases the capture so another connection can start', async (t) => {
   const setup = await fixture(t);
   const control = await setup.connect();
-  const secondPage = await setup.connect();
   await control.wait((m) => m.type === 'speech:state' && !m.text);
   await control.wait((m) => m.type === 'lyrics:state' && !m.armed);
-  setup.state.ready = false;
-  control.send({ type: 'asr:refresh', id: 'not-ready' });
-  assert.equal((await control.wait((m) => m.id === 'not-ready')).available[MODE], false);
-  assert.equal((await secondPage.wait((m) => m.id === 'not-ready')).available[MODE], false);
-  setup.state.ready = true;
-  control.send({ type: 'asr:refresh', id: 'ready' });
-  assert.equal((await control.wait((m) => m.id === 'ready')).available[MODE], true);
-  assert.equal((await secondPage.wait((m) => m.id === 'ready')).available[MODE], true);
   const audio = await setup.connect(true);
   await audio.wait((m) => m.type === 'ready');
   setup.state.response = { text: '接下来请欣赏精彩表演', final: true };
@@ -194,12 +194,60 @@ test('Qwen health can be refreshed after startup and a service failure clears ca
   await control.wait((m) => m.type === 'speech:state' && m.text);
   control.send({ type: 'lyrics:onair', id: 'air', payload: { source: 'asr' } });
   await control.wait((m) => m.type === 'lyrics:state' && m.id === 'air' && m.armed);
-  setup.state.upstream.send('{bad json');
+  setup.state.upstream.terminate();
   await control.wait((m) => m.type === 'speech:state' && !m.text);
   assert.equal((await control.wait((m) => m.type === 'lyrics:state' && !m.armed)).armed, false);
   await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'error');
-  control.send({ type: 'asr:refresh', id: 'recovered' });
-  assert.equal((await control.wait((m) => m.id === 'recovered')).phase, 'idle');
+  const recovered = await setup.connect(true);
+  await recovered.wait((m) => m.type === 'ready');
+  assert.equal(setup.state.opens, 2);
+});
+
+test('stopping a non-responsive cloud session releases the socket within the finish timeout', async (t) => {
+  const setup = await fixture(t, { autoFinish: false });
+  const control = await setup.connect();
+  const first = await setup.connect(true);
+  await first.wait((m) => m.type === 'ready');
+  const closed = new Promise((resolve) => setup.state.upstream.once('close', resolve));
+  control.send({ type: 'asr:stop' });
+  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'stopping');
+  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'idle');
+  await closed;
+  const second = await setup.connect(true);
+  await second.wait((m) => m.type === 'ready');
+  assert.equal(setup.state.opens, 2);
+});
+
+test('a cloud final corrects the timeline only when it has a valid speech boundary', async (t) => {
+  const setup = await fixture(t);
+  const control = await setup.connect();
+  const command = async (type, id, payload) => {
+    control.send({ type, id, payload });
+    const response = await control.wait((m) => m.id === id);
+    assert.equal(response.type, 'lyrics:state', response.message);
+  };
+  await command('lyrics:load', 'load-song', { doc: [
+    { start: 1500, text: '照亮我的青春', tokens: [], credit: false },
+    { start: 8000, text: '我们一起唱歌', tokens: [], credit: false },
+  ] });
+  await command('lyrics:onair', 'onair', { source: 'timeline' });
+  await command('lyrics:correct', 'correct', { enabled: true });
+  const audio = await setup.connect(true);
+  await audio.wait((m) => m.type === 'ready');
+  await command('lyrics:transport', 'play', { action: 'play', value: null });
+  setup.state.response = { text: '照亮我的青春', item: 'first', final: true, timed: false };
+  audio.socket.send(PCM);
+  const untimed = await control.wait((m) => m.type === 'lyrics:asr' && m.finals.length === 1);
+  assert.equal(untimed.correction.history.length, 0);
+  setup.state.response = { text: '照亮我的青春', item: 'second', final: true };
+  audio.socket.send(PCM);
+  const corrected = await control.wait((m) => m.type === 'lyrics:asr' && m.finals.length === 2);
+  assert.equal(corrected.correction.history.length, 1);
+  assert.equal(corrected.correction.history[0].estimated, true);
+  setup.state.upstream.terminate();
+  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'error');
+  assert.equal(setup.app.getState().settings.modules.lyrics.source, 'timeline');
+  assert.equal(setup.app.getState().settings.modules.lyrics.armed, true);
 });
 
 test('speech clear is immediate and new partials renew the deadline without reviving expired text', (t) => {

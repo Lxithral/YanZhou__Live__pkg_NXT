@@ -6,11 +6,9 @@ import { constants } from 'node:fs';
 import { readFile, stat, mkdir, copyFile } from 'node:fs/promises';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSettings } from './lyrics-session.js';
-import { createAsrCapture } from './asr-capture.js';
-import { DEFAULT_QWEN_MODEL, DEFAULT_QWEN_SERVICE_URL, QWEN_SERVICE_URL } from './asr-models.js';
+import { createAsrCapture, readDashScopeConfig } from './asr-capture.js';
 import { createSpeechSession } from './speech-session.js';
 import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-library.js';
-import { configureQwen } from '../tools/setup-asr.js';
 
 // 服务代码在 server/ 下；设置、public/、assets/ 都在项目根目录。
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,7 +30,6 @@ const FIELD_RULES = {
   next: { kind: 'text', max: 80, label: '下一个节目' },
   nextLabel: { kind: 'text', max: 40, label: '下一个标签' },
   queue: { kind: 'text', max: 2000, label: '后续节目' },
-  color: { kind: 'color', label: '校徽颜色' },
   textColor: { kind: 'color', label: '文字颜色' },
   accentColor: { kind: 'color', label: '强调色' },
   x: { kind: 'number', min: 0, max: 1920, label: '水平 X' },
@@ -48,7 +45,7 @@ const FIELD_RULES = {
 const OPTIONAL_DEFAULTS = { hosts: { style: 'h', customColors: false } };
 
 const MODULE_FIELDS = {
-  logo: ['visible', 'showMark', 'title', 'subtitle', 'color', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
+  logo: ['visible', 'showMark', 'title', 'subtitle', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
   hosts: ['visible', 'label', 'names', 'slotCount', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
@@ -66,11 +63,10 @@ export const DEFAULT_SETTINGS = {
       showMark: true,
       title: '中山市烟洲中学',
       subtitle: 'YANZHOU · LIVE',
-      color: '#FFFFFF',
       textColor: '#772B2C',
       weight: 500,
-      x: 72,
-      y: 64,
+      x: 112,
+      y: 70,
       scale: 1,
       opacity: 100,
       animation: clone(DEFAULT_ANIMATION),
@@ -98,8 +94,8 @@ export const DEFAULT_SETTINGS = {
       next: '下一个节目',
       accentColor: '#A69AF5',
       textColor: '#F4F0E8',
-      x: 1144,
-      y: 64,
+      x: 1280,
+      y: 770,
       scale: 1,
       opacity: 100,
       animation: clone(DEFAULT_ANIMATION),
@@ -224,6 +220,7 @@ function validateModule(moduleId, module) {
   if (!isObject(module)) throw new Error(`settings.json 缺少模块：${moduleId}`);
   const allowed = new Set([...MODULE_FIELDS[moduleId], 'animation']);
   if (moduleId === 'hosts') ['people', 'slots'].forEach((key) => allowed.add(key));
+  if (moduleId === 'logo') allowed.add('color');
   if (moduleId === 'program') ['items', 'selectedId'].forEach((key) => allowed.add(key));
   // v10 测试版曾保存 program.cardStyle（ticket / classic）；现在只有票根卡，读到时直接忽略。
   if (moduleId === 'program') allowed.add('cardStyle');
@@ -358,7 +355,7 @@ export async function createPackagingServer({
   settingsPath = path.join(ROOT, 'settings.json'),
   saveDelayMs = 120,
   rootDir = ROOT,
-  asrServiceUrl,
+  asr,
 } = {}) {
   let settings;
   let savedAt;
@@ -447,8 +444,14 @@ export async function createPackagingServer({
   const clients = new Set();
   // 上屏先后顺序只保存在内存里（不写入 settings.json）：先出现的模块在前，自动避让时后出现的让开。
   let showOrder;
+  let ticket = { cycle: 0, tornAt: null };
+  const stageSnapshot = () => ({ showOrder: [...getShowOrder()], ticket: { ...ticket } });
   const getShowOrder = () => (showOrder ??= MODULE_IDS.filter((id) => settings.modules[id].visible));
   const trackShown = (previous, next) => {
+    if ((!previous.program.visible && next.program.visible) || previous.program.selectedId !== next.program.selectedId ||
+        (!next.program.current && !next.program.next && (previous.program.current || previous.program.next))) {
+      ticket = { cycle: ticket.cycle + 1, tornAt: null };
+    }
     let order = getShowOrder();
     for (const id of MODULE_IDS) {
       const was = Boolean(previous[id]?.visible);
@@ -463,13 +466,13 @@ export async function createPackagingServer({
     }
     showOrder = order;
   };
-  const getState = () => ({ type: 'state', settings: clone(settings), stage: { showOrder: [...getShowOrder()] }, revision, savedRevision, savedAt });
+  const getState = () => ({ type: 'state', settings: clone(settings), stage: stageSnapshot(), revision, savedRevision, savedAt });
   const getWireState = () => {
     const { doc, manual, songOrder, ...module } = settings.modules.lyrics;
     const { lines, ...manualState } = manual;
     return {
       type: 'state', revision, savedRevision, savedAt,
-      stage: { showOrder: [...getShowOrder()] },
+      stage: stageSnapshot(),
       settings: {
         ...settings,
         modules: {
@@ -542,44 +545,38 @@ export async function createPackagingServer({
     broadcast(asrState());
   }
   const speech = createSpeechSession({ holdSeconds: () => settings.modules.speech.holdSeconds, onChange: broadcast });
-  let recognition = { phase: 'idle', mode: null, owner: null, message: '', partial: '', finals: [] };
-  let asrStartupMessage = '';
-  let asrMonitor;
-  const asrStartup = new AbortController();
-  const capture = await createAsrCapture({
-    serviceBase: asrServiceUrl,
+  let recognition = { phase: 'idle', owner: null, message: '', partial: '', finals: [] };
+  const capture = createAsrCapture({
+    ...asr,
+    onService() {
+      if (recognition.phase === 'error') recognition = { ...recognition, phase: 'idle', message: '' };
+      broadcast(asrState());
+    },
     onStatus(status) {
       recognition = {
         ...recognition, ...status, partial: '',
         ...(status.phase === 'loading' && { finals: [] }),
       };
       if (status.phase !== 'listening') speech.clear();
-      if ((status.phase === 'idle' || status.phase === 'error') && lyrics.disarmAsr()) publishLyrics();
+      if (status.phase !== 'listening' && lyrics.disarmAsr()) publishLyrics();
       broadcast(asrState());
     },
     onResult(event) {
-      speech.accept(event);
+      if (recognition.phase === 'listening') speech.accept(event);
       if (event.final) {
         recognition = {
           ...recognition, partial: '',
           finals: [...recognition.finals, { text: event.text, at: Date.now() }].slice(-20),
         };
       } else recognition = { ...recognition, partial: event.text };
-      if (lyrics.correct(event)) publishLyrics();
+      if (recognition.phase === 'listening' && event.final && Number.isFinite(event.at) && lyrics.correct(event)) publishLyrics();
       broadcast(asrState());
     },
   });
   const asrState = () => ({
-    type: 'lyrics:asr', ...recognition, available: capture.available,
-    serviceMessage: capture.connected ? capture.message : asrStartupMessage || capture.message, correction: lyrics.correction(),
+    type: 'lyrics:asr', ...recognition, configured: capture.configured, testing: capture.testing,
+    serviceMessage: capture.message, correction: lyrics.correction(),
   });
-
-  async function refreshAsr() {
-    await capture.refresh();
-    if (recognition.phase === 'error' && Object.values(capture.available).some(Boolean)) {
-      recognition = { ...recognition, phase: 'idle', message: '' };
-    }
-  }
 
   function scheduleSave() {
     clearTimeout(saveTimer);
@@ -695,7 +692,7 @@ export async function createPackagingServer({
     client.on('pong', () => { client.isAlive = true; });
     client.on('error', () => {});
     if (url.pathname === '/asr') {
-      capture.attach(client, url.searchParams.get('mode'), url.searchParams.get('owner') || 'lyrics');
+      capture.attach(client, url.searchParams.get('owner') || 'lyrics');
       return;
     }
     clients.add(client);
@@ -713,13 +710,22 @@ export async function createPackagingServer({
         const message = JSON.parse(data.toString());
         id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
         if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
-        if (['asr:refresh', 'asr:stop', 'speech:clear'].includes(message.type)) {
-          if (Object.keys(message).some((key) => !['type', 'id'].includes(key))) throw new Error('识别控制消息包含未知字段。');
-          if (message.type === 'asr:refresh') {
-            await refreshAsr();
-            broadcast({ ...asrState(), id });
-            return;
+        if (message.type === 'program:ticket-set') {
+          if (Object.keys(message).some((key) => !['type', 'id', 'cycle', 'torn'].includes(key)) ||
+              !Number.isSafeInteger(message.cycle) || typeof message.torn !== 'boolean') {
+            throw new Error('票根指令格式无效。');
           }
+          const program = settings.modules.program;
+          if (message.cycle === ticket.cycle && (ticket.tornAt !== null) !== message.torn &&
+              program.visible && (program.current || program.next)) {
+            ticket = { ...ticket, tornAt: message.torn ? Date.now() : null };
+            broadcast({ type: 'program:ticket', ticket: { ...ticket }, id });
+          } else send(client, { type: 'program:ticket', ticket: { ...ticket }, id });
+          return;
+        }
+        if (['asr:test', 'asr:stop', 'speech:clear'].includes(message.type)) {
+          if (Object.keys(message).some((key) => !['type', 'id'].includes(key))) throw new Error('识别控制消息包含未知字段。');
+          if (message.type === 'asr:test') capture.test();
           else if (message.type === 'asr:stop') capture.stop();
           else speech.clear();
           send(client, { ...asrState(), id });
@@ -839,28 +845,6 @@ export async function createPackagingServer({
   return {
     server,
     getState,
-    startAsr({ install, model = DEFAULT_QWEN_MODEL, configure = configureQwen } = {}) {
-      if (asrMonitor || closing) return;
-      const report = (message) => {
-        if (closing) return;
-        asrStartupMessage = message;
-        console.log(message);
-        broadcast(asrState());
-      };
-      asrMonitor = setInterval(async () => {
-        if (recognition.phase === 'listening' || recognition.phase === 'loading') return;
-        const before = JSON.stringify(asrState());
-        await refreshAsr();
-        const after = asrState();
-        if (!closing && JSON.stringify(after) !== before) broadcast(after);
-      }, 2000);
-      asrMonitor.unref();
-      if (install && !capture.connected) {
-        configure('auto', model, { report, signal: asrStartup.signal }).catch((error) => {
-          report(`Qwen 自动配置未就绪：${error.message}`);
-        });
-      }
-    },
     listen(port = 3000, host = '127.0.0.1') {
       return new Promise((resolve, reject) => {
         server.once('error', reject);
@@ -873,12 +857,10 @@ export async function createPackagingServer({
     async close() {
       if (closing) return;
       closing = true;
-      asrStartup.abort();
-      clearInterval(asrMonitor);
       clearInterval(heartbeat);
       clearInterval(lyricHeartbeat);
       clearInterval(lyricCheckpoint);
-      capture.close();
+      await capture.close();
       speech.close();
       await commandQueue;
       await songQueue;
@@ -897,7 +879,7 @@ export async function createPackagingServer({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   let app;
   try {
-    app = await createPackagingServer();
+    app = await createPackagingServer({ asr: await readDashScopeConfig(path.join(ROOT, '.env')) });
     const port = Number(process.env.PORT || 3000);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须为 1–65535 的整数。');
     await app.listen(port);
@@ -911,10 +893,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
-    app.startAsr({
-      install: QWEN_SERVICE_URL === DEFAULT_QWEN_SERVICE_URL && process.env.YZ_QWEN_AUTO_SETUP !== '0',
-      model: process.env.YZ_QWEN_MODEL || undefined,
-    });
   } catch (error) {
     console.error(`启动失败：${error.code === 'EADDRINUSE' ? '端口已被占用，请关闭该端口的旧服务或通过 PORT 指定其他端口。' : error.message}`);
     if (app) await app.close().catch(() => {});

@@ -97,7 +97,8 @@
         </div>
       </section>
       <section class="focus-card" aria-labelledby="focusTitle">
-        <div class="focus-heading"><h2 id="focusTitle">Logo 挂角 · 局部放大</h2><span id="focusScale">自动适配</span></div>
+        <div class="focus-heading"><h2 id="focusTitle">Logo 挂角 · 局部放大</h2><div class="focus-actions"><span id="focusScale">自动适配</span><button type="button" class="button" id="programTear" aria-describedby="programTearHint" hidden disabled>撕开票根</button></div></div>
+        <p id="programTearHint" class="focus-hint" hidden></p>
         <div class="focus-stage" id="focusStage" data-background="checker" aria-label="选中模块的局部放大预览">
           <div class="focus-canvas" id="focusCanvas"></div>
         </div>
@@ -125,7 +126,6 @@
           <div class="settings-section">
             <h3><span>02</span>外观</h3>
             <div class="field-grid">
-              <div class="field"><label class="field-label" for="logoColor">校徽颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoColor" aria-label="校徽颜色，打开取色器"></button><input id="logoColorHex" class="hex-input" type="text" maxlength="7" aria-label="校徽颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="logoTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoTextColor" aria-label="文字颜色，打开取色器"></button><input id="logoTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="logoWeight">字重</label><div class="slider-line"><input id="logoWeight" class="range-input" type="range" min="150" max="700" step="10"><div class="number-unit"><input id="logoWeightNumber" type="number" min="150" max="700" step="10" aria-label="字重数值"><span></span></div></div></div>
               <div class="field"><label class="field-label" for="logoScale">整体大小</label><div class="slider-line"><input id="logoScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="logoScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
@@ -285,16 +285,16 @@
         <div class="module-panel" data-module-panel="speech" hidden>
           <div class="settings-section">
             <h3><span>01</span>主持人语音</h3>
-            <p class="speech-status" id="speech-asr-status" role="status">正在检查 Qwen 引擎</p>
+            <p class="speech-status" id="speech-asr-status" role="status">等待连接本机服务…</p>
             <div class="field-grid">
-              <div class="field field-wide"><label class="field-label" for="speech-asr-model">识别模型</label><div class="speech-engine-row"><select class="select-input" id="speech-asr-model"><button type="button"><selectedcontent></selectedcontent></button><option value="qwen3-asr-0.6b">Qwen3-ASR · 0.6B</option><option value="qwen3-asr-1.7b">Qwen3-ASR · 1.7B</option></select><button class="button" id="speech-asr-refresh" type="button" disabled>刷新状态</button></div></div>
+              <div class="field field-wide asr-engine-row"><span class="field-label">千问实时识别 · 云端</span><button class="button" id="speech-asr-test" type="button" disabled>测试连接</button></div>
               <div class="field field-wide"><label class="field-label" for="speech-audio-source">音源</label><select class="select-input" id="speech-audio-source"><button type="button"><selectedcontent></selectedcontent></button><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select></div>
               <div class="field field-wide"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device"><button type="button"><selectedcontent></selectedcontent></button><option value="">系统默认麦克风</option></select></div>
               <div class="field field-wide speech-actions"><button class="button primary" id="speech-asr-start" type="button" disabled>启动识别</button><button class="button" id="speech-asr-stop" type="button" disabled>停止采集</button><button class="button" id="speech-clear" type="button" disabled>清屏</button></div>
               <div class="field field-wide"><span class="field-label">实时识别</span><p class="speech-transcript" id="speech-asr-partial">等待语音</p><p class="speech-caption-status" id="speech-caption-status">字幕待推送</p></div>
               <div class="field field-wide"><label class="field-label" for="speechHold">停顿后清屏</label><div class="slider-line"><input id="speechHold" class="range-input" type="range" min="1" max="30" step="1"><div class="number-unit"><input id="speechHoldNumber" type="number" min="1" max="30" step="1" aria-label="停顿后清屏秒数"><span>秒</span></div></div></div>
             </div>
-            <p class="speech-hint">打开上方显示开关即可上屏。主持人与歌词共用一份采集音源，切换节目时可分别控制字幕显隐。</p>
+            <p class="speech-hint">点击启动后，所选音源会发送到阿里云百炼。主持人与歌词共用一路识别；打开上方显示开关即可上屏。</p>
           </div>
           <div class="settings-section">
             <h3><span>02</span>外观</h3>

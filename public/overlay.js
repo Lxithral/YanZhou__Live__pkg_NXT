@@ -22,14 +22,15 @@ let disposed = false;
 let reconnectAttempt = 0;
 let socket;
 
-function applyState(settings, showOrder) {
+function applyState(settings, stageState) {
   if (!settings?.canvas || !settings?.modules) return;
-  stage = { settings, showOrder };
+  stage = { settings, showOrder: stageState?.showOrder };
   canvas.style.width = `${settings.canvas.width}px`;
   canvas.style.height = `${settings.canvas.height}px`;
   for (const [moduleId, renderer] of Object.entries(RENDERERS)) {
     if (settings.modules[moduleId]) renderer.update(settings.modules[moduleId]);
   }
+  RENDERERS.program.updateTicket(stageState?.ticket);
   avoidance.schedule();
 }
 
@@ -41,7 +42,9 @@ function connect() {
     try { message = JSON.parse(event.data); } catch { return; }
     if (message.type === 'state') {
       reconnectAttempt = 0;
-      applyState(message.settings, message.stage?.showOrder);
+      applyState(message.settings, message.stage);
+    } else if (message.type === 'program:ticket') {
+      RENDERERS.program.updateTicket(message.ticket, { animate: true });
     } else if (message.type === 'speech:state') {
       RENDERERS.speech.updateSpeech(message);
       avoidance.schedule();
