@@ -1,5 +1,4 @@
 const CABLE = /cable output|vb-audio|vb-cable/i;
-const MODE_NAMES = { 'qwen3-asr-0.6b': 'Qwen3-ASR · 0.6B', 'qwen3-asr-1.7b': 'Qwen3-ASR · 1.7B' };
 const AUDIO_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
 const stopTracks = (stream) => stream?.getTracks().forEach((track) => track.stop());
 
@@ -15,10 +14,9 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   const media = navigator.mediaDevices;
   const source = $('audio-source');
   const device = $('audio-device');
-  const deviceButton = device.querySelector(':scope > button');
-  const model = $('asr-model');
   const start = $('asr-start');
   const stop = $('asr-stop');
+  const test = $('asr-test');
   let shared;
   let online = false;
   let local;
@@ -30,7 +28,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     const previous = device.value;
     const inputs = (await media.enumerateDevices()).filter(({ kind, label }) =>
       kind === 'audioinput' && (source.value === 'cable' ? CABLE.test(label) : !CABLE.test(label)));
-    device.replaceChildren(...(deviceButton ? [deviceButton] : []),
+    device.replaceChildren(...device.querySelectorAll(':scope > button'),
       new Option(source.value === 'cable' ? '自动选择 CABLE Output' : '系统默认麦克风', ''));
     for (const [index, input] of inputs.entries()) {
       if (input.deviceId && input.deviceId !== 'default') {
@@ -43,28 +41,23 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
 
   function render() {
     const phase = shared?.phase;
-    const busy = phase === 'listening' || phase === 'loading';
-    if (!busy && !local && !shared?.available?.[model.value]) {
-      const installed = Object.keys(shared?.available ?? {}).find((id) => shared.available[id]);
-      if (installed) model.value = installed;
-    }
-    for (const option of model.options) option.disabled = !shared?.available?.[option.value];
-    const available = shared?.available?.[model.value];
-    start.disabled = !online || !media || !available || Boolean(local) || busy;
-    stop.disabled = !online || (!local && !busy);
-    model.disabled = Boolean(local) || busy;
+    const busy = ['listening', 'loading', 'stopping'].includes(phase) || shared?.testing;
+    start.disabled = !online || !media || !shared?.configured || Boolean(local) || busy;
+    stop.disabled = !online || (!local && !['listening', 'loading'].includes(phase));
     source.disabled = Boolean(local) || busy;
     device.disabled = Boolean(local) || busy || source.value === 'tab';
-    if ($('asr-refresh')) $('asr-refresh').disabled = !online || busy || Boolean(local);
+    test.disabled = !online || !shared?.configured || busy || Boolean(local);
     if ($('asr-correct')) {
       $('asr-correct').disabled = !online;
       $('asr-correct').checked = Boolean(shared?.correction?.enabled);
     }
-    $('asr-status').textContent = failure || (!media ? '当前浏览器不支持音频采集，请用 Chrome 打开本机地址。' :
-      phase === 'error' ? shared.message :
-      phase === 'listening' ? `正在识别 · ${MODE_NAMES[shared.mode]} · 共用${shared.owner === 'speech' ? '主控台' : '歌词台'}音源` :
-      local || phase === 'loading' ? '正在连接音源与 Qwen…' :
-      available ? 'Qwen 本地引擎就绪 · 主持人与歌词共用音源' : shared?.serviceMessage || 'Qwen 服务未就绪，请启动后刷新状态');
+    $('asr-status').textContent = !online ? '等待连接本机服务…' : failure || (
+      phase === 'error' && !local ? shared.message :
+      phase === 'listening' ? `正在识别 · 共用${shared.owner === 'speech' ? '主控台' : '歌词台'}音源` :
+      phase === 'stopping' ? '正在完成最后一句…' :
+      local || phase === 'loading' ? '正在连接音源与百炼…' :
+      !media && shared?.configured ? '当前浏览器无法采集音频，请用 Edge 或 Chrome 打开本机地址。' :
+      shared?.serviceMessage || '正在读取百炼配置…');
     $('asr-partial').textContent = shared?.partial || (owner === 'speech' ? shared?.finals?.at(-1)?.text : '') || '等待语音';
     const finals = shared?.finals;
     if ($('asr-finals') && finals !== lastFinals) {
@@ -138,7 +131,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   async function startCapture() {
     if (start.disabled) return;
     failure = '';
-    const session = { mode: model.value };
+    const session = {};
     local = session;
     render();
     try {
@@ -161,14 +154,14 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       await session.context.audioWorklet.addModule('/asr-audio-worklet.js');
       if (local !== session) return;
       const url = new URL('/asr', location.href.replace(/^http/, 'ws'));
-      url.searchParams.set('mode', session.mode);
       url.searchParams.set('owner', owner);
       const socket = new WebSocket(url);
       session.socket = socket;
       socket.onmessage = ({ data }) => {
         if (local !== session) return;
-        const packet = JSON.parse(data);
-        if (packet.type === 'error') stopCapture(packet.message);
+        let packet;
+        try { packet = JSON.parse(data); } catch { stopCapture('本机识别服务返回了无效消息。'); return; }
+        if (packet.type === 'error') { stopCapture(packet.message); return; }
         if (packet.type !== 'ready') return;
         clearTimeout(session.startTimer);
         session.started = true;
@@ -190,7 +183,9 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
         }
       };
       socket.onerror = () => { if (local === session) stopCapture('无法连接本机识别服务。'); };
-      socket.onclose = () => { if (local === session) stopCapture('本机识别连接已结束。'); };
+      socket.onclose = ({ wasClean }) => {
+        if (local === session) stopCapture(wasClean ? '' : '本机识别连接已断开。');
+      };
     } catch (error) {
       if (local === session) stopCapture(explain(error));
     }
@@ -198,9 +193,8 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
 
   start.onclick = startCapture;
   stop.onclick = () => { if (local) stopCapture(); else command('asr:stop'); };
-  if ($('asr-refresh')) $('asr-refresh').onclick = () => { failure = ''; command('asr:refresh'); render(); };
+  test.onclick = () => { failure = ''; command('asr:test'); render(); };
   source.onchange = () => { refreshDevices().catch(() => {}); render(); };
-  model.onchange = () => { failure = ''; render(); };
   if ($('asr-correct')) $('asr-correct').onchange = ({ target }) => correct?.(target.checked);
   window.addEventListener('pagehide', () => stopCapture());
   media?.addEventListener('devicechange', () => refreshDevices().catch(() => {}));
@@ -210,7 +204,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       shared = state;
       online = connected;
       if (!online && local) stopCapture('与本机服务断开，已停止采集。');
-      else if (local?.started && !['listening', 'loading'].includes(shared?.phase)) stopCapture();
+      else if (local?.started && !['listening', 'loading'].includes(shared?.phase)) stopCapture(shared?.phase === 'error' ? shared.message : '');
       render();
     },
   };

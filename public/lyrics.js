@@ -3,7 +3,10 @@ import { createLyricsClock, timecode } from './lyrics-clock.js';
 import { createLyricsRenderer } from './lyrics-renderer.js';
 import { bindAsrControls } from './asr-controls.js';
 
+import { initThemedSelects } from './themed-select.js';
+
 const $ = (id) => document.getElementById(id);
+initThemedSelects();
 const clock = createLyricsClock();
 const preview = createLyricsRenderer($('mini-canvas'));
 const asr = bindAsrControls({ command: (type) => { if (ready) socket.send(JSON.stringify({ type })); }, correct: (enabled) => send('lyrics:correct', { enabled }), timecode });
@@ -362,7 +365,7 @@ function renderReplaceChoices() {
   const name = songNameKey($('song-title').value);
   const matches = songCatalog.filter((song) => songNameKey(song.title) === name);
   $('replace-song-field').hidden = !matches.length;
-  select.replaceChildren(new Option('保留已有版本，新建', ''), ...matches.map((song) =>
+  select.replaceChildren(...select.querySelectorAll(':scope > button'), new Option('保留已有版本，新建', ''), ...matches.map((song) =>
     new Option(`替换 ${songVersionLabel(song)}`, song.id)));
   if (matches.some((song) => song.id === previous)) select.value = previous;
 }

@@ -8,7 +8,10 @@ import { createAvoidance } from './stage-avoidance.js';
 import { createSpeechRenderer } from './speech-renderer.js';
 import { bindAsrControls } from './asr-controls.js';
 
+import { initThemedSelects } from './themed-select.js';
+
 const $ = (id) => document.getElementById(id);
+initThemedSelects();
 const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics', 'speech'];
 const lyricsClock = createLyricsClock();
 const ANIMATION_OPTIONS = [
@@ -45,7 +48,6 @@ const MODULES = {
       { key: 'title', id: 'logoTitle', kind: 'text' },
       { key: 'subtitle', id: 'logoSubtitle', kind: 'text' },
       { key: 'showMark', id: 'logoShowMark', kind: 'boolean' },
-      { key: 'color', id: 'logoColor', hexId: 'logoColorHex', kind: 'color' },
       { key: 'textColor', id: 'logoTextColor', hexId: 'logoTextColorHex', kind: 'color' },
       { key: 'weight', id: 'logoWeight', numberId: 'logoWeightNumber', kind: 'weight' },
       { key: 'scale', id: 'logoScale', numberId: 'logoScaleNumber', kind: 'percent' },
@@ -106,9 +108,9 @@ const FALLBACK_SETTINGS = {
   canvas: { width: 1920, height: 1080 },
   modules: {
     speech: { visible: false, textColor: '#F4F0E8', holdSeconds: 6, x: 240, y: 848, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
-    logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', color: '#FFFFFF', textColor: '#F4F0E8', weight: 500, x: 72, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', textColor: '#F4F0E8', weight: 500, x: 112, y: 70, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1144, y: 64, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1280, y: 770, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 678, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
 };
@@ -141,6 +143,19 @@ document.body.append(measureStage);
 for (const moduleId of MODULE_ORDER) previewRenderers[moduleId] = MODULES[moduleId].create($('previewCanvas'));
 // 上屏先后顺序由服务端维护（只在内存里），预览与 OBS 输出用同一顺序计算自动避让。
 let showOrder = null;
+let ticketState;
+let pendingTicketId;
+const programTear = $('programTear');
+programTear.onclick = () => {
+  if (programTear.disabled || socket?.readyState !== WebSocket.OPEN) return;
+  flush();
+  if (socket.readyState !== WebSocket.OPEN) return;
+  pendingTicketId = `ticket-${crypto.randomUUID()}`;
+  socket.send(JSON.stringify({
+    type: 'program:ticket-set', id: pendingTicketId, cycle: ticketState.cycle, torn: ticketState.tornAt === null,
+  }));
+  renderTicketControl();
+};
 const avoidance = createAvoidance(previewRenderers, () => ({ settings, showOrder }));
 let renderFrame = 0;
 function scheduleRender() {
@@ -492,15 +507,16 @@ function fitFocus() {
   const module = settings.modules[activeModule];
   focusRenderer.update({ ...module, x: 0, y: 0, visible: true, opacity: 100 }, { constrain: false });
   const bounds = focusRenderer.getBounds();
+  const limits = activeModule === 'program' ? focusRenderer.getTearClearance() : { right: 0, bottom: 0 };
   const zoom = Math.max(0.01, Math.min(
-    (stage.clientWidth - 64) / Math.max(bounds.width, 1),
-    (stage.clientHeight - 40) / Math.max(bounds.height, 1),
+    (stage.clientWidth - 64) / Math.max(bounds.width + limits.right, 1),
+    (stage.clientHeight - 40) / Math.max(bounds.height + limits.bottom, 1),
   ));
   canvas.style.width = `${bounds.width}px`;
   canvas.style.height = `${bounds.height}px`;
   canvas.style.transform = `scale(${zoom})`;
-  canvas.style.left = `${Math.max(0, (stage.clientWidth - bounds.width * zoom) / 2)}px`;
-  canvas.style.top = `${Math.max(0, (stage.clientHeight - bounds.height * zoom) / 2)}px`;
+  canvas.style.left = `${Math.max(0, (stage.clientWidth - (bounds.width + limits.right) * zoom) / 2)}px`;
+  canvas.style.top = `${Math.max(0, (stage.clientHeight - (bounds.height + limits.bottom) * zoom) / 2)}px`;
   $('focusScale').textContent = `${Math.round(zoom * 100)}% 查看`;
 }
 
@@ -508,6 +524,7 @@ function rebuildFocus() {
   focusRenderer?.dispose?.();
   $('focusCanvas').replaceChildren();
   focusRenderer = MODULES[activeModule].create($('focusCanvas'), { sample: ['lyrics', 'speech'].includes(activeModule) });
+  focusRenderer.updateTicket?.(ticketState);
   focusRenderer.updateLyrics?.(lyricsClock);
   if (speechState) focusRenderer.updateSpeech?.(speechState);
   fitFocus();
@@ -515,6 +532,7 @@ function rebuildFocus() {
 
 function render() {
   stageControls.render(settings, ready);
+  renderTicketControl();
   speechAsr.update(sharedAsr, ready);
   $('speech-clear').disabled = !ready;
   for (const moduleId of MODULE_ORDER) previewRenderers[moduleId].update(settings.modules[moduleId]);
@@ -537,10 +555,32 @@ function selectModule(moduleId) {
   render();
 }
 
+function applyTicket(next, animate = false) {
+  ticketState = next;
+  previewRenderers.program.updateTicket(next, { animate });
+  focusRenderer?.updateTicket?.(next, { animate });
+}
+
+function renderTicketControl() {
+  const active = activeModule === 'program';
+  const program = settings.modules.program;
+  const hint = $('programTearHint');
+  const torn = program.visible && Number.isFinite(ticketState?.tornAt);
+  programTear.hidden = hint.hidden = !active;
+  programTear.disabled = !ready || !ticketState || Boolean(pendingTicketId) ||
+    !program.visible || !(program.current || program.next);
+  programTear.textContent = torn ? '恢复票根' : '撕开票根';
+  hint.textContent = !ready ? '等待连接本机服务。' : !ticketState ? '请更新并重启包装服务。' :
+    !program.visible ? '打开「显示 节目单」后即可撕票。' :
+    torn ? '票根已撕开，可恢复后再撕。' :
+    '撕开和恢复都会同步到 OBS。';
+}
+
 function applyServerState(message) {
   if (!message.settings?.modules || !message.settings?.canvas) return;
   settings = structuredClone(message.settings);
   if (Array.isArray(message.stage?.showOrder)) showOrder = message.stage.showOrder;
+  applyTicket(message.stage?.ticket);
   settings.modules.lyrics ??= structuredClone(FALLBACK_SETTINGS.modules.lyrics);
   settings.modules.speech ??= structuredClone(FALLBACK_SETTINGS.modules.speech);
   if (message.id) sentPatches.delete(message.id);
@@ -640,6 +680,10 @@ function connect() {
     try { message = JSON.parse(event.data); } catch { return; }
     if (message.type === 'state') {
       applyServerState(message);
+    } else if (message.type === 'program:ticket') {
+      if (message.id === pendingTicketId) pendingTicketId = undefined;
+      applyTicket(message.ticket, true);
+      renderTicketControl();
     } else if (message.type === 'lyrics:state') {
       lyricsClock.apply(message);
       previewRenderers.lyrics.updateLyrics(lyricsClock);
@@ -671,6 +715,12 @@ function connect() {
       updateSaveStatus();
     } else if (message.type === 'error') {
       if (stageControls.result(message)) return;
+      if (pendingTicketId && message.id === pendingTicketId) {
+        pendingTicketId = undefined;
+        renderTicketControl();
+        toast(message.message);
+        return;
+      }
       if (message.id?.startsWith('playlist-')) {
         toast(message.message);
         return;
@@ -697,6 +747,8 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    pendingTicketId = undefined;
+    renderTicketControl();
     stageControls.disconnected();
     speechAsr.update(sharedAsr, false);
     previewRenderers.speech.updateSpeech({ text: '' });
@@ -739,7 +791,7 @@ function populateAnimationSelects() {
     const animation = MODULES[moduleId].animation;
     for (const kind of ['enter', 'exit']) {
       const select = $(animation[kind]);
-      select.replaceChildren();
+      select.replaceChildren(...select.querySelectorAll(':scope > button'));
       for (const [value, label] of ANIMATION_OPTIONS) {
         const option = document.createElement('option');
         option.value = value;

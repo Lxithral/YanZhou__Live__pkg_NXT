@@ -6,10 +6,7 @@
   "description": "Local HTML broadcast graphics and live control panel",
   "scripts": {
     "start": "node server/server.js",
-    "test": "node --test",
-    "asr:setup": "node tools/setup-asr.js setup",
-    "asr:start": "node tools/setup-asr.js start",
-    "asr:check": "node tools/setup-asr.js check"
+    "test": "node --test"
   },
   "dependencies": {
     "opencc-js": "1.4.2",

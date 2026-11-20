@@ -126,8 +126,7 @@ svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; s
 .app-header { height: 52px; flex: none; display: flex; align-items: center; gap: 28px; padding: 0 16px 0 18px; }
 .brand { display: flex; align-items: center; flex: none; }
 .brand + .page-nav { margin-inline-start: -12px; }
-.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: #772b2c; position: relative; }
-.brand-mark::after { content: ''; position: absolute; inset: 4px; background: #fff; -webkit-mask: url('/assets/logo-mask.png') center / contain no-repeat; mask: url('/assets/logo-mask.png') center / contain no-repeat; }
+.brand-mark { width: 30px; height: 30px; border-radius: 8px; background: #772b2c url('/assets/A12.png') center / 23px 23px no-repeat; }
 .page-nav { display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
 .page-nav a { display: flex; align-items: center; height: 28px; padding: 0 14px; border-radius: 6px; color: var(--muted); font-size: 13px; font-weight: 500; transition: color 120ms, background-color 120ms; }
 .page-nav a:hover { color: var(--text); }
@@ -642,9 +641,14 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
 /* 主持人字幕沿用现有模块设置，不另开页面。 */
 .module-list { overflow-y: auto; }
 .speech-status, .speech-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
-.speech-engine-row { display: flex; gap: 8px; align-items: center; }
-.speech-engine-row select { flex: 1; min-width: 0; }
-.speech-engine-row button { flex: none; }
+.asr-engine-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.focus-actions { display: flex; flex: none; align-items: center; gap: 10px; }
+#programTear { min-height: 30px; white-space: nowrap; }
+.focus-hint { flex: none; padding: 6px 16px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.focus-heading:has(#programTear:not([hidden])) h2 { min-width: 0; line-height: 1.3; font-size: 13px; }
+@media (max-width: 620px) {
+  .focus-heading:has(#programTear:not([hidden])) #focusScale { display: none; }
+}
 .speech-actions { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
 .speech-transcript { min-height: 52px; margin: 0; padding: 10px; border-radius: 8px; background: var(--field); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .speech-caption-status { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
@@ -652,18 +656,17 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
 .preview-canvas .speech-board[data-has-content=true] .speech-text { pointer-events: auto; }
 .preview-canvas .speech-board[data-has-content=false].is-selected { outline: none; box-shadow: none; }
 
-/* 主持人采集控件与歌词台曲库使用同款主题菜单。 */
-:is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option { background: var(--panel); color: var(--text); }
-:is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:disabled { color: var(--faint); }
+:is(.select-input, .lyric-page select) option { background: var(--panel); color: var(--text); }
+:is(.select-input, .lyric-page select) option:disabled { color: var(--faint); }
 @supports (appearance: base-select) {
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device), :is(#speech-asr-model, #speech-audio-source, #speech-audio-device)::picker(select) { appearance: base-select; }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) { align-items: center; gap: 10px; padding-inline-end: 12px; background: var(--raised); }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) > button { display: flex; align-items: center; flex: 1; min-width: 0; height: 100%; padding: 0; background: transparent; box-shadow: none; text-align: left; }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) selectedcontent { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device)::picker-icon { content: ''; flex: none; width: 10px; height: 6px; margin-inline-start: auto; background: var(--chevron) no-repeat center; transition: transform 160ms var(--ease); }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device):open { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device):open::picker-icon { transform: rotate(180deg); }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device)::picker(select) {
+  :is(.select-input, .lyric-page select):has(> .select-display), :is(.select-input, .lyric-page select):has(> .select-display)::picker(select) { appearance: base-select; }
+  :is(.select-input, .lyric-page select):has(> .select-display) { align-items: center; gap: 10px; padding-inline-end: 12px; background: var(--raised); }
+  :is(.select-input, .lyric-page select):has(> .select-display) > .select-display { display: flex; align-items: center; flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; color: inherit; font: inherit; background: transparent; box-shadow: none; text-align: left; }
+  :is(.select-input, .lyric-page select):has(> .select-display) selectedcontent { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :is(.select-input, .lyric-page select):has(> .select-display)::picker-icon { content: ''; flex: none; width: 10px; height: 6px; margin-inline-start: auto; background: var(--chevron) no-repeat center; transition: transform 160ms var(--ease); }
+  :is(.select-input, .lyric-page select):has(> .select-display):open { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+  :is(.select-input, .lyric-page select):has(> .select-display):open::picker-icon { transform: rotate(180deg); }
+  :is(.select-input, .lyric-page select):has(> .select-display)::picker(select) {
     width: max(anchor-size(width), 280px);
     max-width: calc(100vw - 24px);
     max-height: min(380px, 56dvh);
@@ -679,10 +682,10 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
     scrollbar-width: thin;
     scrollbar-color: var(--line-3) transparent;
   }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 8px 10px; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:disabled { color: var(--faint); opacity: .65; cursor: not-allowed; }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:checked { background: var(--accent-soft); color: var(--on-text); }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:is(:hover, :focus-visible) { background: var(--hover); outline: none; }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option:checked:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); }
-  :is(#speech-asr-model, #speech-audio-source, #speech-audio-device) option::checkmark { order: 1; flex: none; margin-inline-start: auto; color: var(--accent); }
+  :is(.select-input, .lyric-page select):has(> .select-display) option { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 8px 10px; border-radius: var(--r-ctl); background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+  :is(.select-input, .lyric-page select):has(> .select-display) option:disabled { color: var(--faint); opacity: .65; cursor: not-allowed; }
+  :is(.select-input, .lyric-page select):has(> .select-display) option:checked { background: var(--accent-soft); color: var(--on-text); }
+  :is(.select-input, .lyric-page select):has(> .select-display) option:is(:hover, :focus-visible) { background: var(--hover); outline: none; }
+  :is(.select-input, .lyric-page select):has(> .select-display) option:checked:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); }
+  :is(.select-input, .lyric-page select):has(> .select-display) option::checkmark { order: 1; flex: none; margin-inline-start: auto; color: var(--accent); }
 }

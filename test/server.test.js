@@ -114,7 +114,7 @@ test('a control change immediately reaches another client and is saved on disk',
   assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics', 'speech']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
-    title: '校园开放日', subtitle: 'LIVE · 2026', color: '#123456', textColor: '#abcdef',
+    title: '校园开放日', subtitle: 'LIVE · 2026', textColor: '#abcdef',
     x: 123, y: 67, scale: 1.25, opacity: 82, animation: { enter: 'slide-left', duration: 480 },
   } } } });
 
@@ -123,6 +123,7 @@ test('a control change immediately reaches another client and is saved on disk',
   assert.deepEqual(overlayState.settings, controllerState.settings);
   assert.equal(overlayState.settings.modules.logo.x, 123);
   assert.equal(overlayState.settings.modules.logo.scale, 1.25);
+  assert.equal(overlayState.settings.modules.logo.textColor, '#ABCDEF');
   assert.equal(overlayState.settings.modules.logo.animation.enter, 'slide-left');
   assert.deepEqual(overlayState.settings.modules.logo.animation, { enter: 'slide-left', exit: 'fade-down', duration: 480 });
   assert.ok(controllerState.revision > initial.revision);
@@ -270,7 +271,8 @@ test('a version 1 settings file is migrated to the module format in place', asyn
   const state = app.getState();
   assert.equal(state.settings.version, 5);
   assert.equal(state.settings.modules.logo.title, 'YZBTVS');
-  assert.equal(state.settings.modules.logo.color, '#FFFFFF');
+  assert.equal(Object.hasOwn(state.settings.modules.logo, 'color'), false);
+  assert.equal(state.settings.modules.logo.textColor, '#FFAA00');
   assert.equal(state.settings.modules.logo.x, 146);
   assert.equal(state.settings.modules.logo.showMark, true);
   assert.equal(state.settings.modules.logo.weight, 500);
@@ -673,20 +675,64 @@ test('only a supported source is armed and a rejected payload does not change st
   assert.deepEqual(stopped.manual, pushed.manual);
 });
 
-test('recognition capture is same-origin and an unavailable Qwen service preserves existing playout', async (t) => {
+test('recognition capture is same-origin and a missing API key preserves existing playout', async (t) => {
   const setup = await fixture(t);
-  const { url, wsUrl } = await setup.start({ asrServiceUrl: 'http://127.0.0.1:1' });
+  const { url, wsUrl } = await setup.start();
   const client = await setup.connect(wsUrl);
   const initial = await client.waitFor((message) => message.type === 'lyrics:asr');
-  assert.deepEqual(initial.available, { 'qwen3-asr-0.6b': false, 'qwen3-asr-1.7b': false });
-  const audio = wsUrl.replace('/ws', '/asr?mode=qwen3-asr-0.6b');
+  assert.equal(initial.configured, false);
+  const audio = wsUrl.replace('/ws', '/asr');
   await assert.rejects(setup.connect(audio, { origin: 'https://other.invalid' }), /403/);
   await assert.rejects(setup.connect(audio), /403/);
   const capture = await setup.connect(audio, { origin: url });
   const failed = await capture.waitFor((message) => message.type === 'error');
-  assert.match(failed.message, /Qwen.*服务/);
+  assert.match(failed.message, /DASHSCOPE_API_KEY/);
   const manual = await lyricCommand(client, 'lyrics:onair', { source: 'manual' });
   assert.equal(manual.source, 'manual');
+});
+
+test('the ticket can tear and restore while visible, synchronizes to reconnects, and rejects stale clicks', async (t) => {
+  const setup = await fixture(t);
+  const { app, wsUrl } = await setup.start();
+  const control = await setup.connect(wsUrl);
+  const overlay = await setup.connect(wsUrl);
+  const patch = async (id, program) => {
+    control.send({ type: 'patch', id, patch: { modules: { program } } });
+    return (await control.waitFor((message) => message.type === 'state' && message.id === id)).stage.ticket;
+  };
+  const tear = (id, cycle, torn = true) => control.send({ type: 'program:ticket-set', id, cycle, torn });
+  const first = await patch('show-ticket', { visible: true });
+  tear('tear-first', first.cycle);
+  const torn = (await overlay.waitFor((message) => message.type === 'program:ticket' && message.id === 'tear-first')).ticket;
+  assert.ok(Number.isFinite(torn.tornAt));
+  tear('repeated-tear', first.cycle);
+  assert.deepEqual((await control.waitFor((message) => message.id === 'repeated-tear')).ticket, torn);
+  assert.deepEqual(await patch('drag-ticket', { x: 42 }), torn);
+  const reconnected = await setup.connect(wsUrl);
+  assert.deepEqual((await reconnected.waitFor((message) => message.type === 'state')).stage.ticket, torn);
+  tear('restore-ticket', first.cycle, false);
+  const restored = (await overlay.waitFor((message) => message.id === 'restore-ticket')).ticket;
+  assert.deepEqual(restored, { cycle: first.cycle, tornAt: null });
+  tear('tear-again', first.cycle);
+  assert.ok(Number.isFinite((await overlay.waitFor((message) => message.id === 'tear-again')).ticket.tornAt));
+  await patch('hide-ticket', { visible: false });
+  const second = await patch('reshow-ticket', { visible: true });
+  assert.equal(second.tornAt, null);
+  tear('stale-tear', first.cycle);
+  assert.deepEqual((await control.waitFor((message) => message.id === 'stale-tear')).ticket, second);
+  tear('tear-second', second.cycle);
+  await overlay.waitFor((message) => message.id === 'tear-second');
+  const items = app.getState().settings.modules.program.items;
+  const selected = app.getState().settings.modules.program.selectedId;
+  const next = items.find((item) => item.id !== selected);
+  control.send({ type: 'program:manage', id: 'change-program', payload: { action: 'select', id: next.id } });
+  const changed = await overlay.waitFor((message) => message.type === 'state' && message.id === 'change-program');
+  assert.equal(changed.stage.ticket.tornAt, null);
+  assert.ok(changed.stage.ticket.cycle > second.cycle);
+  await setup.stop(app);
+  const disk = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.equal(disk.stage, undefined);
+  assert.equal(disk.modules.program.tornAt, undefined);
 });
 
 test('manual confirmation, stepping, and clear produce complete display states', async (t) => {

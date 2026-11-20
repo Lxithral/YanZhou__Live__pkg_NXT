@@ -6,13 +6,68 @@ const STYLE_ID = 'yanzhou-program-renderer-style';
 
 // 票根卡整体按旧版 75% 的尺寸排版：滑块 100% = 旧版 75%。
 const TITLE_MIN = 25.5;
+const TEAR_CLEARANCE = { right: 82, bottom: 72 };
+
+// 纵向位置（%）与撕线两侧的缺口宽度（px）。
+const TEAR_EDGE = [
+  [0, 0], [9, 0], [12, 1.8], [16, .4], [20, 0], [25, 3], [29, .8],
+  [33, 0], [39, 2.2], [43, 0], [48, .4], [53, 3.3], [57, .7], [61, 0],
+  [67, 2.6], [71, 0], [77, .5], [82, 2.6], [87, 0], [94, 1.1], [100, 0],
+];
+const DETACH_AT = .66;
+const TEAR_TIME = 1080;
+const RESTORE_TIME = 820;
+const unit = (value) => Math.max(0, Math.min(1, value));
+const smoothstep = (value) => value * value * (3 - 2 * value);
+
+function edgeUntil(front) {
+  if (front === 0) return [TEAR_EDGE[0]];
+  const next = TEAR_EDGE.findIndex(([y]) => y >= front);
+  const [lastY, lastInset] = TEAR_EDGE[next - 1];
+  const [nextY, nextInset] = TEAR_EDGE[next];
+  const inset = lastInset + (nextInset - lastInset) * (front - lastY) / (nextY - lastY);
+  return [...TEAR_EDGE.slice(0, next), [front, inset]];
+}
+
+function paperClip(edge) {
+  const points = edge.map(([y, inset]) => `calc(100% - ${inset}px) ${y}%`);
+  return `polygon(0 0, ${points.join(', ')}, 100% ${edge.at(-1)[0]}%, 100% 100%, 0 100%)`;
+}
+
+function paintTear({ paper, num, flap, flapPaper }, progress, height) {
+  const front = 100 * smoothstep(unit(progress / DETACH_AT));
+  const edge = edgeUntil(front);
+  paper.style.clipPath = paperClip(edge);
+  num.style.clipPath = `inset(${front}% 0 0)`;
+  const flapEdge = edge.reverse().map(([y, inset]) => `${inset * .65}px ${y}%`);
+  flapPaper.style.clipPath = `polygon(100% 0, 100% ${front}%, ${flapEdge.join(', ')})`;
+
+  // 缺口下方留在原位，纸片从缺口处逐渐向右弯曲。最后一个齿孔松开后才开始下落。
+  const lift = smoothstep(unit(progress / .38));
+  const release = unit((progress - DETACH_AT) / (1 - DETACH_AT));
+  const turn = smoothstep(release);
+  const flutter = Math.sin(2 * Math.PI * release) * (1 - release);
+  // 长节目会撑高票面，限制拐角扫过的距离，给局部预览留出余量。
+  const bend = Math.min(12, 1360 / height) * lift * (1 - .8 * turn);
+  const rotation = Math.min(13, 1900 / height) * (turn + .12 * flutter);
+  const yaw = -23 * lift + 37 * turn + 6 * flutter;
+  const drift = 35 * turn;
+  const fall = 43 * release ** 2 - 3 * Math.sin(Math.PI * release) ** 2;
+  flap.style.transformOrigin = `0 ${front}%`;
+  flap.style.transform = `translate(${drift}px, ${fall}px) perspective(860px) rotate(${rotation}deg) rotateY(${yaw}deg) skewX(${-bend}deg)`;
+  flap.style.opacity = 1 - smoothstep(unit((release - .23) / .77));
+}
 
 const STYLES = `
 /* 票根 · 艺术节：绛红主票 + 米色存根，中间齿孔撕线；存根放序号和校徽 */
 .pc-wrap { filter: drop-shadow(0 10.5px 19.5px #0007); }
-.pc { box-sizing: border-box; position: relative; isolation: isolate; width: 510px; display: grid; grid-template-columns: minmax(0, 1fr) 112.5px; grid-template-areas: "head num" "title num" "perf num" "desc num" "next num"; grid-template-rows: auto auto auto 1fr auto; background: #6e2427; border-radius: 4.5px; font-family: 'Microsoft YaHei', 'MiSans', sans-serif; line-height: 1.3;
-  -webkit-mask: radial-gradient(circle 10.5px at calc(100% - 112.5px) 0, #0000 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10.5px at calc(100% - 112.5px) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
-  mask: radial-gradient(circle 10.5px at calc(100% - 112.5px) 0, #0000 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10.5px at calc(100% - 112.5px) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat; }
+.pc { box-sizing: border-box; position: relative; isolation: isolate; width: 510px; display: grid; grid-template-columns: minmax(0, 1fr) 112.5px; grid-template-areas: "head num" "title num" "perf num" "desc num" "next num"; grid-template-rows: auto auto auto 1fr auto; font-family: 'Microsoft YaHei', 'MiSans', sans-serif; line-height: 1.3; }
+.pc-paper { grid-area: 1 / 1 / -1 / 2; z-index: -1; background: #6e2427; border-radius: 4.5px 0 0 4.5px; --pc-notch: 100%; }
+.pc-paper, .pc-num {
+  -webkit-mask: radial-gradient(circle 10.5px at var(--pc-notch) 0, #0000 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10.5px at var(--pc-notch) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat;
+  mask: radial-gradient(circle 10.5px at var(--pc-notch) 0, #0000 98%, #000) top / 100% 51% no-repeat, radial-gradient(circle 10.5px at var(--pc-notch) 100%, #0000 98%, #000) bottom / 100% 51% no-repeat; }
+.pc.is-torn:not(.is-tearing) .pc-paper { clip-path: ${paperClip(TEAR_EDGE)}; }
+.pc.is-torn:not(.is-tearing) .pc-num { opacity: 0; pointer-events: none; }
 .pc [hidden] { display: none !important; }
 .pc-head { grid-area: head; display: flex; align-items: center; gap: 9px; padding: 19.5px 24px 0; white-space: nowrap; }
 .pc-label { flex: none; padding: 2.25px 7.5px; border-radius: 2px; background: #f4ece0; color: #6e2427; font-size: 11.25px; font-weight: 700; letter-spacing: 2.25px; }
@@ -41,16 +96,22 @@ const STYLES = `
 .pc-next-label { flex: none; color: #e6c08a; font-weight: 700; }
 .pc-next-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc.no-next .is-last { margin-bottom: 19.5px; }
-.pc-num { grid-area: num; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: #f4ece0; border-left: 2px dashed #6e242766; color: #6e2427; font-family: 'MiSans', sans-serif; font-size: 48px; font-weight: 600; line-height: 1; }
+.pc-num { grid-area: num; display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: #f4ece0; border-left: 2px dashed #6e242766; border-radius: 0 4.5px 4.5px 0; color: #6e2427; font-family: 'MiSans', sans-serif; font-size: 48px; font-weight: 600; line-height: 1; --pc-notch: 0%; }
 .pc-num::before { content: "节目"; font-family: 'Microsoft YaHei', 'MiSans', sans-serif; font-size: 11.25px; font-weight: 700; letter-spacing: 4.5px; opacity: .7; }
 .pc-num.is-empty::before { content: none; }
 .pc-num::after { content: ""; width: 55.5px; height: 55.5px; margin-top: 10.5px; background: url('/assets/yanzhou-watermark.png') center/contain no-repeat; opacity: .55; filter: saturate(.6); }
 .pc-num.is-empty::after { width: 72px; height: 72px; margin: 0; opacity: .7; }
+.pc-flap { display: none; grid-area: num; position: relative; z-index: 1; pointer-events: none; filter: drop-shadow(2px 3px 4px #290e1044); }
+.pc.is-tearing .pc-flap { display: block; }
+.pc-flap .pc-num { position: absolute; inset: 0; border-left-color: transparent; background-image: linear-gradient(115deg, #a2633c20, #fff7 36%, #fff0 67%, #8e524619); }
 `;
 
+const STUB_HTML = '<div class="pc-num"><span class="pc-num-text"></span></div>';
 const TICKET_HTML = '<div class="pc-wrap"><div class="pc">'
+  + '<div class="pc-paper" aria-hidden="true"></div>'
   + '<div class="pc-head"><span class="pc-label"></span><span class="pc-type"></span></div>'
-  + '<div class="pc-num"><span class="pc-num-text"></span></div>'
+  + STUB_HTML
+  + '<div class="pc-flap" aria-hidden="true">' + STUB_HTML + '</div>'
   + '<div class="pc-title"></div>'
   + '<div class="pc-perf"><span class="pc-perf-label">表演者</span><span class="pc-perf-text"><span class="pc-perf-track"><span class="pc-perf-copy"></span><span class="pc-perf-copy" aria-hidden="true"></span></span></span></div>'
   + '<div class="pc-desc"><div class="pc-desc-view"><span class="pc-desc-track"></span></div><div class="pc-desc-bar"><span class="pc-desc-thumb"></span></div></div>'
@@ -119,8 +180,9 @@ export function createProgramRenderer(container) {
   const { element, body } = layer;
   const $ = (selector) => body.querySelector(selector);
   const ticket = {
-    card: $('.pc'), head: $('.pc-head'), label: $('.pc-label'), type: $('.pc-type'),
-    num: $('.pc-num'), numText: $('.pc-num-text'), title: $('.pc-title'),
+    card: $('.pc'), paper: $('.pc-paper'), head: $('.pc-head'), label: $('.pc-label'), type: $('.pc-type'),
+    num: $('.pc-num'), numText: $('.pc-num-text'), flap: $('.pc-flap'),
+    flapPaper: $('.pc-flap .pc-num'), flapText: $('.pc-flap .pc-num-text'), title: $('.pc-title'),
     perf: $('.pc-perf'), perfText: $('.pc-perf-text'), perfTrack: $('.pc-perf-track'),
     perfCopies: [...body.querySelectorAll('.pc-perf-copy')], desc: $('.pc-desc'),
     descView: $('.pc-desc-view'), descTrack: $('.pc-desc-track'), descBar: $('.pc-desc-bar'), descThumb: $('.pc-desc-thumb'),
@@ -130,6 +192,63 @@ export function createProgramRenderer(container) {
   let lastSignature = '';
   let module;
   let firstUpdate = true;
+  let ticketCycle;
+  let tornAt = null;
+  let tearFrame = 0;
+  let tearProgress = 0;
+  let disposed = false;
+
+  function finishTear() {
+    cancelAnimationFrame(tearFrame);
+    tearFrame = 0;
+    tearProgress = tornAt === null ? 0 : 1;
+    ticket.card.classList.remove('is-tearing');
+    ticket.paper.style.clipPath = '';
+    ticket.num.style.clipPath = '';
+    ticket.flapPaper.style.clipPath = '';
+    ticket.flap.removeAttribute('style');
+  }
+
+  function animateTear() {
+    const target = tornAt === null ? 0 : 1;
+    const start = tearProgress;
+    const duration = (target ? TEAR_TIME : RESTORE_TIME) * Math.abs(target - start);
+    if (!duration) {
+      finishTear();
+      return;
+    }
+    cancelAnimationFrame(tearFrame);
+    const height = Math.max(1, ticket.num.offsetHeight);
+    ticket.card.classList.add('is-tearing');
+    paintTear(ticket, start, height);
+    const started = performance.now();
+    const step = (now) => {
+      const elapsed = unit((now - started) / duration);
+      if (elapsed === 1) {
+        finishTear();
+        return;
+      }
+      // 恢复或再次撕开时，从当前画面沿同一条轨迹继续。
+      tearProgress = start + (target - start) * elapsed;
+      paintTear(ticket, tearProgress, height);
+      tearFrame = requestAnimationFrame(step);
+    };
+    tearFrame = requestAnimationFrame(step);
+  }
+
+  function updateTicket(state, { animate = false } = {}) {
+    const next = Number.isFinite(state?.tornAt) ? state.tornAt : null;
+    const sameCycle = ticketCycle === state?.cycle;
+    if (sameCycle && next === tornAt) return;
+    const shouldAnimate = animate && sameCycle && (tornAt === null) !== (next === null) && shown &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    ticketCycle = state?.cycle;
+    tornAt = next;
+    ticket.card.classList.toggle('is-torn', tornAt !== null);
+    ticket.num.setAttribute('aria-hidden', String(tornAt !== null));
+    if (shouldAnimate) animateTear();
+    else finishTear();
+  }
   // 滚动器：表演者（竖向无缝循环）和介绍（竖向上滚 + 右侧竖条）共用同一套生命周期：
   // 只在内容 / 显隐 / 字体变化时重新测量；key = 文本 + 测量结果，结果不变就不打断正在进行的动画。
   function createScroller({ host, measure, start }) {
@@ -221,22 +340,39 @@ export function createProgramRenderer(container) {
     if (wasHidden) element.hidden = true;
     place(true);
   }
-  document.fonts?.ready.then(() => { refit(); if (shown) scrollers.forEach((s) => s.sync()); });
+  document.fonts?.ready.then(() => { if (!disposed) { refit(); if (shown) scrollers.forEach((s) => s.sync()); } });
 
   return {
     element,
     body,
     getPositionLimits,
+    getTearClearance() {
+      const scale = module?.scale ?? 1;
+      return { right: TEAR_CLEARANCE.right * scale, bottom: TEAR_CLEARANCE.bottom * scale };
+    },
+    updateTicket,
+    dispose() {
+      disposed = true;
+      cancelAnimationFrame(tearFrame);
+      scrollers.forEach((scroller) => scroller.stop());
+      element.remove();
+    },
     update(program, { animate = true, constrain = true } = {}) {
       module = program;
       const content = programContent(program);
       const visible = program.visible && Boolean(content.title || content.next);
+      if (!visible && tearFrame) finishTear();
       layer.update({ ...program, visible });
       setText(ticket.label, content.label);
       setText(ticket.type, content.type);
       ticket.head.hidden = !content.label && !content.type;
-      ticket.numText.textContent = content.number;
-      ticket.num.classList.toggle('is-empty', !content.number);
+      if (ticket.numText.textContent !== content.number) {
+        ticket.numText.textContent = content.number;
+        ticket.flapText.textContent = content.number;
+      }
+      const noNumber = !content.number;
+      ticket.num.classList.toggle('is-empty', noNumber);
+      ticket.flapPaper.classList.toggle('is-empty', noNumber);
       setText(ticket.title, content.title);
       const perfKey = programScrollKey(program.selectedId, content.performer);
       const perfChanged = perfKey !== perfScroller.state.identity;
