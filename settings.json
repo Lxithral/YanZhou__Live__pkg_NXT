@@ -104,14 +104,14 @@
     "program": {
       "visible": false,
       "label": "正在演出",
-      "current": "For the First Time in Forever",
+      "current": "任我行",
       "nextLabel": "接下来",
-      "next": "野心家",
+      "next": "至少还有你",
       "queue": "",
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
-      "x": 1081,
-      "y": 724,
+      "x": 127,
+      "y": 698,
       "scale": 1.41,
       "opacity": 100,
       "animation": {
@@ -229,7 +229,7 @@
           "cover": ""
         }
       ],
-      "selectedId": "program-8"
+      "selectedId": "program-1"
     },
     "lyrics": {
       "visible": true,
@@ -253,10 +253,14 @@
       "manual": {
         "lines": null,
         "index": 0,
-        "current": "Rolling In The Deep (坠入深渊) (Live) - Adele (阿黛尔)",
+        "current": "There's a fire starting in my heart",
         "autoSeconds": 0
       },
       "armed": true,
+      "song": {
+        "id": "41d461c9cbb315e45740ee4ba613bf38",
+        "version": "0ea6b828a04a2a7abd3b72e9a352bd4b4fc687ed8280c34ab7eb58fdf4fc7613"
+      },
       "songOrder": [
         "4b1800ed81c9578d9081a1f95746155a",
         "9f50634dedf338673a73ccfc62cffc87",
@@ -270,10 +274,20 @@
         "6a8eb0e86fc9d7f5131082433155ca1a",
         "06046e742980304b5a9f8133049ee368",
         "bbd96a5efacf4665e92ea038114a622e"
-      ],
-      "song": {
-        "id": "41d461c9cbb315e45740ee4ba613bf38",
-        "version": "73c5ed4ecb53ba5f97a2d2b671e4d543eb690cf4e3002e96fb2555ffc6f833aa"
+      ]
+    },
+    "speech": {
+      "visible": false,
+      "textColor": "#F4F0E8",
+      "holdSeconds": 6,
+      "x": 240,
+      "y": 848,
+      "scale": 1,
+      "opacity": 100,
+      "animation": {
+        "enter": "fade",
+        "exit": "fade",
+        "duration": 200
       }
     }
   },
