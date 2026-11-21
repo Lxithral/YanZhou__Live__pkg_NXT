@@ -52,13 +52,13 @@
 
 ### 百炼实时识别配置
 
-主持人字幕和歌词纠偏轮流使用一路百炼实时识别，只需联网和北京区 API Key。可选择「千问 3 实时」或「千问音频 3.0 流式」。两个字幕模块共用一个 OBS 输出地址。不需要本地模型、WSL 或 Python。
+主持人字幕和歌词纠偏轮流使用一路百炼实时识别，只需联网和北京区 API Key。主持人字幕默认用「千问音频 3.0 流式」，歌词纠偏默认用「千问 3 实时」，两页可分别切换并保存模型。两个字幕模块共用一个 OBS 输出地址。不需要本地模型、WSL 或 Python。
 
 1. 在 [阿里云百炼](https://bailian.console.aliyun.com/) 的华北 2（北京）业务空间创建 API Key。
 2. 把项目根目录的 `.env.example` 复制为 `.env`，填好 `DASHSCOPE_API_KEY`。Windows 可在项目目录执行 `copy .env.example .env`（CMD），再用记事本打开 `.env`。如使用业务空间专属域名，填同一空间的 `DASHSCOPE_WORKSPACE_ID`（通常以 `llm-` 开头）。
 3. 双击 `start.cmd`，在主控台或歌词台点击「测试连接」。测试只验证会话配置，不传音频。通过后选音源；主持人字幕点「启动识别」，歌词纠偏点「启动采集」。
 
-在主控台选择「千问音频 3.0 流式」后，可在「临时热词」填写本次活动的校名、人名和节目名。一行一个，也可用逗号分隔，最多 50 项。首次使用会预填校名和总台名称。需要本届主持人姓名或节目名时，可点击「补入 2026 活动词表」。模型选择由同一浏览器的两页共用，词表只用于主持人字幕，下次启动时发送。要调整词表，请先停止采集，再编辑并启动。[流式模型热词参数](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-client-events)
+在主控台选择「千问音频 3.0 流式」后，可在「临时热词」填写本次活动的校名、人名和节目名。一行一个，也可用逗号分隔，最多 50 项。首次使用会预填校名和总台名称。需要本届主持人姓名或节目名时，可点击「补入 2026 活动词表」。词表只用于主持人字幕，下次启动时发送。要调整词表，请先停止采集，再编辑并启动。[流式模型热词参数](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-client-events)
 
 也可在启动前设置同名环境变量，优先于文件配置。密钥仅由 Node 读取，不要写进设置、网页或部署包。启动识别后，音频会传给百炼，按送入的音频时长计费；项目不会把识别音频或临时转写存到磁盘。无密钥或云端不可用时，仍可正常使用节目单和歌词手动／时间轴。旧项目目录里的 `.asr-models/`、`.venv-qwen-asr/` 可移除，原设置和曲库可直接沿用。[实时接口](https://help.aliyun.com/zh/model-studio/qwen-asr-realtime-interaction-process) · [百炼定价](https://help.aliyun.com/zh/model-studio/model-pricing)
 

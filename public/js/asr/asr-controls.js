@@ -1,4 +1,4 @@
-import { CONTEST_HOTWORDS_2026, MAX_HOTWORD_TEXT, MAX_HOTWORDS, SCHOOL_HOTWORDS, STREAMING_MODEL,
+import { CONTEST_HOTWORDS_2026, MAX_HOTWORD_TEXT, MAX_HOTWORDS, REALTIME_MODEL, SCHOOL_HOTWORDS, STREAMING_MODEL,
   splitHotwords, validateAsrOptions } from './asr-settings.js';
 
 const CABLE = /cable output|vb-audio|vb-cable/i;
@@ -15,6 +15,8 @@ function explain(error) {
 
 export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyrics', command = () => {} }) {
   const $ = (id) => document.getElementById(prefix + id);
+  const optionsKey = `${ASR_OPTIONS_KEY}-${owner}`;
+  const defaultModel = owner === 'speech' ? STREAMING_MODEL : REALTIME_MODEL;
   const media = navigator.mediaDevices;
   const source = $('audio-source');
   const device = $('audio-device');
@@ -40,26 +42,26 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     return selected;
   }
 
-  function readSavedOptions() {
+  function readSavedOptions(key) {
     try {
-      return JSON.parse(localStorage.getItem(ASR_OPTIONS_KEY) ?? 'null');
+      return JSON.parse(localStorage.getItem(key) ?? 'null');
     } catch { return null; }
   }
   function restoreOptions() {
-    const saved = readSavedOptions();
-    if ([...model.options].some((option) => option.value === saved?.model)) model.value = saved.model;
-    if (hotwords) hotwords.value = typeof saved?.hotwords === 'string'
-      ? saved.hotwords.slice(0, MAX_HOTWORD_TEXT)
-      : SCHOOL_HOTWORDS.join('\n');
+    const saved = readSavedOptions(optionsKey);
+    const valid = [...model.options].some((option) => option.value === saved?.model);
+    model.value = valid ? saved.model : defaultModel;
+    if (hotwords) {
+      const savedHotwords = saved?.hotwords ?? readSavedOptions(ASR_OPTIONS_KEY)?.hotwords;
+      hotwords.value = typeof savedHotwords === 'string'
+        ? savedHotwords.slice(0, MAX_HOTWORD_TEXT)
+        : SCHOOL_HOTWORDS.join('\n');
+    }
   }
   function saveOptions() {
-    const savedHotwords = hotwords?.value ?? readSavedOptions()?.hotwords;
     try {
-      localStorage.setItem(ASR_OPTIONS_KEY, JSON.stringify({
-        model: model.value, ...(typeof savedHotwords === 'string' && { hotwords: savedHotwords }),
-      }));
-    }
-    catch {}
+      localStorage.setItem(optionsKey, JSON.stringify({ model: model.value, hotwords: hotwords?.value }));
+    } catch {}
   }
 
   async function refreshDevices() {
@@ -276,7 +278,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     };
   }
   window.addEventListener('storage', ({ key }) => {
-    if (key !== ASR_OPTIONS_KEY) return;
+    if (key !== optionsKey) return;
     restoreOptions();
     if (hotwordHint) hotwordHint.textContent = defaultHotwordHint;
     render();
