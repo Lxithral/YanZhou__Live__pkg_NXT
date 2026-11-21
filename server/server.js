@@ -575,6 +575,7 @@ export async function createPackagingServer({
   });
   const asrState = () => ({
     type: 'lyrics:asr', ...recognition, configured: capture.configured, testing: capture.testing,
+    model: capture.model,
     serviceMessage: capture.message, correction: lyrics.correction(),
   });
 
@@ -692,7 +693,23 @@ export async function createPackagingServer({
     client.on('pong', () => { client.isAlive = true; });
     client.on('error', () => {});
     if (url.pathname === '/asr') {
-      capture.attach(client, url.searchParams.get('owner') || 'lyrics');
+      const owner = url.searchParams.get('owner') || 'lyrics';
+      if (url.searchParams.get('options') !== '1') {
+        capture.attach(client, owner);
+        return;
+      }
+      const reject = () => {
+        send(client, { type: 'error', message: '识别设置未收到或格式无效，请重试。' });
+        client.close(1008);
+      };
+      const timer = setTimeout(reject, 5000);
+      client.once('close', () => clearTimeout(timer));
+      client.once('message', (data, binary) => {
+        clearTimeout(timer);
+        if (closing || binary || data.length > 16 * 1024) return reject();
+        try { capture.attach(client, owner, JSON.parse(data.toString())); }
+        catch { reject(); }
+      });
       return;
     }
     clients.add(client);
@@ -724,8 +741,9 @@ export async function createPackagingServer({
           return;
         }
         if (['asr:test', 'asr:stop', 'speech:clear'].includes(message.type)) {
-          if (Object.keys(message).some((key) => !['type', 'id'].includes(key))) throw new Error('识别控制消息包含未知字段。');
-          if (message.type === 'asr:test') capture.test();
+          const allowed = message.type === 'asr:test' ? ['type', 'id', 'options'] : ['type', 'id'];
+          if (Object.keys(message).some((key) => !allowed.includes(key))) throw new Error('识别控制消息包含未知字段。');
+          if (message.type === 'asr:test') capture.test(message.options);
           else if (message.type === 'asr:stop') capture.stop();
           else speech.clear();
           send(client, { ...asrState(), id });

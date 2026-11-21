@@ -167,7 +167,7 @@ let playlistRequest = 0;
 let speechState;
 let sharedAsr;
 const speechAsr = bindAsrControls({ prefix: 'speech-', owner: 'speech', timecode,
-  command: (type) => { if (ready) socket.send(JSON.stringify({ type })); },
+  command: (type, options) => { if (ready) socket.send(JSON.stringify({ type, options })); },
 });
 $('speech-clear').onclick = () => { if (ready) socket.send(JSON.stringify({ type: 'speech:clear' })); };
 

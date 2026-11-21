@@ -8,6 +8,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createPackagingServer } from '../server/server.js';
 import { createSpeechSession } from '../server/speech-session.js';
 import { readDashScopeConfig } from '../server/asr-capture.js';
+import { CONTEST_HOTWORDS_2025, STREAMING_MODEL } from '../public/asr-settings.js';
 const EVENTS = 'conversation.item.input_audio_transcription.';
 const PCM = Buffer.alloc(1280);
 
@@ -35,7 +36,7 @@ function client(url, options) {
   };
 }
 
-async function fixture(t, { statusCode = 0, autoFinish = true } = {}) {
+async function fixture(t, { statusCode = 0, autoFinish = true, streaming = false } = {}) {
   const asr = { apiKey: 'test-only-key-do-not-use', workspaceId: 'llm-example', connectTimeoutMs: 600, finishTimeoutMs: 150 };
   const state = { opens: 0, frames: 0, response: null, upstream: null, statusCode, finishes: 0 };
   const engine = http.createServer();
@@ -52,7 +53,32 @@ async function fixture(t, { statusCode = 0, autoFinish = true } = {}) {
     state.opens += 1;
     state.upstream = socket;
     let frames = 0;
+    let taskId;
     socket.on('message', (data, binary) => {
+      if (streaming) {
+        const reply = (event, payload = {}) => socket.send(JSON.stringify({ header: { event, task_id: taskId }, payload }));
+        if (binary) {
+          assert.deepEqual(data, PCM);
+          state.frames += 1;
+          if (state.response) reply('result-generated', { output: { sentence: state.response } });
+        } else {
+          const message = JSON.parse(data);
+          if (message.header.action === 'run-task') {
+            taskId = message.header.task_id;
+            assert.equal(message.payload.model, STREAMING_MODEL);
+            assert.equal(message.payload.parameters.format, 'pcm');
+            assert.equal(message.payload.parameters.sample_rate, 16000);
+            state.vocabulary = message.payload.parameters.vocabulary;
+            reply('task-started');
+          } else {
+            assert.equal(message.header.action, 'finish-task');
+            assert.equal(message.header.task_id, taskId);
+            state.finishes += 1;
+            reply('task-finished');
+          }
+        }
+        return;
+      }
       assert.equal(binary, false);
       const message = JSON.parse(data);
       assert.equal(typeof message.event_id, 'string');
@@ -81,7 +107,8 @@ async function fixture(t, { statusCode = 0, autoFinish = true } = {}) {
   });
   await new Promise((resolve) => engine.listen(0, '127.0.0.1', resolve));
   asr.connect = (url, options) => {
-    assert.equal(url.href, 'wss://llm-example.cn-beijing.maas.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime');
+    assert.equal(url.href, 'wss://llm-example.cn-beijing.maas.aliyuncs.com/api-ws/v1/' +
+      (streaming ? 'inference' : 'realtime?model=qwen3-asr-flash-realtime'));
     assert.equal(options.followRedirects, false);
     return new WebSocket(`ws://127.0.0.1:${engine.address().port}`, options);
   };
@@ -91,10 +118,12 @@ async function fixture(t, { statusCode = 0, autoFinish = true } = {}) {
   const address = await app.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const opened = [];
-  async function connect(audio = false) {
-    const connection = client(base.replace('http', 'ws') + (audio ? '/asr?owner=speech' : '/ws'), audio ? { origin: base } : undefined);
+  async function connect(audio = false, options) {
+    const route = audio ? '/asr?owner=speech' + (options ? '&options=1' : '') : '/ws';
+    const connection = client(base.replace('http', 'ws') + route, audio ? { origin: base } : undefined);
     opened.push(connection);
     await connection.ready;
+    if (options) connection.send(options);
     return connection;
   }
   t.after(async () => {
@@ -106,6 +135,36 @@ async function fixture(t, { statusCode = 0, autoFinish = true } = {}) {
   });
   return { state, app, connect, settingsPath, asr };
 }
+
+test('streaming probe and capture send temporary vocabulary and binary audio', async (t) => {
+  const setup = await fixture(t, { streaming: true });
+  const control = await setup.connect();
+  const options = {
+    model: STREAMING_MODEL,
+    hotwords: [...CONTEST_HOTWORDS_2025, '烟洲中学，彩排嘉宾'].join('\n'),
+  };
+  const expected = Object.fromEntries([...CONTEST_HOTWORDS_2025, '彩排嘉宾'].map((word) => [word, 5]));
+  const rejected = await setup.connect(true, { hotwords: '烟洲中学' });
+  await rejected.wait((event) => event.type === 'error' && /切换/.test(event.message));
+  assert.equal(setup.state.opens, 0);
+  control.send({ type: 'asr:test', options });
+  await control.wait((event) => !event.testing && /连接正常/.test(event.serviceMessage ?? ''));
+  assert.deepEqual(setup.state.vocabulary, expected);
+  assert.equal(setup.state.frames, 0);
+  const audio = await setup.connect(true, options);
+  await audio.wait((event) => event.type === 'ready');
+  setup.state.response = { sentence_id: 1, begin_time: 0, text: '烟洲', sentence_end: false };
+  audio.socket.send(PCM);
+  assert.deepEqual(setup.state.vocabulary, expected);
+  await control.wait((event) => event.model === STREAMING_MODEL && event.partial === '烟洲');
+  setup.state.response = { ...setup.state.response, end_time: 80, text: '烟洲中学', sentence_end: true };
+  audio.socket.send(PCM);
+  await control.wait((event) => event.finals?.at(-1)?.text === '烟洲中学');
+  control.send({ type: 'asr:stop' });
+  await control.wait((event) => event.phase === 'idle' && event.model === null && event.finals?.at(-1)?.text === '烟洲中学');
+  assert.equal(setup.state.frames, 2);
+  assert.equal(setup.state.finishes, 1);
+});
 
 test('the explicit connection test sends no PCM and reports auth failure and recovery to both pages', async (t) => {
   const setup = await fixture(t, { statusCode: 401 });

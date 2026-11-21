@@ -287,7 +287,15 @@
             <h3><span>01</span>主持人语音</h3>
             <p class="speech-status" id="speech-asr-status" role="status">等待连接本机服务…</p>
             <div class="field-grid">
-              <div class="field field-wide asr-engine-row"><span class="field-label">千问实时识别 · 云端</span><button class="button" id="speech-asr-test" type="button" disabled>测试连接</button></div>
+              <div class="field field-wide asr-engine-row"><label class="field-label" for="speech-asr-model">识别模型</label><select class="select-input" id="speech-asr-model"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式 · 支持热词</option></select><button class="button" id="speech-asr-test" type="button" disabled>测试连接</button></div>
+              <div class="field field-wide asr-hotwords" id="speech-asr-hotword-field" hidden>
+                <div class="asr-hotword-heading">
+                  <label class="field-label" for="speech-asr-hotwords">临时热词</label>
+                  <button class="button" id="speech-asr-hotword-preset" type="button">补入 2025 赛稿词表</button>
+                </div>
+                <textarea class="text-input" id="speech-asr-hotwords" rows="3" maxlength="3000" aria-describedby="speech-asr-hotword-hint" placeholder="烟洲中学&#10;烟声润景"></textarea>
+                <p class="muted" id="speech-asr-hotword-hint" aria-live="polite">一行一个，最多 50 项。可按本场活动删改，下次启动识别生效。</p>
+              </div>
               <div class="field field-wide"><label class="field-label" for="speech-audio-source">音源</label><select class="select-input" id="speech-audio-source"><button type="button"><selectedcontent></selectedcontent></button><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select></div>
               <div class="field field-wide"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device"><button type="button"><selectedcontent></selectedcontent></button><option value="">系统默认麦克风</option></select></div>
               <div class="field field-wide speech-actions"><button class="button primary" id="speech-asr-start" type="button" disabled>启动识别</button><button class="button" id="speech-asr-stop" type="button" disabled>停止采集</button><button class="button" id="speech-clear" type="button" disabled>清屏</button></div>
