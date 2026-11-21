@@ -13,6 +13,15 @@ const BILINGUAL = [
   '[00:08.00]终于我看清了你',
 ].join('\n');
 
+test('line and word timestamps accept a single fractional digit as tenths of a second', () => {
+  const { doc, errors } = buildLyricDocument(parseLrc(
+    '[03:50.0]当我背对星空\n[03:51.5]<03:51.5>你<03:51.75>好',
+  ));
+  assert.deepEqual(errors, []);
+  assert.deepEqual(doc.map(({ start }) => start), [230000, 231500]);
+  assert.deepEqual(doc[1].tokens.map(({ start }) => start), [231500, 231750]);
+});
+
 test('the same timestamp pairs an English line with its Chinese translation', () => {
   const entries = parseLrc(BILINGUAL);
   const translation = entries.filter((entry) => entry.translation);

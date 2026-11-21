@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { indexLyrics, matchLyric } from '../server/asr-match.js';
-import { createLyricsSession, DEFAULT_LYRICS } from '../server/lyrics-session.js';
+import { createLyricsSession, DEFAULT_LYRICS, validateLyricSettings } from '../server/lyrics-session.js';
 import { createLyricsClock } from '../public/js/lyrics/lyrics-clock.js';
 
 const line = (start, text) => ({
@@ -25,10 +25,11 @@ test('lyric matching suppresses ambiguous repeated choruses and very short/noisy
   assert.equal(matchLyric(index, '哈哈哈哈哈', 2100), null);
 });
 
-test('a restored asr push is never re-armed because the capture cannot survive a restart', () => {
-  const restored = createLyricsSession({ ...DEFAULT_LYRICS, source: 'asr', armed: true }, () => {});
+test('legacy ASR output settings restore as a disarmed timeline', () => {
+  const settings = validateLyricSettings({ ...DEFAULT_LYRICS, source: 'asr', armed: true });
+  const restored = createLyricsSession(settings, () => {});
   assert.equal(restored.snapshot().armed, false);
-  assert.equal(restored.snapshot().source, 'asr');
+  assert.equal(restored.snapshot().source, 'timeline');
   const timeline = createLyricsSession({ ...DEFAULT_LYRICS, source: 'timeline', armed: true }, () => {});
   assert.equal(timeline.snapshot().armed, true);
 });

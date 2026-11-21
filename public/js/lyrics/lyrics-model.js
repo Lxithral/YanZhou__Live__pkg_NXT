@@ -3,7 +3,7 @@ export const MAX_TIME = 24 * 60 * 60 * 1000;
 export const MAX_LINE = 500;
 export const RATES = Array.from({ length: 11 }, (_, index) => (90 + index * 2) / 100);
 
-const STAMP = '(\\d{1,4}):([0-5]\\d)(?:\\.(\\d{2,3}))?';
+const STAMP = '(\\d{1,4}):([0-5]\\d)(?:\\.(\\d{1,3}))?';
 const LINE_STAMP = new RegExp('^\\[' + STAMP + '\\]');
 const WORD_STAMP = new RegExp('<' + STAMP + '>', 'g');
 const METADATA = /^\[(?:ar|al|ti|by|re|ve|length|offset):[^\]]*\]$/i;

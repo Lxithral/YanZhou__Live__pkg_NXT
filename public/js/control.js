@@ -704,9 +704,6 @@ function connect() {
     } else if (message.type === 'lyrics:asr') {
       sharedAsr = message;
       speechAsr.update(message, ready);
-      lyricsClock.applyAsr(message);
-      previewRenderers.lyrics.updateLyrics(lyricsClock);
-      focusRenderer?.updateLyrics?.(lyricsClock);
     } else if (message.type === 'management:result') {
       stageControls.result(message);
     } else if (message.type === 'saved') {

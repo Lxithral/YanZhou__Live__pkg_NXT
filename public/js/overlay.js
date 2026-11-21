@@ -52,10 +52,6 @@ function connect() {
       lyricsClock.apply(message);
       RENDERERS.lyrics.updateLyrics(lyricsClock);
       avoidance.schedule();
-    } else if (message.type === 'lyrics:asr') {
-      lyricsClock.applyAsr(message);
-      RENDERERS.lyrics.updateLyrics(lyricsClock);
-      avoidance.schedule();
     }
   });
   socket.addEventListener('close', () => {

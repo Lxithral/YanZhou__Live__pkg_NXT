@@ -45,6 +45,34 @@ let manualFollowsTimeline = false;
 let timelineFollowTimer;
 let seekPreview = null;
 let seekRequest;
+let correctionMotion;
+let correctionFeedback;
+let correctionRow;
+
+function showCorrectionFeedback(now) {
+  const badge = $('timeline-correction');
+  if (correctionFeedback && now >= correctionFeedback.until) correctionFeedback = undefined;
+  if (correctionFeedback && !correctionFeedback.settled) {
+    correctionFeedback.row = timelineList.children[timelineRow]?.firstElementChild;
+    correctionFeedback.settled = !correctionMotion;
+  }
+  const row = correctionFeedback?.row;
+  if (row !== correctionRow) {
+    correctionRow?.classList.remove('is-corrected');
+    row?.classList.add('is-corrected');
+    correctionRow = row;
+  }
+  const label = correctionFeedback?.label ?? '';
+  if (badge.textContent !== label) badge.textContent = label;
+}
+
+function animatedProgress(position, now) {
+  if (!correctionMotion) return position;
+  const elapsed = Math.min(1, (now - correctionMotion.startedAt) / correctionMotion.duration);
+  const displayed = position + correctionMotion.offset * (1 - elapsed) ** 3;
+  if (elapsed === 1) correctionMotion = undefined;
+  return displayed;
+}
 
 for (const rate of RATES) $('rate').add(new Option(`${rate.toFixed(2)}×`, rate));
 
@@ -133,6 +161,14 @@ function markRow(id, oldIndex, newIndex, follow = false) {
 function centerRow(list, index) {
   const target = list.children[index];
   if (!target) return;
+  const referencePane = list.closest('.reference-scroll');
+  if (referencePane) {
+    if (referencePane.querySelector('details[open]')) return;
+    const offset = target.getBoundingClientRect().top - referencePane.getBoundingClientRect().top;
+    const top = referencePane.scrollTop + offset - (referencePane.clientHeight - target.offsetHeight) / 2;
+    referencePane.scrollTo({ top, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
+    return;
+  }
   const top = target.offsetTop - (list.clientHeight - target.offsetHeight) / 2;
   list.scrollTo({ top, behavior: reducedMotion.matches ? 'instant' : 'smooth' });
 }
@@ -189,7 +225,8 @@ function drawClock() {
   if ($('position').value !== code) $('position').value = code;
   const playing = state.transport.playing && position < state.transport.end;
   const progress = $('playback-progress');
-  const displayPosition = seekPreview ?? position;
+  const displayPosition = seekPreview ?? Math.min(state.transport.end, Math.max(0, animatedProgress(position, performance.now())));
+  progress.classList.toggle('is-correcting', Boolean(correctionMotion) && seekPreview === null);
   const percent = state.transport.end ? Math.min(100, Math.max(0, displayPosition / state.transport.end * 100)) : 0;
   if (seekPreview === null && Number(progress.value) !== percent) progress.value = percent;
   progress.style.setProperty('--playback-fill', `${percent}%`);
@@ -201,6 +238,7 @@ function drawClock() {
   if ($('playback-state').textContent !== playbackState) $('playback-state').textContent = playbackState;
   updateNextColumn(position);
   drawTimeline(position, state, playing);
+  showCorrectionFeedback(performance.now());
   for (const button of playButtons) {
     const label = playing ? '暂停' : '播放';
     if (button.textContent !== label) button.textContent = label;
@@ -211,7 +249,7 @@ function drawClock() {
     $('countdown').firstElementChild.textContent = Math.ceil(remaining / 1000);
     $('countdown').style.setProperty('--remaining', `${remaining / (state.manual.autoSeconds * 10)}%`);
   }
-  if (playing || remaining > 0) renderFrame = requestAnimationFrame(drawClock);
+  if (playing || remaining > 0 || correctionMotion || correctionFeedback) renderFrame = requestAnimationFrame(drawClock);
 }
 
 function cancelSeekPreview() {
@@ -226,11 +264,8 @@ function updateOutput() {
   const outputSource = $('output-source');
   outputSource.value = selected;
   outputSource.options[0].textContent = selected ? '停止推送' : '待推送';
-  const asrLive = ready && clock.asr?.phase === 'listening';
-  $('asr-push').disabled = !asrLive;
-  $('asr-option').disabled = !asrLive;
-  for (const source of ['timeline', 'manual', 'asr']) {
-    $(`${source}-air`).hidden = selected !== source || !lyricsVisible || !ready || (source === 'asr' && !asrLive);
+  for (const source of ['timeline', 'manual']) {
+    $(`${source}-air`).hidden = selected !== source || !lyricsVisible || !ready;
   }
   $('output-source-group').classList.toggle('is-live', Boolean(selected) && lyricsVisible && ready);
 }
@@ -300,7 +335,26 @@ function connect() {
         $('connection').textContent = '服务已连接';
         $('connection').className = 'connection-status connected';
       }
+      const corrected = clock.state && !state.doc && seekPreview === null && Number.isFinite(state.correctionDelta);
+      const canAnimate = corrected && !reducedMotion.matches;
+      const now = performance.now();
+      const previous = canAnimate ? animatedProgress(clock.position(now), now) : null;
       clock.apply(state);
+      if (canAnimate) {
+        const adjustment = state.transport.adjustment;
+        correctionMotion = {
+          startedAt: now,
+          duration: adjustment?.duration ?? 420,
+          offset: adjustment ? 0 : previous - clock.position(now),
+        };
+      } else if (state.doc || state.id || !state.transport.playing) correctionMotion = undefined;
+      if (corrected) {
+        const delta = state.correctionDelta;
+        correctionFeedback = {
+          label: `纠偏${delta < 0 ? '回退' : '前移'} ${(Math.abs(delta) / 1000).toFixed(1)} 秒`,
+          until: now + 1600,
+        };
+      } else if (state.doc || state.id || !state.transport.playing) correctionFeedback = undefined;
       preview.updateLyrics(clock);
       if (pending.has(state.id)) {
         pending.get(state.id)();
@@ -313,10 +367,7 @@ function connect() {
       renderSongs();
       renderSkipNotice(state.skipped);
     } else if (state.type === 'lyrics:asr') {
-      clock.applyAsr(state);
       asr.update(state, ready);
-      preview.updateLyrics(clock);
-      updateOutput();
     } else if (state.type === 'saved') {
       if (saveError && $('message').textContent === saveError) message();
       saveError = '';
@@ -338,6 +389,8 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    correctionMotion = undefined;
+    correctionFeedback = undefined;
     cancelSeekPreview();
     asr.update(undefined, false);
     if (pending.size) message('部分操作未收到确认。重连后请核对当前状态。');
@@ -530,8 +583,11 @@ for (const button of playButtons) {
 $('back').onclick = () => transport('nudge', -500);
 $('forward').onclick = () => transport('nudge', 500);
 $('rate').onchange = ({ target }) => transport('rate', Number(target.value));
+$('clear-correction-log').onclick = () => send('lyrics:clear-correction-log', {});
 $('playback-progress').oninput = ({ target }) => {
   if (!ready || !clock.doc.length) return;
+  correctionMotion = undefined;
+  correctionFeedback = undefined;
   const end = clock.state.transport.end;
   seekPreview = Math.min(end, Math.max(0, Math.round(Number(target.value) / 100 * end)));
   seekRequest = undefined;

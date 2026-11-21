@@ -95,10 +95,6 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
       text = state.manual.current;
       items = clock.lines;
       index = state.manual.index;
-    } else if (selected === 'asr' && clock.asr?.phase === 'listening') {
-      text = clock.asrLines.at(-1) ?? '';
-      items = clock.asrLines;
-      index = items.length - 1;
     }
 
     const changed = lastText !== text || lastTranslation !== sub || lastSource !== selected ||

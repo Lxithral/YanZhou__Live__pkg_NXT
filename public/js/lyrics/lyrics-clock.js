@@ -9,23 +9,11 @@ export function createLyricsClock() {
   let doc = [];
   let manualSource = [];
   let documentLines = [];
-  let asr;
-  let asrLines = [];
   return {
     get state() { return state; },
     get doc() { return doc; },
     get lines() { return manualSource ?? documentLines; },
     get usesDocument() { return manualSource === null; },
-    get asr() { return asr; },
-    get asrLines() { return asrLines; },
-    applyAsr(message) {
-      const latest = message.finals.at(-1);
-      const previous = asr?.finals.at(-1);
-      if (latest?.at !== previous?.at || message.finals.length !== asrLines.length) {
-        asrLines = message.finals.map(({ text }) => text);
-      }
-      asr = message;
-    },
     apply(message) {
       const transit = Math.max(0, Math.min(2000, Date.now() - message.serverTime));
       anchor = performance.now() - transit;

@@ -2,8 +2,8 @@ import { performance } from 'node:perf_hooks';
 import { documentEnd, isLine, jsonBytes, RATES, validateDocument } from '../public/js/lyrics/lyrics-model.js';
 import { indexLyrics, matchLyric } from './asr-match.js';
 
-export const LYRIC_COMMANDS = ['lyrics:load', 'lyrics:transport', 'lyrics:manual', 'lyrics:onair', 'lyrics:correct'];
-const SOURCES = ['timeline', 'manual', 'asr'];
+export const LYRIC_COMMANDS = ['lyrics:load', 'lyrics:transport', 'lyrics:manual', 'lyrics:onair', 'lyrics:correct', 'lyrics:clear-correction-log'];
+const SOURCES = ['timeline', 'manual'];
 const AUTO_SECONDS = [0, 5, 10];
 const MANUAL_BYTES = 15 * 1024;
 
@@ -32,7 +32,10 @@ function validateIndex(index, lines) {
 }
 
 export function validateLyricSettings({ source, doc, transport, manual, armed }) {
-  if (!SOURCES.includes(source)) throw new Error('歌词输出源无效。');
+  // Older settings may have selected direct ASR output. Preserve their
+  // playhead and lyrics but wait for the operator to push the timeline.
+  const legacyAsr = source === 'asr';
+  if (!legacyAsr && !SOURCES.includes(source)) throw new Error('歌词输出源无效。');
   if (armed !== undefined && typeof armed !== 'boolean') throw new Error('歌词推送状态无效。');
   validateDocument(doc, { allowEmpty: true });
   requireFields(transport, ['position', 'rate']);
@@ -44,13 +47,11 @@ export function validateLyricSettings({ source, doc, transport, manual, armed })
   if (manual.lines !== null) validateLines(manual.lines);
   if (manual.index !== null) validateIndex(manual.index, manual.lines ?? doc);
   if (!isLine(manual.current) || !AUTO_SECONDS.includes(manual.autoSeconds)) throw new Error('手动字幕设置无效。');
-  return { source, doc, transport, manual, armed: armed === true };
+  return { source: legacyAsr ? 'timeline' : source, doc, transport, manual, armed: !legacyAsr && armed === true };
 }
 
 export function createLyricsSession(initial, onChange) {
   let { source, doc, transport, manual, armed = false } = initial;
-  // 语音识别依赖浏览器采集，重启后续不上，因此只恢复时间轴与手动的推送。
-  if (source === 'asr') armed = false;
   let documentLines = doc.map((line) => line.text);
   if (documentLines.length && manual.lines?.length === 0) {
     manual = { ...manual, lines: null };
@@ -207,12 +208,11 @@ export function createLyricsSession(initial, onChange) {
           if (typeof payload.enabled !== 'boolean') throw new Error('纠偏开关无效。');
           correction = { ...correction, enabled: payload.enabled, offset: null, confidence: null };
           return {};
+        case 'lyrics:clear-correction-log':
+          requireFields(payload, []);
+          correction = { ...correction, history: [] };
+          return {};
       }
-    },
-    disarmAsr() {
-      if (!armed || source !== 'asr') return false;
-      armed = false;
-      return true;
     },
     correction() { return correction; },
     correct(event, wall = Date.now(), now = performance.now()) {

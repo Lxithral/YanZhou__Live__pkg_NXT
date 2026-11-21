@@ -545,7 +545,7 @@ export async function createPackagingServer({
     broadcast(asrState());
   }
   const speech = createSpeechSession({ holdSeconds: () => settings.modules.speech.holdSeconds, onChange: broadcast });
-  let recognition = { phase: 'idle', owner: null, message: '', partial: '', finals: [] };
+  let recognition = { phase: 'idle', owner: null, resultOwner: null, message: '', partial: '', finals: [] };
   const capture = createAsrCapture({
     ...asr,
     onService() {
@@ -555,21 +555,25 @@ export async function createPackagingServer({
     onStatus(status) {
       recognition = {
         ...recognition, ...status, partial: '',
-        ...(status.phase === 'loading' && { finals: [] }),
+        ...(status.phase === 'loading' && { resultOwner: status.owner, finals: [] }),
       };
       if (status.phase !== 'listening') speech.clear();
-      if (status.phase !== 'listening' && lyrics.disarmAsr()) publishLyrics();
       broadcast(asrState());
     },
     onResult(event) {
-      if (recognition.phase === 'listening') speech.accept(event);
+      const listening = recognition.phase === 'listening';
+      if (listening && recognition.owner === 'speech') speech.accept(event);
       if (event.final) {
         recognition = {
           ...recognition, partial: '',
           finals: [...recognition.finals, { text: event.text, at: Date.now() }].slice(-20),
         };
       } else recognition = { ...recognition, partial: event.text };
-      if (recognition.phase === 'listening' && event.final && Number.isFinite(event.at) && lyrics.correct(event)) publishLyrics();
+      if (listening && recognition.owner === 'lyrics' && event.final &&
+          Number.isFinite(event.at) && lyrics.correct(event)) {
+        const { from, to } = lyrics.correction().history[0];
+        publishLyrics(undefined, undefined, to - from);
+      }
       broadcast(asrState());
     },
   });
@@ -589,9 +593,9 @@ export async function createPackagingServer({
     revision += 1;
   }
 
-  function publishLyrics(include, id) {
+  function publishLyrics(include, id, correctionDelta) {
     checkpointLyrics();
-    broadcast(lyricState(include, id));
+    broadcast({ ...lyricState(include, id), correctionDelta });
     scheduleSave();
   }
 
@@ -786,13 +790,13 @@ export async function createPackagingServer({
           }
           const task = songQueue.then(async () => {
             if (closing) throw new Error('服务正在关闭。');
-            if (message.type === 'lyrics:onair' && message.payload?.source === 'asr' && recognition.phase !== 'listening') {
-              throw new Error('请先启动语音识别。');
-            }
             if (message.type === 'lyrics:load' || message.type === 'lyrics:select-song') {
               await changeSong(message.type, message.payload, id);
             } else if (message.type === 'lyrics:move-song') {
               moveSong(message.payload, id);
+            } else if (message.type === 'lyrics:clear-correction-log') {
+              lyrics.apply(message.type, message.payload);
+              broadcast(asrState());
             } else {
               publishLyrics(lyrics.apply(message.type, message.payload), id);
               if (message.type === 'lyrics:correct') broadcast(asrState());
