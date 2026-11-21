@@ -8,7 +8,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createPackagingServer } from '../server/server.js';
 import { createSpeechSession } from '../server/speech-session.js';
 import { readDashScopeConfig } from '../server/asr-capture.js';
-import { CONTEST_HOTWORDS_2025, STREAMING_MODEL } from '../public/asr-settings.js';
+import { CONTEST_HOTWORDS_2026, STREAMING_MODEL } from '../public/asr-settings.js';
 const EVENTS = 'conversation.item.input_audio_transcription.';
 const PCM = Buffer.alloc(1280);
 
@@ -141,9 +141,9 @@ test('streaming probe and capture send temporary vocabulary and binary audio', a
   const control = await setup.connect();
   const options = {
     model: STREAMING_MODEL,
-    hotwords: [...CONTEST_HOTWORDS_2025, '烟洲中学，彩排嘉宾'].join('\n'),
+    hotwords: [...CONTEST_HOTWORDS_2026, '烟洲中学，彩排嘉宾'].join('\n'),
   };
-  const expected = Object.fromEntries([...CONTEST_HOTWORDS_2025, '彩排嘉宾'].map((word) => [word, 5]));
+  const expected = Object.fromEntries([...CONTEST_HOTWORDS_2026, '彩排嘉宾'].map((word) => [word, 5]));
   const rejected = await setup.connect(true, { hotwords: '烟洲中学' });
   await rejected.wait((event) => event.type === 'error' && /切换/.test(event.message));
   assert.equal(setup.state.opens, 0);

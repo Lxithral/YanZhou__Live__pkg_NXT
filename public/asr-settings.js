@@ -8,12 +8,21 @@ export const SCHOOL_HOTWORDS = Object.freeze([
   '烟洲中学广播电视总台', '中山市烟洲中学广播电视总台',
 ]);
 
-// 2025 第三届歌手大赛主持稿的赛事名称、团体和易错节目名。
-export const CONTEST_HOTWORDS_2025 = Object.freeze([
+// 本届节目单的节目名称，按报幕顺序排列。
+export const CONTEST_HOTWORDS_2026 = Object.freeze([
   ...SCHOOL_HOTWORDS,
-  '烟声润景', '第三届歌手大赛', '第三届校园歌手大赛', 'kpy舞社',
-  'Rhythm Forge', '下一个天亮', 'try everything', '裹着心的光', '给电影人的情书',
-  '同手同脚', '锦鲤抄', 'MEOW', '一样的月光', '阿楚姑娘', '下一段旅程',
+  "任我行",
+  "至少还有你",
+  "Rolling in the Deep",
+  "天若有情",
+  "天上掉下个林妹妹",
+  "那些你很冒险的梦",
+  "雨天",
+  "For the First Time in Forever",
+  "野心家",
+  "素颜",
+  "身骑白马",
+  "刻在我心底的名字",
 ]);
 
 export function splitHotwords(text) {

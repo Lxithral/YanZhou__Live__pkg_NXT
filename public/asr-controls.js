@@ -1,4 +1,4 @@
-import { CONTEST_HOTWORDS_2025, MAX_HOTWORD_TEXT, MAX_HOTWORDS, SCHOOL_HOTWORDS, STREAMING_MODEL,
+import { CONTEST_HOTWORDS_2026, MAX_HOTWORD_TEXT, MAX_HOTWORDS, SCHOOL_HOTWORDS, STREAMING_MODEL,
   splitHotwords, validateAsrOptions } from './asr-settings.js';
 
 const CABLE = /cable output|vb-audio|vb-cable/i;
@@ -245,7 +245,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   };
   preset.onclick = () => {
     const existing = splitHotwords(hotwords.value);
-    const combined = [...new Set([...existing, ...CONTEST_HOTWORDS_2025])];
+    const combined = [...new Set([...existing, ...CONTEST_HOTWORDS_2026])];
     if (combined.length > MAX_HOTWORDS) {
       hotwordHint.textContent = `合并后有 ${combined.length} 项。请删减一些热词再补入，最多 ${MAX_HOTWORDS} 项。`;
       return;
@@ -256,7 +256,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     hotwords.value = draft;
     hotwords.oninput();
     const added = combined.length - existing.length;
-    hotwordHint.textContent = added ? `已补入 ${added} 项，共 ${combined.length} 项，下次启动识别生效。` : '2025 赛稿词表已在列表中。';
+    hotwordHint.textContent = added ? `已补入 ${added} 项，共 ${combined.length} 项，下次启动识别生效。` : '2026 节目词表已在列表中。';
   };
   window.addEventListener('storage', ({ key }) => {
     if (key === ASR_OPTIONS_KEY) { restoreOptions(); hotwordHint.textContent = defaultHotwordHint; render(); }
