@@ -8,9 +8,10 @@ export const SCHOOL_HOTWORDS = Object.freeze([
   '烟洲中学广播电视总台', '中山市烟洲中学广播电视总台',
 ]);
 
-// 本届节目单的节目名称，按报幕顺序排列。
+// 本届主持人姓名和节目单中的节目名称。
 export const CONTEST_HOTWORDS_2026 = Object.freeze([
   ...SCHOOL_HOTWORDS,
+  '罗智健', '周子谈', '瞿洁', '程紫芸',
   "任我行",
   "至少还有你",
   "Rolling in the Deep",

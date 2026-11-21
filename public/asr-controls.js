@@ -256,7 +256,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     hotwords.value = draft;
     hotwords.oninput();
     const added = combined.length - existing.length;
-    hotwordHint.textContent = added ? `已补入 ${added} 项，共 ${combined.length} 项，下次启动识别生效。` : '2026 节目词表已在列表中。';
+    hotwordHint.textContent = added ? `已补入 ${added} 项，共 ${combined.length} 项，下次启动识别生效。` : '2026 活动词表已在列表中。';
   };
   window.addEventListener('storage', ({ key }) => {
     if (key === ASR_OPTIONS_KEY) { restoreOptions(); hotwordHint.textContent = defaultHotwordHint; render(); }

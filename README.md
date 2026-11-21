@@ -58,7 +58,7 @@
 2. 把项目根目录的 `.env.example` 复制为 `.env`，填好 `DASHSCOPE_API_KEY`。Windows 可在项目目录执行 `copy .env.example .env`（CMD），再用记事本打开 `.env`。如使用业务空间专属域名，填同一空间的 `DASHSCOPE_WORKSPACE_ID`（通常以 `llm-` 开头）。
 3. 双击 `start.cmd`，在主控台或歌词台点击「测试连接」。测试只验证会话配置，不传音频。通过后选音源并点击「启动识别」。
 
-选择「千问音频 3.0 流式」后，可在「临时热词」填写本次活动的校名、人名和节目名。一行一个，也可用逗号分隔，最多 50 项。首次使用会预填校名和总台名称。需要本届节目名时，可点击「补入 2026 节目词表」，将缺少的词加入现有词表。两页共用同一浏览器保存的模型和词表，词表随下一次启动发送。要调整正在识别的词表，请先停止采集，再编辑并启动。[流式模型热词参数](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-client-events)
+选择「千问音频 3.0 流式」后，可在「临时热词」填写本次活动的校名、人名和节目名。一行一个，也可用逗号分隔，最多 50 项。首次使用会预填校名和总台名称。需要本届主持人姓名或节目名时，可点击「补入 2026 活动词表」，将缺少的词加入现有词表。两页共用同一浏览器保存的模型和词表，词表随下一次启动发送。要调整正在识别的词表，请先停止采集，再编辑并启动。[流式模型热词参数](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-streaming-client-events)
 
 也可在启动前设置同名环境变量，优先于文件配置。密钥仅由 Node 读取，不要写进设置、网页或部署包。启动识别后，音频会传给百炼，按送入的音频时长计费；项目不会把识别音频或临时转写存到磁盘。无密钥或云端不可用时，仍可正常使用节目单和歌词手动／时间轴。旧项目目录里的 `.asr-models/`、`.venv-qwen-asr/` 可移除，原设置和曲库可直接沿用。[实时接口](https://help.aliyun.com/zh/model-studio/qwen-asr-realtime-interaction-process) · [百炼定价](https://help.aliyun.com/zh/model-studio/model-pricing)
 
