@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { INTRO_SCROLL, introSpeed, introPlan, introBar, introBarOffset, introKeyframes } from '../public/intro-scroll.js';
-import { PERF_SCROLL } from '../public/perf-scroll.js';
+import { INTRO_SCROLL, introSpeed, introPlan, introBar, introBarOffset, introKeyframes } from '../public/js/motion/intro-scroll.js';
+import { PERF_SCROLL } from '../public/js/motion/perf-scroll.js';
 
 test('reading speed 3.5 chars/s converts to a vertical px/s from line width and line height', () => {
   assert.equal(INTRO_SCROLL.charsPerSecond, 3.5);

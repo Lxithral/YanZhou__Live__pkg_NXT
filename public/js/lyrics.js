@@ -1,9 +1,9 @@
-import { buildLyricDocument, LYRIC_BYTES, jsonBytes, parseLrc, RATES, timelineIndex } from './lyrics-model.js';
-import { createLyricsClock, timecode } from './lyrics-clock.js';
-import { createLyricsRenderer } from './lyrics-renderer.js';
-import { bindAsrControls } from './asr-controls.js';
+import { buildLyricDocument, LYRIC_BYTES, jsonBytes, parseLrc, RATES, timelineIndex } from './lyrics/lyrics-model.js';
+import { createLyricsClock, timecode } from './lyrics/lyrics-clock.js';
+import { createLyricsRenderer } from './render/lyrics-renderer.js';
+import { bindAsrControls } from './asr/asr-controls.js';
 
-import { initThemedSelects } from './themed-select.js';
+import { initThemedSelects } from './core/themed-select.js';
 
 const $ = (id) => document.getElementById(id);
 initThemedSelects();

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildLyricDocument, parseLrc, validateDocument } from '../public/lyrics-model.js';
+import { buildLyricDocument, parseLrc, validateDocument } from '../public/js/lyrics/lyrics-model.js';
 
 const BILINGUAL = [
   '[ti:Rolling in the Deep]',

@@ -186,7 +186,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
         if (local === session) stopCapture('音源已断开或停止共享。');
       });
       await resumed;
-      await session.context.audioWorklet.addModule('/asr-audio-worklet.js');
+      await session.context.audioWorklet.addModule('/js/asr/asr-audio-worklet.js');
       if (local !== session) return;
       const url = new URL('/asr', location.href.replace(/^http/, 'ws'));
       url.searchParams.set('owner', owner);

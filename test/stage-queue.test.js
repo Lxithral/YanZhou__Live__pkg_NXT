@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { queueManagement } from '../public/stage-controls.js';
+import { queueManagement } from '../public/js/stage/stage-controls.js';
 
 const step = (direction) => ({ kind: 'program', payload: { action: 'navigate', direction } });
 const pick = (id) => ({ kind: 'program', payload: { action: 'select', id } });

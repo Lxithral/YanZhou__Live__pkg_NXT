@@ -1,5 +1,5 @@
-import { animateModuleElement, createModuleLayer } from './module-layer.js';
-import { timelineIndex } from './lyrics-model.js';
+import { animateModuleElement, createModuleLayer } from '../core/module-layer.js';
+import { timelineIndex } from '../lyrics/lyrics-model.js';
 
 const STYLE_ID = 'yanzhou-lyrics-renderer-style';
 const BOARD_HEIGHT = 290;

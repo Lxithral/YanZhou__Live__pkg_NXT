@@ -1,12 +1,11 @@
 node_modules/
 .asr-models/
+/backups/
 /config/lyrics/
-settings.json.pre-library.bak
+settings.json.pre-*.bak
 settings.json.tmp
-settings.json.pre-lyrics.bak
 *.log
 .tmp*
-desktop.ini
 desktop.ini
 .venv-qwen-asr/
 .runtime-node/

@@ -8,7 +8,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createPackagingServer } from '../server/server.js';
 import { createSpeechSession } from '../server/speech-session.js';
 import { readDashScopeConfig } from '../server/asr-capture.js';
-import { CONTEST_HOTWORDS_2026, STREAMING_MODEL } from '../public/asr-settings.js';
+import { CONTEST_HOTWORDS_2026, STREAMING_MODEL } from '../public/js/asr/asr-settings.js';
 const EVENTS = 'conversation.item.input_audio_transcription.';
 const PCM = Buffer.alloc(1280);
 

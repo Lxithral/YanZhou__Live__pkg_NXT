@@ -1,10 +1,10 @@
-import { createLogoRenderer } from './logo-renderer.js';
-import { createHostsRenderer } from './hosts-renderer.js';
-import { createProgramRenderer } from './program-renderer.js';
-import { createLyricsRenderer } from './lyrics-renderer.js';
-import { createLyricsClock } from './lyrics-clock.js';
-import { createAvoidance } from './stage-avoidance.js';
-import { createSpeechRenderer } from './speech-renderer.js';
+import { createLogoRenderer } from './render/logo-renderer.js';
+import { createHostsRenderer } from './render/hosts-renderer.js';
+import { createProgramRenderer } from './render/program-renderer.js';
+import { createLyricsRenderer } from './render/lyrics-renderer.js';
+import { createLyricsClock } from './lyrics/lyrics-clock.js';
+import { createAvoidance } from './stage/stage-avoidance.js';
+import { createSpeechRenderer } from './render/speech-renderer.js';
 
 const canvas = document.getElementById('overlay-canvas');
 const RENDERERS = {

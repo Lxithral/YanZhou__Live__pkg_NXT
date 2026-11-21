@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { indexLyrics, matchLyric } from '../server/asr-match.js';
 import { createLyricsSession, DEFAULT_LYRICS } from '../server/lyrics-session.js';
-import { createLyricsClock } from '../public/lyrics-clock.js';
+import { createLyricsClock } from '../public/js/lyrics/lyrics-clock.js';
 
 const line = (start, text) => ({
   start, text, credit: false,
@@ -74,7 +74,7 @@ test('medium offsets are interpolated and small or ineligible offsets do not mov
 });
 
 test('audio worklet downmixes and streams 40 ms PCM frames from common browser rates', async () => {
-  const worklet = await readFile(new URL('../public/asr-audio-worklet.js', import.meta.url), 'utf8');
+  const worklet = await readFile(new URL('../public/js/asr/asr-audio-worklet.js', import.meta.url), 'utf8');
   for (const sampleRate of [44100, 48000]) {
     const packets = [];
     let Processor;

@@ -34,7 +34,7 @@
 
 侧栏模块卡片的「上屏」状态用蓝色标出。顶部「歌词台」在同一标签页内切换，只有「打开输出页」会新开标签页。
 
-`previews/control-panel-v2.png` 与 `previews/overlay-modules.png` 是当前版本的界面与输出示例。`previews/` 中其余 `.jpg` 为早期版本截图，仅供参考。
+`docs/screenshots/control-panel-v2.png` 与 `docs/screenshots/overlay-modules.png` 是当前版本的界面与输出示例。同目录其余 `.jpg` 为早期版本截图，仅供参考。
 
 ## 直播歌词台
 
@@ -42,7 +42,7 @@
 
 两页共享跟随系统、浅色和深色主题偏好。OBS 和主控台预览只显示当前一句歌词，整句一次点亮，不做逐字填充。带中英对照的 LRC 会合成一句：主行照常显示，译文以小一号字号排在下方；没有译文的句子只占一行。位置、缩放与出入场效果可在主控台调整。
 
-导入 LRC 时可从 `[ti:]` 和 `[ar:]` 读取歌名和歌手，也可手动填写。点击「保存并载入」后，歌词台顶部显示当前歌曲信息。每首歌曲存为配置文件所在目录下 `config/lyrics/` 中的独立 JSON，可在左列曲库再次载入。同名歌曲默认另存为新版本，也可在导入预览中明确选择要替换的版本。旧设置中的歌词首次启动时自动收进曲库，原设置备份为 `settings.json.pre-library.bak`。
+导入 LRC 时可从 `[ti:]` 和 `[ar:]` 读取歌名和歌手，也可手动填写。点击「保存并载入」后，歌词台顶部显示当前歌曲信息。每首歌曲存为配置文件所在目录下 `config/lyrics/` 中的独立 JSON，可在左列曲库再次载入。同名歌曲默认另存为新版本，也可在导入预览中明确选择要替换的版本。旧设置中的歌词首次启动时自动收进曲库，原设置备份在项目根的 `settings.json.pre-library.bak`（历史备份已归档到 `backups/`）。
 
 在主控台的「歌词字幕」模块可查看当前歌词进度，并用上下箭头调整曲库播放顺序。当前歌词剩余 15 秒时，歌词台平滑展开第四列，可查看下一首歌词并手动载入。
 
@@ -117,21 +117,45 @@
 
 ## 文件结构
 
-- `server/server.js`：静态文件、`/api/state`、`/health`、WebSocket `/ws`（Origin 校验、单模块原子 patch、广播 `state` / `saved`、15 秒心跳、退出保存）。服务端代码都在 `server/` 下。
-- `public/module-layer.js`：所有模块共用的定位、缩放、透明度与动画层。
-- `public/*-renderer.js`：五个模块的渲染器；`speech-renderer.js` 为主持人语音字幕，`program-renderer.js` 为票根节目卡（含长标题缩字）。
-- `public/host-appearance.js` / `host-appearance.css` / `school-watermark.css`：人物信息条 H/G/I 三种样式。
-- `server/stage-management.js`、`public/stage-controls.js`：人物库、槽位与节目库的服务端校验和主控台管理区；`config/people-defaults.json` / `program-defaults.json` 为首次启用时载入的默认资料。
-- `public/lyrics.html` / `lyrics.js` / `lyrics.css`：独立歌词台。
-- `server/lyrics-session.js`、`public/lyrics-model.js` / `lyrics-clock.js`：歌词会话、LRC 格式及客户端时钟。
-- `server/asr-capture.js`：连接百炼、管理单路实时采集；`server/speech-session.js` 管理主持人字幕的寿命。
-- `public/control.html` / `control.js` / `control.css`：控制面板。
-- `public/overlay.html` / `overlay.js` / `overlay.css`：OBS 输出页。
-- `public/stage-avoidance.js`：自动避让（输出页和主控台预览共用同一套计算）。
-- `test/server.test.js` / `asr.test.js` / `avoidance.test.js`：包装模块、歌词、WebSocket、重连、配置迁移与识别匹配测试。
-- `assets/`：字体与素材；`A12.png` 为挂角校徽，`yanzhou-watermark.png` 为人物条和节目卡共用的校徽水印。
-- `config/lyrics/`：歌词曲库；`settings.json`：设置文件（均在项目根目录）。
-- `tools/`：ASR 模型安装（`setup-asr.js`）与界面检查脚本；`previews/`：界面截图。
+```
+server/               服务端（Node，无构建步骤）
+  server.js             静态文件、/api/state、/health、WebSocket /ws
+  stage-management.js   人物库、槽位与节目库的事件与校验
+  lyrics-session.js     歌词会话、时间轴与手动/识别推送
+  lyrics-library.js     曲库读写（config/lyrics/*.json）
+  asr-capture.js        百炼实时识别连接与单路采集
+  asr-match.js          识别结果与歌词的匹配纠偏
+  speech-session.js     主持人字幕的寿命管理
+public/               前端（浏览器直接加载，无打包）
+  control.html          控制面板
+  lyrics.html           直播歌词台
+  overlay.html          OBS 输出页
+  css/                  control / lyrics / overlay / host-appearance / school-watermark
+  js/
+    control.js          控制面板入口
+    lyrics.js           歌词台入口
+    overlay.js          输出页入口
+    core/               主题、模块层级（定位/缩放/透明度/动画）、自定义下拉
+    render/             五个模块的渲染器与人物条外观
+    lyrics/             LRC 解析、文档校验、客户端时钟
+    asr/                识别控制条、识别参数、音频 worklet
+    stage/              主控台管理区、自动避让计算
+    motion/             节目卡演出者与介绍的滚动参数
+config/               默认人物库、默认节目库、歌词曲库 config/lyrics/
+assets/               字体与素材；A12.png 为挂角校徽，yanzhou-watermark.png 为人物条和节目卡共用的校徽水印
+test/                 node --test 测试（服务、歌词、识别、避让、滚动、节目顺序）
+tools/                start.cmd 用的启动脚本，以及界面检查脚本（需本地 Chrome）
+docs/screenshots/     界面与输出截图
+backups/              首次启用各功能时自动生成的旧设置备份（不入库）
+```
+
+静态服务把 `/xxx` 直接映射到 `public/xxx`、`/assets/xxx` 映射到 `assets/xxx`，所以上述目录只是文件组织方式，URL 与目录层级一一对应。
+
+- `public/js/core/module-layer.js`：所有模块共用的定位、缩放、透明度与动画层。
+- `public/js/render/`：五个模块的渲染器；`speech-renderer.js` 为主持人语音字幕，`program-renderer.js` 为票根节目卡（含长标题缩字），`host-appearance.js` 与 `public/css/host-appearance.css`、`school-watermark.css` 为人物信息条 H/G/I 三种样式。
+- `public/js/lyrics/lyrics-model.js`：LRC 格式与文档校验；`lyrics-clock.js` 为客户端时钟。
+- `public/js/stage/stage-avoidance.js`：自动避让（输出页和主控台预览共用同一套计算）。
+- `config/people-defaults.json` / `program-defaults.json`：首次启用时载入的默认资料。
 
 ## 开发与检查
 
@@ -143,7 +167,7 @@
 
 在主控台相应模块的「显示内容」区管理人物库、槽位与节目库。管理区从上到下：标题行（数量、「画面中 / 未显示」状态、连接状态）、整宽的「显示 / 隐藏」主按钮（热键 0）、热键提示条，然后是各自的操作区。节目：当前节目与下一个节目合在一张卡里（◀ ▶ 切换），下面是四列「快速切换」网格（当前节目蓝框，下一个虚线框并标「下一个」）和「节目资料库」列表（演出者与简介在列表中最多显示两行，完整内容在编辑框里）。主持人：显示数量分段按钮、字幕条位置输入，每个字幕条一张卡，含状态（画面中 / 待上屏 / 已隐藏 / 未启用，蓝色实线 = 画面中，蓝色虚线 = 整体隐藏时待上屏）、单条显隐按钮（标出热键 1–4）、换人、人物快选和 H/G/I 样式分段按钮，自定义颜色收在「自定义颜色」里；最下面是「人物资料库」。「+ 添加主持人 / + 添加节目」在资料库标题右侧。编辑在资料卡片内展开并保留草稿，点击保存后，服务端写盘成功才同步更新上屏内容。取消编辑不更新资料。断线时草稿保留，重连后可以重试。
 
-首次启用时，现有配置备份到 settings.json.pre-management.bak，并载入默认人物库中的四位主持人和默认节目库中的十二项歌手大赛节目（含嘉宾节目）。首次初始化后，删除至空列表也会持久保存。人物与节目使用稳定编号，删除前面的条目不会改变其他槽位或当前节目的人选。删除被使用的人物会清空并隐藏相关槽位，删除当前节目则选后继，已无后继时选前一项。
+首次启用时，现有配置备份到 `settings.json.pre-management.bak`（历史备份已归档到 `backups/`），并载入默认人物库中的四位主持人和默认节目库中的十二项歌手大赛节目（含嘉宾节目）。首次初始化后，删除至空列表也会持久保存。人物与节目使用稳定编号，删除前面的条目不会改变其他槽位或当前节目的人选。删除被使用的人物会清空并隐藏相关槽位，删除当前节目则选后继，已无后继时选前一项。
 
 **调整节目顺序**：两种拖法——在「节目资料库」里按住每行左侧的六点手柄上下拖；或在「快速切换」网格里直接按住格子拖（移动超过约 6px 才算拖动，轻点仍是切换节目）。拖动时蓝色细线标出放下的位置。也可以先选中（Tab 聚焦）六点手柄，再按 ↑ ↓ 一次移动一位。松手后新顺序立即写入 settings.json 并同步到所有打开的主控台；当前节目保持不变，◀ ▶、← →、「下一个节目」和节目卡上的「接下来」都按新顺序走。**拖动排序后所有节目的编号会按新顺序自动重排为 01、02、03……**（超过 99 个节目时为三位），节目卡上的编号随之更新；单独编辑或新增节目不会改动其他节目的编号。正在保存或有节目处于编辑状态时暂时不能拖动。
 
@@ -170,8 +194,8 @@
 
 **参数位置**（改完刷新主控台和 OBS 浏览器源即可）：
 
-- 演出者滚动：`public/perf-scroll.js` 的 `PERF_SCROLL`——`speed`（像素/秒，默认 24）、`pause`（开始前停顿毫秒，默认 1500）、`gap`（两轮之间空白，默认 22 px）、`fade`（渐隐，默认 5 px）、`lines`（可视行数，默认 2）。
-- 介绍滚动：`public/intro-scroll.js` 的 `INTRO_SCROLL`——`charsPerSecond`（阅读速度，每秒字数，默认 3.5）、`fontSize`（介绍字号，默认 14.25）、`lineHeight`（行高倍数，默认 1.65）、`lines`（可视行数，默认 3）、`pause`（开始前停顿，默认 1500）、`holdEnd`（文末停留，默认 2500）、`fadeOut` / `fadeIn`（淡出淡入，默认各 300）、`holdStart`（回到开头后停留，默认 1500）、`fade`（上下渐隐，默认 5 px）、`minThumb`（竖条亮段最短比例，默认 0.12）。
+- 演出者滚动：`public/js/motion/perf-scroll.js` 的 `PERF_SCROLL`——`speed`（像素/秒，默认 24）、`pause`（开始前停顿毫秒，默认 1500）、`gap`（两轮之间空白，默认 22 px）、`fade`（渐隐，默认 5 px）、`lines`（可视行数，默认 2）。
+- 介绍滚动：`public/js/motion/intro-scroll.js` 的 `INTRO_SCROLL`——`charsPerSecond`（阅读速度，每秒字数，默认 3.5）、`fontSize`（介绍字号，默认 14.25）、`lineHeight`（行高倍数，默认 1.65）、`lines`（可视行数，默认 3）、`pause`（开始前停顿，默认 1500）、`holdEnd`（文末停留，默认 2500）、`fadeOut` / `fadeIn`（淡出淡入，默认各 300）、`holdStart`（回到开头后停留，默认 1500）、`fade`（上下渐隐，默认 5 px）、`minThumb`（竖条亮段最短比例，默认 0.12）。
 
 类型、演出者或介绍留空时对应一行不显示。旧设置没有节目库时，卡片退回显示 `current` / `next` 两个文字。
 

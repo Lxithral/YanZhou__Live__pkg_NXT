@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveAvoidance, AVOID_GAP, LEAN_GAP, LEAN_MIN_GAP, SAFE_X } from '../public/stage-avoidance.js';
+import { resolveAvoidance, AVOID_GAP, LEAN_GAP, LEAN_MIN_GAP, SAFE_X } from '../public/js/stage/stage-avoidance.js';
 
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const moved = (r, o) => ({ ...r, x: r.x + o.dx, y: r.y + o.dy });

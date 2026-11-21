@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PERF_SCROLL, scrollPlan, startDelay, scrollKeyframes } from '../public/perf-scroll.js';
+import { PERF_SCROLL, scrollPlan, startDelay, scrollKeyframes } from '../public/js/motion/perf-scroll.js';
 
 test('performers that fit in two lines stay still', () => {
   assert.equal(scrollPlan({ contentHeight: 22.5, viewportHeight: 45 }), null);

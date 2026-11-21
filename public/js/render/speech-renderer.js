@@ -1,4 +1,4 @@
-import { createModuleLayer } from './module-layer.js';
+import { createModuleLayer } from '../core/module-layer.js';
 
 const STYLE_ID = 'yanzhou-speech-style';
 const HEIGHT = 184;

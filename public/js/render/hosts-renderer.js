@@ -1,4 +1,4 @@
-import { createModuleLayer, isLightColor } from './module-layer.js';
+import { createModuleLayer, isLightColor } from '../core/module-layer.js';
 import './host-appearance.js';
 
 const HostAppearance = globalThis.HostAppearance;
@@ -39,7 +39,7 @@ export function hostsAppearance(slot) {
 }
 export function createHostsRenderer(container) {
   if (!document.getElementById(STYLE_ID)) {
-    for (const href of ['/host-appearance.css', '/school-watermark.css']) {
+    for (const href of ['/css/host-appearance.css', '/css/school-watermark.css']) {
       const link = document.createElement('link');
       link.rel = 'stylesheet'; link.href = href; document.head.append(link);
     }

@@ -1,14 +1,14 @@
-import { bindStageControls } from './stage-controls.js';
-import { createLogoRenderer } from './logo-renderer.js';
-import { createHostsRenderer } from './hosts-renderer.js';
-import { createProgramRenderer } from './program-renderer.js';
-import { createLyricsRenderer } from './lyrics-renderer.js';
-import { createLyricsClock, timecode } from './lyrics-clock.js';
-import { createAvoidance } from './stage-avoidance.js';
-import { createSpeechRenderer } from './speech-renderer.js';
-import { bindAsrControls } from './asr-controls.js';
+import { bindStageControls } from './stage/stage-controls.js';
+import { createLogoRenderer } from './render/logo-renderer.js';
+import { createHostsRenderer } from './render/hosts-renderer.js';
+import { createProgramRenderer } from './render/program-renderer.js';
+import { createLyricsRenderer } from './render/lyrics-renderer.js';
+import { createLyricsClock, timecode } from './lyrics/lyrics-clock.js';
+import { createAvoidance } from './stage/stage-avoidance.js';
+import { createSpeechRenderer } from './render/speech-renderer.js';
+import { bindAsrControls } from './asr/asr-controls.js';
 
-import { initThemedSelects } from './themed-select.js';
+import { initThemedSelects } from './core/themed-select.js';
 
 const $ = (id) => document.getElementById(id);
 initThemedSelects();

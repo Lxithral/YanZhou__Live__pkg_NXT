@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
 import { WebSocket } from 'ws';
-import { STREAMING_MODEL, validateAsrOptions } from '../public/asr-settings.js';
+import { STREAMING_MODEL, validateAsrOptions } from '../public/js/asr/asr-settings.js';
 
 const SAMPLE_RATE = 16_000;
 const FRAME_MS = 40;

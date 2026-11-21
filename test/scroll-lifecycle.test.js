@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { programScrollKey, shouldArmScrollExit } from '../public/program-renderer.js';
+import { programScrollKey, shouldArmScrollExit } from '../public/js/render/program-renderer.js';
 
 test('switching programmes changes the scroll identity even when the words match', () => {
   const words = '高一（1）班 张三、李四';

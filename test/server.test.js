@@ -6,8 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { createPackagingServer, DEFAULT_SETTINGS } from '../server/server.js';
-import { buildLyricDocument, jsonBytes, LYRIC_BYTES, parseLrc, timelineIndex } from '../public/lyrics-model.js';
-import { createLyricsClock } from '../public/lyrics-clock.js';
+import { buildLyricDocument, jsonBytes, LYRIC_BYTES, parseLrc, timelineIndex } from '../public/js/lyrics/lyrics-model.js';
+import { createLyricsClock } from '../public/js/lyrics/lyrics-clock.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 

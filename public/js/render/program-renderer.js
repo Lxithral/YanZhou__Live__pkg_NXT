@@ -1,6 +1,6 @@
-import { createModuleLayer } from './module-layer.js';
-import { PERF_SCROLL, scrollPlan, startDelay, scrollKeyframes } from './perf-scroll.js';
-import { INTRO_SCROLL, introSpeed, introPlan, introBar, introKeyframes } from './intro-scroll.js';
+import { createModuleLayer } from '../core/module-layer.js';
+import { PERF_SCROLL, scrollPlan, startDelay, scrollKeyframes } from '../motion/perf-scroll.js';
+import { INTRO_SCROLL, introSpeed, introPlan, introBar, introKeyframes } from '../motion/intro-scroll.js';
 
 const STYLE_ID = 'yanzhou-program-renderer-style';
 
