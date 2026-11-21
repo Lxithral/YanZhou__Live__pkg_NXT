@@ -75,7 +75,7 @@ export function createAsrCapture({
       if (reason) send(session.socket, { type: 'error', message: reason });
       session.socket.close(1000);
     }
-    message = reason || (session.ready ? '百炼连接正常 · 主持人与歌词共用音源' : '百炼已配置 · 可测试连接或启动识别');
+    message = reason || (session.ready ? '百炼连接正常' : '百炼已配置 · 可测试连接或启动采集');
     if (session.probe) onService();
     else onStatus({ phase: reason ? 'error' : 'idle', owner: null, message: reason });
     session.resolveFinished();
@@ -195,7 +195,7 @@ export function createAsrCapture({
           clearTimeout(session.timer);
           if (probe) return taskId ? done(session) : stop(session);
           session.timer = setTimeout(() => done(session, '未收到音频，请检查音源后重新启动识别。'), 15_000);
-          message = '百炼连接正常 · 主持人与歌词共用音源';
+          message = '百炼连接正常';
           send(socket, { type: 'ready' });
           onStatus({ phase: 'listening', owner, message: '' });
         } else if (event === (taskId ? 'task-finished' : 'session.finished')) {

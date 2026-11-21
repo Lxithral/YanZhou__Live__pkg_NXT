@@ -118,8 +118,8 @@ async function fixture(t, { statusCode = 0, autoFinish = true, streaming = false
   const address = await app.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${address.port}`;
   const opened = [];
-  async function connect(audio = false, options) {
-    const route = audio ? '/asr?owner=speech' + (options ? '&options=1' : '') : '/ws';
+  async function connect(audio = false, options, owner = 'speech') {
+    const route = audio ? `/asr?owner=${owner}` + (options ? '&options=1' : '') : '/ws';
     const connection = client(base.replace('http', 'ws') + route, audio ? { origin: base } : undefined);
     opened.push(connection);
     await connection.ready;
@@ -195,7 +195,7 @@ test('only ASR credentials are read from the local dotenv file, with process val
   });
 });
 
-test('one cloud session feeds host captions and lyric ASR without saving text or credentials', async (t) => {
+test('the host session feeds speech captions without saving text or credentials', async (t) => {
   const setup = await fixture(t);
   const control = await setup.connect();
   const overlay = await setup.connect();
@@ -241,7 +241,7 @@ test('one cloud session feeds host captions and lyric ASR without saving text or
   finally { fresh.socket.terminate(); await restarted.close(); }
 });
 
-test('a cloud disconnect clears captions and releases the capture so another connection can start', async (t) => {
+test('ASR cannot go on air as lyrics, and a cloud disconnect leaves existing lyrics on air', async (t) => {
   const setup = await fixture(t);
   const control = await setup.connect();
   await control.wait((m) => m.type === 'speech:state' && !m.text);
@@ -251,12 +251,16 @@ test('a cloud disconnect clears captions and releases the capture so another con
   setup.state.response = { text: '接下来请欣赏精彩表演', final: true };
   audio.socket.send(PCM);
   await control.wait((m) => m.type === 'speech:state' && m.text);
-  control.send({ type: 'lyrics:onair', id: 'air', payload: { source: 'asr' } });
+  control.send({ type: 'lyrics:onair', id: 'air', payload: { source: 'manual' } });
   await control.wait((m) => m.type === 'lyrics:state' && m.id === 'air' && m.armed);
+  control.send({ type: 'lyrics:onair', id: 'asr-air', payload: { source: 'asr' } });
+  assert.equal((await control.wait((m) => m.id === 'asr-air')).type, 'error');
   setup.state.upstream.terminate();
   await control.wait((m) => m.type === 'speech:state' && !m.text);
-  assert.equal((await control.wait((m) => m.type === 'lyrics:state' && !m.armed)).armed, false);
   await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'error');
+  const { source, armed } = setup.app.getState().settings.modules.lyrics;
+  assert.equal(source, 'manual');
+  assert.equal(armed, true);
   const recovered = await setup.connect(true);
   await recovered.wait((m) => m.type === 'ready');
   assert.equal(setup.state.opens, 2);
@@ -277,7 +281,7 @@ test('stopping a non-responsive cloud session releases the socket within the fin
   assert.equal(setup.state.opens, 2);
 });
 
-test('a cloud final corrects the timeline only when it has a valid speech boundary', async (t) => {
+test('only timed finals from the lyric capture correct the timeline without producing speech captions', async (t) => {
   const setup = await fixture(t);
   const control = await setup.connect();
   const command = async (type, id, payload) => {
@@ -291,20 +295,47 @@ test('a cloud final corrects the timeline only when it has a valid speech bounda
   ] });
   await command('lyrics:onair', 'onair', { source: 'timeline' });
   await command('lyrics:correct', 'correct', { enabled: true });
-  const audio = await setup.connect(true);
+  const hostAudio = await setup.connect(true);
+  await hostAudio.wait((m) => m.type === 'ready');
+  await command('lyrics:transport', 'play-host', { action: 'play', value: null });
+  setup.state.response = { text: '照亮我的青春', final: true };
+  hostAudio.socket.send(PCM);
+  const hostFinal = await control.wait((m) => m.type === 'lyrics:asr' && m.owner === 'speech' && m.finals.length === 1);
+  assert.equal(hostFinal.correction.confidence, null);
+  await command('lyrics:transport', 'pause', { action: 'pause', value: null });
+  setup.state.upstream.terminate();
+  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'error');
+  await command('lyrics:transport', 'rewind', { action: 'seek', value: 0 });
+  const audio = await setup.connect(true, undefined, 'lyrics');
   await audio.wait((m) => m.type === 'ready');
   await command('lyrics:transport', 'play', { action: 'play', value: null });
   setup.state.response = { text: '照亮我的青春', item: 'first', final: true, timed: false };
   audio.socket.send(PCM);
-  const untimed = await control.wait((m) => m.type === 'lyrics:asr' && m.finals.length === 1);
+  const untimed = await control.wait((m) => m.type === 'lyrics:asr' && m.owner === 'lyrics' && m.finals.length === 1);
   assert.equal(untimed.correction.history.length, 0);
   setup.state.response = { text: '照亮我的青春', item: 'second', final: true };
   audio.socket.send(PCM);
   const corrected = await control.wait((m) => m.type === 'lyrics:asr' && m.finals.length === 2);
   assert.equal(corrected.correction.history.length, 1);
   assert.equal(corrected.correction.history[0].estimated, true);
-  setup.state.upstream.terminate();
-  await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'error');
+  const adjustment = await control.wait((m) => m.type === 'lyrics:state' && Number.isFinite(m.correctionDelta));
+  const { from, to } = corrected.correction.history[0];
+  assert.equal(adjustment.correctionDelta, to - from);
+  const overlay = await setup.connect();
+  assert.equal((await overlay.wait((m) => m.type === 'speech:state')).text, '');
+  const lyrics = await overlay.wait((m) => m.type === 'lyrics:state');
+  assert.equal(lyrics.source, 'timeline');
+  assert.equal(lyrics.doc[0].text, '照亮我的青春');
+  control.send({ type: 'asr:stop' });
+  const stopped = await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'idle' && m.resultOwner === 'lyrics');
+  assert.equal(stopped.finals.length, 2);
+  assert.deepEqual(stopped.correction.history, corrected.correction.history);
+  const beforeClear = setup.app.getState().revision;
+  control.send({ type: 'lyrics:clear-correction-log', payload: {} });
+  const cleared = await overlay.wait((m) => m.type === 'lyrics:asr' && m.phase === 'idle' && m.correction.history.length === 0);
+  assert.equal(cleared.correction.enabled, true);
+  assert.equal(cleared.finals.length, 2);
+  assert.equal(setup.app.getState().revision, beforeClear);
   assert.equal(setup.app.getState().settings.modules.lyrics.source, 'timeline');
   assert.equal(setup.app.getState().settings.modules.lyrics.armed, true);
 });

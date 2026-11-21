@@ -798,7 +798,7 @@ test('reconnect gets full state and restart restores the paused checkpoint push'
   assert.deepEqual(restarted.doc, demoDoc);
 });
 
-test('stopping the push survives a restart and an asr push never auto-restores', async (t) => {
+test('stopping the push survives a restart', async (t) => {
   const setup = await fixture(t);
   const first = await setup.start();
   const client = await setup.connect(first.wsUrl);
