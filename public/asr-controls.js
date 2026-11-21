@@ -1,5 +1,9 @@
+import { CONTEST_HOTWORDS_2026, MAX_HOTWORD_TEXT, MAX_HOTWORDS, SCHOOL_HOTWORDS, STREAMING_MODEL,
+  splitHotwords, validateAsrOptions } from './asr-settings.js';
+
 const CABLE = /cable output|vb-audio|vb-cable/i;
 const AUDIO_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+const ASR_OPTIONS_KEY = 'yanzhou-asr-options';
 const stopTracks = (stream) => stream?.getTracks().forEach((track) => track.stop());
 
 function explain(error) {
@@ -17,12 +21,36 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   const start = $('asr-start');
   const stop = $('asr-stop');
   const test = $('asr-test');
+  const model = $('asr-model');
+  const hotwords = $('asr-hotwords');
+  const preset = $('asr-hotword-preset');
+  const hotwordHint = $('asr-hotword-hint');
+  const defaultHotwordHint = hotwordHint.textContent;
   let shared;
   let online = false;
   let local;
   let failure = '';
   let lastFinals;
   let lastHistory;
+
+  function options() {
+    const selected = { model: model.value, hotwords: model.value === STREAMING_MODEL ? hotwords.value : '' };
+    validateAsrOptions(selected);
+    return selected;
+  }
+
+  function restoreOptions() {
+    hotwords.value = SCHOOL_HOTWORDS.join('\n');
+    try {
+      const saved = JSON.parse(localStorage.getItem(ASR_OPTIONS_KEY) ?? '{}');
+      if ([...model.options].some((option) => option.value === saved?.model)) model.value = saved.model;
+      if (typeof saved?.hotwords === 'string') hotwords.value = saved.hotwords.slice(0, MAX_HOTWORD_TEXT);
+    } catch {}
+  }
+  function saveOptions() {
+    try { localStorage.setItem(ASR_OPTIONS_KEY, JSON.stringify({ model: model.value, hotwords: hotwords.value })); }
+    catch {}
+  }
 
   async function refreshDevices() {
     const previous = device.value;
@@ -47,6 +75,10 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     source.disabled = Boolean(local) || busy;
     device.disabled = Boolean(local) || busy || source.value === 'tab';
     test.disabled = !online || !shared?.configured || busy || Boolean(local);
+    model.disabled = Boolean(local) || busy;
+    hotwords.disabled = model.disabled;
+    preset.disabled = model.disabled;
+    $('asr-hotword-field').hidden = model.value !== STREAMING_MODEL;
     if ($('asr-correct')) {
       $('asr-correct').disabled = !online;
       $('asr-correct').checked = Boolean(shared?.correction?.enabled);
@@ -131,7 +163,10 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   async function startCapture() {
     if (start.disabled) return;
     failure = '';
-    const session = {};
+    let selected;
+    try { selected = options(); }
+    catch (error) { failure = error.message; render(); return; }
+    const session = { options: selected };
     local = session;
     render();
     try {
@@ -155,8 +190,10 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       if (local !== session) return;
       const url = new URL('/asr', location.href.replace(/^http/, 'ws'));
       url.searchParams.set('owner', owner);
+      url.searchParams.set('options', '1');
       const socket = new WebSocket(url);
       session.socket = socket;
+      socket.onopen = () => { if (local === session) socket.send(JSON.stringify(session.options)); };
       socket.onmessage = ({ data }) => {
         if (local !== session) return;
         let packet;
@@ -193,7 +230,37 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
 
   start.onclick = startCapture;
   stop.onclick = () => { if (local) stopCapture(); else command('asr:stop'); };
-  test.onclick = () => { failure = ''; command('asr:test'); render(); };
+  test.onclick = () => {
+    failure = '';
+    try { command('asr:test', options()); }
+    catch (error) { failure = error.message; }
+    render();
+  };
+  restoreOptions();
+  model.onchange = () => { saveOptions(); failure = ''; render(); };
+  hotwords.oninput = () => {
+    saveOptions();
+    hotwordHint.textContent = defaultHotwordHint;
+    if (failure) { failure = ''; render(); }
+  };
+  preset.onclick = () => {
+    const existing = splitHotwords(hotwords.value);
+    const combined = [...new Set([...existing, ...CONTEST_HOTWORDS_2026])];
+    if (combined.length > MAX_HOTWORDS) {
+      hotwordHint.textContent = `合并后有 ${combined.length} 项。请删减一些热词再补入，最多 ${MAX_HOTWORDS} 项。`;
+      return;
+    }
+    const draft = combined.join('\n');
+    try { validateAsrOptions({ model: STREAMING_MODEL, hotwords: draft }); }
+    catch (error) { hotwordHint.textContent = error.message; return; }
+    hotwords.value = draft;
+    hotwords.oninput();
+    const added = combined.length - existing.length;
+    hotwordHint.textContent = added ? `已补入 ${added} 项，共 ${combined.length} 项，下次启动识别生效。` : '2026 节目词表已在列表中。';
+  };
+  window.addEventListener('storage', ({ key }) => {
+    if (key === ASR_OPTIONS_KEY) { restoreOptions(); hotwordHint.textContent = defaultHotwordHint; render(); }
+  });
   source.onchange = () => { refreshDevices().catch(() => {}); render(); };
   if ($('asr-correct')) $('asr-correct').onchange = ({ target }) => correct?.(target.checked);
   window.addEventListener('pagehide', () => stopCapture());

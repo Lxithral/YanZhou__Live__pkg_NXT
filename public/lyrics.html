@@ -104,7 +104,15 @@
       <div class="column-controls">
         <p class="asr-status" id="asr-status" role="status">等待连接本机服务…</p>
         <div class="tool-row asr-engine-row">
-          <span class="field-label">千问实时识别 · 云端</span><button id="asr-test" type="button" disabled>测试连接</button>
+          <label class="field-label" for="asr-model">识别模型</label><select class="select-input" id="asr-model"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式 · 支持热词</option></select><button id="asr-test" type="button" disabled>测试连接</button>
+        </div>
+        <div class="field field-wide asr-hotwords" id="asr-hotword-field" hidden>
+          <div class="asr-hotword-heading">
+            <label class="field-label" for="asr-hotwords">临时热词</label>
+            <button id="asr-hotword-preset" type="button">补入 2026 节目词表</button>
+          </div>
+          <textarea class="text-input" id="asr-hotwords" rows="3" maxlength="3000" aria-describedby="asr-hotword-hint" placeholder="烟洲中学&#10;烟声润景"></textarea>
+          <p class="muted" id="asr-hotword-hint" aria-live="polite">一行一个，最多 50 项。可按本场活动删改，下次启动识别生效。</p>
         </div>
         <div class="tool-row">
           <label for="audio-source">音源</label>

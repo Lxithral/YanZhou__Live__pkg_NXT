@@ -642,6 +642,11 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
 .module-list { overflow-y: auto; }
 .speech-status, .speech-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
 .asr-engine-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.asr-engine-row select { flex: 1; min-width: min(185px, 100%); }
+.asr-hotwords[hidden] { display: none; }
+.asr-hotword-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 5px; }
+.asr-hotwords textarea { box-sizing: border-box; width: 100%; resize: vertical; }
+.asr-hotwords p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 .focus-actions { display: flex; flex: none; align-items: center; gap: 10px; }
 #programTear { min-height: 30px; white-space: nowrap; }
 .focus-hint { flex: none; padding: 6px 16px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }

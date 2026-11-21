@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
 import { WebSocket } from 'ws';
+import { STREAMING_MODEL, validateAsrOptions } from '../public/asr-settings.js';
 
-const MODEL = 'qwen3-asr-flash-realtime';
 const SAMPLE_RATE = 16_000;
 const FRAME_MS = 40;
 const FRAME_BYTES = SAMPLE_RATE * FRAME_MS / 1000 * 2;
@@ -56,8 +56,7 @@ export function createAsrCapture({
     !/^[\x21-\x7E]{1,1024}$/u.test(key) ? '百炼 API Key 格式无效，请检查 .env。' :
     workspace && !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/iu.test(workspace) ? '百炼业务空间 ID 格式无效，请检查 .env。' : '');
   const configured = !invalid;
-  const url = new URL('wss://' + (configured && workspace ? `${workspace}.cn-beijing.maas.aliyuncs.com` : 'dashscope.aliyuncs.com') + '/api-ws/v1/realtime');
-  url.searchParams.set('model', MODEL);
+  const endpoint = 'wss://' + (configured && workspace ? `${workspace}.cn-beijing.maas.aliyuncs.com` : 'dashscope.aliyuncs.com');
   let message = invalid || '百炼已配置 · 可测试连接或启动识别';
   let active;
   let closed = false;
@@ -121,10 +120,15 @@ export function createAsrCapture({
       onStatus({ phase: 'stopping', owner: session.owner, message: '' });
       if (session.socket.readyState === WebSocket.OPEN) session.socket.close(1000);
     }
-    send(session.upstream, { type: 'session.finish', event_id: randomUUID() });
+    send(session.upstream, session.taskId
+      ? { header: { action: 'finish-task', task_id: session.taskId, streaming: 'duplex' }, payload: { input: {} } }
+      : { type: 'session.finish', event_id: randomUUID() });
   }
 
-  function start({ socket, owner, probe = false }) {
+  function start({ socket, owner, probe = false, model, vocabulary }) {
+    const taskId = model === STREAMING_MODEL ? randomUUID() : null;
+    const url = new URL(taskId ? '/api-ws/v1/inference' : '/api-ws/v1/realtime', endpoint);
+    if (!taskId) url.searchParams.set('model', model);
     let upstream;
     try {
       upstream = connect(url, {
@@ -144,7 +148,7 @@ export function createAsrCapture({
       return;
     }
     const session = {
-      upstream, socket, owner, probe, startAt: null, frames: 0, items: new Map(),
+      upstream, socket, owner, probe, taskId, model, startAt: null, frames: 0, items: new Map(),
       itemOrder: 0, lastResultOrder: 0, alive: true, ready: false, finishing: false,
     };
     session.finished = new Promise((resolve) => { session.resolveFinished = resolve; });
@@ -165,7 +169,12 @@ export function createAsrCapture({
     upstream.on('close', () => done(session, session.finishing && !probe ? '' : '百炼连接已断开，请重新启动识别。'));
     upstream.on('open', () => {
       if (active !== session) return;
-      send(upstream, { type: 'session.update', event_id: randomUUID(), session: SESSION_OPTIONS });
+      send(upstream, taskId ? {
+        header: { action: 'run-task', task_id: taskId, streaming: 'duplex' },
+        payload: { task_group: 'audio', task: 'asr', function: 'recognition', model,
+          parameters: { format: 'pcm', sample_rate: SAMPLE_RATE, ...(Object.keys(vocabulary).length && { vocabulary }) },
+          input: {} },
+      } : { type: 'session.update', event_id: randomUUID(), session: SESSION_OPTIONS });
       session.heartbeat = setInterval(() => {
         if (!session.alive) return done(session, CONNECTION_FAILED);
         session.alive = false;
@@ -178,19 +187,30 @@ export function createAsrCapture({
       try {
         if (binary) return done(session, PROTOCOL_FAILED);
         const packet = JSON.parse(data.toString());
-        if (!packet || typeof packet.type !== 'string') return done(session, PROTOCOL_FAILED);
-        if (packet.type === 'session.updated' && !session.ready) {
+        const event = taskId ? packet?.header?.event : packet?.type;
+        if (typeof event !== 'string') return done(session, PROTOCOL_FAILED);
+        if (taskId && packet.header.task_id !== taskId) return;
+        if (event === (taskId ? 'task-started' : 'session.updated') && !session.ready) {
           session.ready = true;
           clearTimeout(session.timer);
-          if (probe) return stop(session);
+          if (probe) return taskId ? done(session) : stop(session);
           session.timer = setTimeout(() => done(session, '未收到音频，请检查音源后重新启动识别。'), 15_000);
           message = '百炼连接正常 · 主持人与歌词共用音源';
           send(socket, { type: 'ready' });
           onStatus({ phase: 'listening', owner, message: '' });
-        } else if (packet.type === 'session.finished') {
+        } else if (event === (taskId ? 'task-finished' : 'session.finished')) {
           done(session, session.finishing ? '' : '百炼会话已结束，请重新启动识别。');
-        } else if (packet.type === 'error' || packet.type === 'conversation.item.input_audio_transcription.failed') {
-          done(session, cloudError(packet.error?.code));
+        } else if (event === 'task-failed' || event === 'error' || event === 'conversation.item.input_audio_transcription.failed') {
+          done(session, cloudError(packet.header?.error_code ?? packet.error?.code));
+        } else if (taskId && !probe && event === 'result-generated') {
+          const sentence = packet.payload?.output?.sentence;
+          if (!sentence || sentence.heartbeat || typeof sentence.text !== 'string' || !sentence.text.trim()) return;
+          const itemId = sentence.sentence_id ?? sentence.begin_time;
+          if (!Number.isSafeInteger(itemId)) return;
+          const final = sentence.sentence_end === true;
+          const item_id = String(itemId);
+          if (final) getItem(session, item_id).end = sentence.end_time;
+          emit(session, { item_id, text: sentence.text, transcript: sentence.text }, final);
         } else if (!probe && packet.type === 'input_audio_buffer.speech_started' && typeof packet.item_id === 'string') {
           getItem(session, packet.item_id);
         } else if (!probe && packet.type === 'input_audio_buffer.speech_stopped' && typeof packet.item_id === 'string') {
@@ -217,7 +237,7 @@ export function createAsrCapture({
         return done(session, '音频发送积压，请检查网络或直播负载后重试。');
       }
       session.timer.refresh();
-      upstream.send(JSON.stringify({
+      upstream.send(taskId ? pcm : JSON.stringify({
         type: 'input_audio_buffer.append', event_id: randomUUID(), audio: pcm.toString('base64'),
       }), (error) => { if (error) done(session, CONNECTION_FAILED); });
     });
@@ -226,18 +246,24 @@ export function createAsrCapture({
   return {
     configured,
     get testing() { return Boolean(active?.probe); },
+    get model() { return active?.model ?? null; },
     get message() { return message; },
-    test() {
-      if (!closed && !active && configured) start({ probe: true });
+    test(options) {
+      if (!closed && !active && configured) start({ probe: true, ...validateAsrOptions(options) });
     },
-    attach(socket, owner) {
+    attach(socket, owner, options) {
       if (closed || active || !configured || !['lyrics', 'speech'].includes(owner)) {
         send(socket, { type: 'error', message: invalid || (active?.probe ? '正在测试百炼连接，请稍候。' :
           active ? '已有页面使用共用音源，请先停止当前识别。' : '识别请求无效。') });
         socket.close(1008);
         return;
       }
-      start({ socket, owner });
+      try {
+        start({ socket, owner, ...validateAsrOptions(options) });
+      } catch (error) {
+        send(socket, { type: 'error', message: error.message });
+        socket.close(1008);
+      }
     },
     stop() { if (active && !active.probe) stop(active); },
     async close() {
