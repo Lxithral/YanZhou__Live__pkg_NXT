@@ -2,6 +2,14 @@ export const REALTIME_MODEL = 'qwen3-asr-flash-realtime';
 export const STREAMING_MODEL = 'qwen-audio-3.0-asr-flash-streaming';
 export const MAX_HOTWORDS = 50;
 export const MAX_HOTWORD_TEXT = 3000;
+// 下拉列表里代表「自己填模型 ID」的占位值，不会发给服务端。
+export const CUSTOM_MODEL = '__custom';
+const MODEL_ID = /^[a-z0-9](?:[a-z0-9._-]{0,63})$/iu;
+
+// 百炼的两类实时接口：型号名里带 streaming 的走流式任务，其余走实时会话。
+export function usesStreamingProtocol(model) {
+  return model === STREAMING_MODEL || /streaming/iu.test(model);
+}
 
 export const SCHOOL_HOTWORDS = Object.freeze([
   '烟洲', '烟洲中学', '中山市烟洲中学',
@@ -36,12 +44,12 @@ export function validateAsrOptions(options = {}) {
     throw new Error('识别设置格式无效。');
   }
   const { model = REALTIME_MODEL, hotwords = '' } = options;
-  if (![REALTIME_MODEL, STREAMING_MODEL].includes(model) ||
+  if (typeof model !== 'string' || !MODEL_ID.test(model) ||
       typeof hotwords !== 'string' || hotwords.length > MAX_HOTWORD_TEXT) {
-    throw new Error('识别模型或热词格式无效。');
+    throw new Error('识别模型 ID 或热词格式无效。');
   }
   const words = splitHotwords(hotwords);
-  if (words.length && model !== STREAMING_MODEL) throw new Error('请切换到千问音频 3.0 流式版再使用热词。');
+  if (words.length && !usesStreamingProtocol(model)) throw new Error('请切换到流式模型再使用热词。');
   if (words.length > MAX_HOTWORDS || words.some((word) =>
     /[\u0000-\u001f\u007f]/u.test(word) ||
     (/[^\x00-\x7f]/u.test(word) ? [...word].length > 15 : word.length > 80 || word.split(/ +/u).length > 7))) {

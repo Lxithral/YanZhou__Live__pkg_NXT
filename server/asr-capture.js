@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
 import { WebSocket } from 'ws';
-import { STREAMING_MODEL, validateAsrOptions } from '../public/js/asr/asr-settings.js';
+import { usesStreamingProtocol, validateAsrOptions } from '../public/js/asr/asr-settings.js';
 import { validateDashScopeCredentials } from './asr-config.js';
 
 const SAMPLE_RATE = 16_000;
@@ -128,7 +128,7 @@ export function createAsrCapture({
   }
 
   function start({ socket, owner, probe = false, model, vocabulary }) {
-    const taskId = model === STREAMING_MODEL ? randomUUID() : null;
+    const taskId = usesStreamingProtocol(model) ? randomUUID() : null;
     const url = new URL(taskId ? '/api-ws/v1/inference' : '/api-ws/v1/realtime', endpoint());
     if (!taskId) url.searchParams.set('model', model);
     let upstream;

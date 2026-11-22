@@ -1,5 +1,5 @@
-import { CONTEST_HOTWORDS_2026, MAX_HOTWORD_TEXT, MAX_HOTWORDS, SCHOOL_HOTWORDS, STREAMING_MODEL,
-  splitHotwords, validateAsrOptions } from './asr-settings.js';
+import { CONTEST_HOTWORDS_2026, CUSTOM_MODEL, MAX_HOTWORD_TEXT, MAX_HOTWORDS, REALTIME_MODEL, SCHOOL_HOTWORDS, STREAMING_MODEL,
+  splitHotwords, usesStreamingProtocol, validateAsrOptions } from './asr-settings.js';
 
 const CABLE = /cable output|vb-audio|vb-cable/i;
 const AUDIO_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
@@ -15,6 +15,8 @@ function explain(error) {
 
 export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyrics', command = () => {} }) {
   const $ = (id) => document.getElementById(prefix + id);
+  const optionsKey = `${ASR_OPTIONS_KEY}-${owner}`;
+  const defaultModel = owner === 'speech' ? STREAMING_MODEL : REALTIME_MODEL;
   const media = navigator.mediaDevices;
   const source = $('audio-source');
   const device = $('audio-device');
@@ -22,6 +24,8 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   const stop = $('asr-stop');
   const test = $('asr-test');
   const model = $('asr-model');
+  const modelCustom = $('model-custom');
+  const modelCustomWrap = $('model-custom-wrap');
   const hotwordField = $('asr-hotword-field');
   const hotwords = $('asr-hotwords');
   const preset = $('asr-hotword-preset');
@@ -42,29 +46,39 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   let configMessage = '';
   let configDirty = false;
 
+  function chosenModel() {
+    return model.value === CUSTOM_MODEL ? modelCustom?.value.trim() ?? '' : model.value;
+  }
+
   function options() {
-    const selected = { model: model.value, hotwords: model.value === STREAMING_MODEL ? hotwords?.value ?? '' : '' };
+    const modelId = chosenModel();
+    const selected = { model: modelId, hotwords: usesStreamingProtocol(modelId) ? hotwords?.value ?? '' : '' };
     validateAsrOptions(selected);
     return selected;
   }
 
-  function readSavedOptions() {
+  function readSavedOptions(key = optionsKey) {
     try {
-      return JSON.parse(localStorage.getItem(ASR_OPTIONS_KEY) ?? 'null');
+      return JSON.parse(localStorage.getItem(key) ?? 'null');
     } catch { return null; }
   }
   function restoreOptions() {
     const saved = readSavedOptions();
-    if ([...model.options].some((option) => option.value === saved?.model)) model.value = saved.model;
-    if (hotwords) hotwords.value = typeof saved?.hotwords === 'string'
-      ? saved.hotwords.slice(0, MAX_HOTWORD_TEXT)
+    const savedModel = typeof saved?.model === 'string' ? saved.model : '';
+    const preset = [...model.options].some((option) => option.value === savedModel && option.value !== CUSTOM_MODEL);
+    model.value = !savedModel ? defaultModel : preset ? savedModel : CUSTOM_MODEL;
+    if (modelCustom) modelCustom.value = preset ? '' : savedModel;
+    if (modelCustomWrap) modelCustomWrap.hidden = model.value !== CUSTOM_MODEL;
+    const savedHotwords = typeof saved?.hotwords === 'string' ? saved.hotwords : readSavedOptions(ASR_OPTIONS_KEY)?.hotwords;
+    if (hotwords) hotwords.value = typeof savedHotwords === 'string'
+      ? savedHotwords.slice(0, MAX_HOTWORD_TEXT)
       : SCHOOL_HOTWORDS.join('\n');
   }
   function saveOptions() {
-    const savedHotwords = hotwords?.value ?? readSavedOptions()?.hotwords;
+    // 模型和热词按页面分开保存，互不影响。
     try {
-      localStorage.setItem(ASR_OPTIONS_KEY, JSON.stringify({
-        model: model.value, ...(typeof savedHotwords === 'string' && { hotwords: savedHotwords }),
+      localStorage.setItem(optionsKey, JSON.stringify({
+        model: chosenModel(), ...(hotwords && { hotwords: hotwords.value }),
       }));
     }
     catch {}
@@ -108,10 +122,11 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     device.disabled = Boolean(local) || busy || source.value === 'tab';
     test.disabled = !online || !shared?.configured || busy || Boolean(local);
     model.disabled = Boolean(local) || busy;
+    if (modelCustom) modelCustom.disabled = model.disabled;
     if (hotwordField) {
       hotwords.disabled = model.disabled;
       preset.disabled = model.disabled;
-      hotwordField.hidden = model.value !== STREAMING_MODEL;
+      hotwordField.hidden = !usesStreamingProtocol(chosenModel());
     }
     if ($('asr-correct')) {
       $('asr-correct').disabled = !online;
@@ -301,7 +316,12 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     };
   }
   restoreOptions();
-  model.onchange = () => { saveOptions(); failure = ''; render(); };
+  model.onchange = () => {
+    if (modelCustomWrap) modelCustomWrap.hidden = model.value !== CUSTOM_MODEL;
+    if (modelCustom && model.value === CUSTOM_MODEL) modelCustom.focus();
+    saveOptions(); failure = ''; render();
+  };
+  if (modelCustom) modelCustom.oninput = () => { saveOptions(); failure = ''; render(); };
   if (hotwordField) {
     hotwords.oninput = () => {
       saveOptions();
@@ -325,7 +345,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     };
   }
   window.addEventListener('storage', ({ key }) => {
-    if (key !== ASR_OPTIONS_KEY) return;
+    if (key !== optionsKey) return;
     restoreOptions();
     if (hotwordHint) hotwordHint.textContent = defaultHotwordHint;
     render();

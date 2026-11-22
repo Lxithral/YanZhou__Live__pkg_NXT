@@ -103,6 +103,7 @@
     },
     "program": {
       "visible": false,
+      "autoHideAfterTear": true,
       "label": "正在演出",
       "current": "绿光",
       "nextLabel": "接下来",
@@ -135,7 +136,7 @@
           "type": "歌曲",
           "title": "身骑白马",
           "performer": "高二16班 高可心",
-          "desc": "徐佳莹版本",
+          "desc": "",
           "cover": ""
         },
         {
@@ -171,7 +172,7 @@
           "type": "歌曲",
           "title": "天上掉下个林妹妹",
           "performer": "高一3班 李殷悦",
-          "desc": "cover.黄诗扶",
+          "desc": "",
           "cover": ""
         },
         {
@@ -286,9 +287,9 @@
       ]
     },
     "speech": {
-      "visible": false,
+      "visible": true,
       "textColor": "#F4F0E8",
-      "holdSeconds": 6,
+      "holdSeconds": 5,
       "x": 240,
       "y": 848,
       "scale": 1,

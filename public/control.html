@@ -302,7 +302,10 @@
             </details>
             <details class="asr-settings-group">
               <summary><strong>识别模型</strong></summary>
-              <div class="asr-group-content"><select class="select-input" id="speech-asr-model" aria-label="识别模型"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式 · 支持热词</option></select></div>
+              <div class="asr-group-content">
+                <select class="select-input" id="speech-asr-model" aria-label="识别模型"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式 · 支持热词</option><option value="__custom">自定义模型 ID</option></select>
+                <div id="speech-model-custom-wrap" hidden><input class="text-input" id="speech-model-custom" type="text" maxlength="64" spellcheck="false" autocomplete="off" placeholder="填写百炼模型 ID，如 qwen3-asr-flash-realtime" aria-label="自定义模型 ID"></div>
+              </div>
             </details>
             <details class="asr-settings-group asr-hotwords" id="speech-asr-hotword-field" hidden>
               <summary><strong>临时热词</strong></summary>

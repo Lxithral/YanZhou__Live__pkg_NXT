@@ -8,9 +8,19 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { createPackagingServer } from '../server/server.js';
 import { createSpeechSession } from '../server/speech-session.js';
 import { readDashScopeConfig } from '../server/asr-capture.js';
-import { CONTEST_HOTWORDS_2026, STREAMING_MODEL } from '../public/js/asr/asr-settings.js';
+import { CONTEST_HOTWORDS_2026, STREAMING_MODEL, usesStreamingProtocol, validateAsrOptions } from '../public/js/asr/asr-settings.js';
 const EVENTS = 'conversation.item.input_audio_transcription.';
 const PCM = Buffer.alloc(1280);
+
+test('custom model ids pass validation and pick the interface by name', () => {
+  assert.equal(validateAsrOptions({ model: 'qwen3-asr-flash-realtime-2026-01' }).model, 'qwen3-asr-flash-realtime-2026-01');
+  assert.equal(usesStreamingProtocol('qwen3-asr-flash-realtime-2026-01'), false);
+  assert.equal(usesStreamingProtocol('qwen-audio-3.0-asr-flash-streaming-2026'), true);
+  assert.deepEqual(validateAsrOptions({ model: 'qwen-audio-3.0-asr-flash-streaming-2026', hotwords: '烟洲' }).vocabulary, { 烟洲: 5 });
+  assert.throws(() => validateAsrOptions({ model: 'bad id' }), /模型 ID/);
+  assert.throws(() => validateAsrOptions({ model: '' }), /模型 ID/);
+  assert.throws(() => validateAsrOptions({ model: 'x'.repeat(65) }), /模型 ID/);
+});
 
 function client(url, options) {
   const socket = new WebSocket(url, options);

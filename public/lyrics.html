@@ -103,8 +103,9 @@
       <div class="column-controls">
         <p class="asr-status" id="asr-status" role="status">等待连接本机服务…</p>
         <div class="tool-row asr-engine-row">
-          <label class="field-label" for="asr-model">识别模型</label><select class="select-input" id="asr-model"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式</option></select><button id="asr-test" type="button" disabled>测试连接</button>
+          <label class="field-label" for="asr-model">识别模型</label><select class="select-input" id="asr-model"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式</option><option value="__custom">自定义模型 ID</option></select><button id="asr-test" type="button" disabled>测试连接</button>
         </div>
+        <div class="tool-row" id="model-custom-wrap" hidden><label for="model-custom">模型 ID</label><input id="model-custom" type="text" maxlength="64" spellcheck="false" autocomplete="off" placeholder="填写百炼模型 ID" aria-label="自定义模型 ID"></div>
         <div class="tool-row">
           <label for="audio-source">音源</label>
           <select id="audio-source"><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select>
