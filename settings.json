@@ -289,7 +289,6 @@
     "speech": {
       "visible": true,
       "textColor": "#F4F0E8",
-      "holdSeconds": 5,
       "x": 240,
       "y": 848,
       "scale": 1,

@@ -211,7 +211,7 @@ test('the host session feeds speech captions without saving text or credentials'
   const overlay = await setup.connect();
   await overlay.wait((m) => m.type === 'speech:state' && !m.text);
   assert.equal((await control.wait((m) => m.type === 'lyrics:asr')).configured, true);
-  control.send({ type: 'patch', id: 'speech-style', patch: { modules: { speech: { visible: true, holdSeconds: 1, textColor: '#abcdef' } } } });
+  control.send({ type: 'patch', id: 'speech-style', patch: { modules: { speech: { visible: true, textColor: '#abcdef' } } } });
   await control.wait((m) => m.type === 'state' && m.id === 'speech-style');
   const audio = await setup.connect(true);
   await audio.wait((m) => m.type === 'ready');
@@ -220,7 +220,6 @@ test('the host session feeds speech captions without saving text or credentials'
   const partial = await overlay.wait((m) => m.type === 'speech:state' && m.text);
   assert.equal(partial.text, '欢迎来到校园歌手大赛');
   assert.equal(partial.partial, true);
-  assert.equal(partial.expiresAt - partial.updatedAt, 1000);
   const lyric = await control.wait((m) => m.type === 'lyrics:asr' && m.partial);
   assert.equal(lyric.partial, partial.text);
   assert.equal(lyric.owner, 'speech');
@@ -233,9 +232,7 @@ test('the host session feeds speech captions without saving text or credentials'
   await control.wait((m) => m.type === 'lyrics:asr' && m.finals.length === 1);
   const reconnected = await setup.connect();
   const current = await reconnected.wait((m) => m.type === 'speech:state');
-  assert.equal(current.expiresAt - current.updatedAt, 1000);
-  const expired = await overlay.wait((m) => m.type === 'speech:state' && !m.text);
-  assert.ok(expired.serverTime >= current.expiresAt);
+  assert.equal(current.text, setup.state.response.text);
   control.send({ type: 'asr:stop', id: 'stop' });
   await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'stopping');
   await control.wait((m) => m.type === 'lyrics:asr' && m.phase === 'idle' && m.finals.length);
@@ -350,31 +347,23 @@ test('only timed finals from the lyric capture correct the timeline without prod
   assert.equal(setup.app.getState().settings.modules.lyrics.armed, true);
 });
 
-test('speech clear is immediate and new partials renew the deadline without reviving expired text', (t) => {
+test('speech text stays until cleared and never expires on its own', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  let now = 1000;
   const changes = [];
-  const session = createSpeechSession({ holdSeconds: () => 2, onChange: (m) => changes.push(m), now: () => now });
+  const session = createSpeechSession({ onChange: (m) => changes.push(m) });
   session.accept({ text: '第一句', final: true });
-  now += 1500;
-  t.mock.timers.tick(1500);
   session.accept({ text: '第二句', final: false });
-  now += 500;
-  t.mock.timers.tick(500);
   assert.equal(session.snapshot().text, '第二句');
-  now += 1500;
-  t.mock.timers.tick(1500);
-  assert.equal(session.snapshot().text, '');
-  session.accept({ text: '立即清屏', final: true });
+  t.mock.timers.tick(120_000);
+  assert.equal(session.snapshot().text, '第二句');
   session.clear();
   assert.equal(changes.at(-1).text, '');
-  session.close();
 });
 
-test('invalid speech settings are rejected without accepting transcript fields', async (t) => {
+test('speech patches reject unknown fields including the removed hold setting', async (t) => {
   const setup = await fixture(t);
   const control = await setup.connect();
-  for (const [index, values] of [{ holdSeconds: 0 }, { holdSeconds: 31 }, { text: '不能保存这段话' }].entries()) {
+  for (const [index, values] of [{ holdSeconds: 5 }, { text: '不能保存这段话' }].entries()) {
     const id = `invalid-${index}`;
     control.send({ type: 'patch', id, patch: { modules: { speech: values } } });
     assert.equal((await control.wait((m) => m.id === id)).type, 'error');

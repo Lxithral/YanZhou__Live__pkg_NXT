@@ -21,7 +21,6 @@ export function createSpeechRenderer(container, { sample = false } = {}) {
   const text = layer.body.querySelector('.speech-text');
   let module;
   let state;
-  let timer;
   let disposed = false;
 
   function fit() {
@@ -49,16 +48,9 @@ export function createSpeechRenderer(container, { sample = false } = {}) {
       draw();
     },
     updateSpeech(message) {
-      clearTimeout(timer);
       state = message;
-      if (message.text && message.expiresAt) {
-        const transit = Math.max(0, Math.min(2000, Date.now() - message.serverTime));
-        const remaining = message.expiresAt - message.serverTime - transit;
-        if (remaining <= 0) state = { ...message, text: '' };
-        else timer = setTimeout(() => { state = { ...message, text: '' }; draw(); }, remaining);
-      }
       draw();
     },
-    dispose() { disposed = true; clearTimeout(timer); },
+    dispose() { disposed = true; },
   };
 }

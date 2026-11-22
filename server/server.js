@@ -23,7 +23,6 @@ const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 
 const FIELD_RULES = {
   visible: { kind: 'boolean', label: '显示状态' },
-  holdSeconds: { kind: 'number', min: 1, max: 30, label: '停顿清屏秒数' },
   showMark: { kind: 'boolean', label: '显示校徽' },
   title: { kind: 'text', max: 80, label: '主标题' },
   subtitle: { kind: 'text', max: 120, label: '副标题' },
@@ -53,7 +52,7 @@ const MODULE_FIELDS = {
   hosts: ['visible', 'label', 'names', 'slotCount', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'autoHideAfterTear', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
-  speech: ['visible', 'textColor', 'holdSeconds', 'x', 'y', 'scale', 'opacity'],
+  speech: ['visible', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
 
 const clone = (value) => structuredClone(value);
@@ -112,7 +111,7 @@ export const DEFAULT_SETTINGS = {
       ...clone(DEFAULT_LYRICS),
     },
     speech: {
-      visible: false, textColor: '#F4F0E8', holdSeconds: 6,
+      visible: false, textColor: '#F4F0E8',
       x: 240, y: 848, scale: 1, opacity: 100,
       animation: { enter: 'fade', exit: 'fade', duration: 200 },
     },
@@ -234,6 +233,8 @@ function validateModule(moduleId, module) {
     allowed.add('song');
     allowed.add('songOrder');
   }
+  // v5 曾保存主持人字幕的停顿清屏秒数；现在不再自动清屏，读到时直接忽略。
+  if (moduleId === 'speech') allowed.add('holdSeconds');
   for (const key of Object.keys(module)) {
     if (!allowed.has(key)) throw new Error(`不支持的设置项：${moduleId}.${key}`);
   }
@@ -581,7 +582,7 @@ export async function createPackagingServer({
     publishLyrics(include, id);
     broadcast(asrState());
   }
-  const speech = createSpeechSession({ holdSeconds: () => settings.modules.speech.holdSeconds, onChange: broadcast });
+  const speech = createSpeechSession({ onChange: broadcast });
   let recognition = { phase: 'idle', owner: null, resultOwner: null, message: '', partial: '', finals: [] };
   const capture = createAsrCapture({
     ...(asr ?? await readDashScopeConfig(asrConfigPath)),
@@ -934,7 +935,6 @@ export async function createPackagingServer({
       clearInterval(lyricHeartbeat);
       clearInterval(lyricCheckpoint);
       await capture.close();
-      speech.close();
       await commandQueue;
       await songQueue;
       lyrics.close();

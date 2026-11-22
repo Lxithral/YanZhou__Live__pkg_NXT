@@ -35,7 +35,6 @@ const MODULES = {
       { key: 'textColor', id: 'speechTextColor', hexId: 'speechTextColorHex', kind: 'color' },
       { key: 'scale', id: 'speechScale', numberId: 'speechScaleNumber', kind: 'percent' },
       { key: 'opacity', id: 'speechOpacity', numberId: 'speechOpacityNumber', kind: 'opacity' },
-      { key: 'holdSeconds', id: 'speechHold', numberId: 'speechHoldNumber', kind: 'raw' },
     ],
     position: { x: 'speechX', xRange: 'speechXRange', xMax: 'speechXMax', y: 'speechY', yRange: 'speechYRange', yMax: 'speechYMax' },
     animation: { enter: 'speechEnter', exit: 'speechExit', duration: 'speechDuration', durationNumber: 'speechDurationNumber' },
@@ -108,7 +107,7 @@ const FALLBACK_SETTINGS = {
   version: 2,
   canvas: { width: 1920, height: 1080 },
   modules: {
-    speech: { visible: false, textColor: '#F4F0E8', holdSeconds: 6, x: 240, y: 848, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
+    speech: { visible: false, textColor: '#F4F0E8', x: 240, y: 848, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', textColor: '#F4F0E8', weight: 500, x: 112, y: 70, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, autoHideAfterTear: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1280, y: 770, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
@@ -703,7 +702,7 @@ function connect() {
       previewRenderers.speech.updateSpeech(message);
       focusRenderer?.updateSpeech?.(message);
       $('speech-caption-status').textContent = !message.text ? '字幕待推送' :
-        message.partial ? '临时识别 · 随语音更新' : '已确认 · 停顿后自动清屏';
+        message.partial ? '临时识别 · 随语音更新' : '已确认 · 保留到清屏';
       avoidance.schedule();
     } else if (message.type === 'lyrics:asr') {
       sharedAsr = message;
