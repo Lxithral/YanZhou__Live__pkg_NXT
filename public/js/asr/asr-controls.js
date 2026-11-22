@@ -1,5 +1,6 @@
 import { CONTEST_HOTWORDS_2026, CUSTOM_MODEL, MAX_HOTWORD_TEXT, MAX_HOTWORDS, REALTIME_MODEL, SCHOOL_HOTWORDS, STREAMING_MODEL,
   splitHotwords, usesStreamingProtocol, validateAsrOptions } from './asr-settings.js';
+import { createDeviceMeter } from './device-meter.js';
 
 const CABLE = /cable output|vb-audio|vb-cable/i;
 const AUDIO_CONSTRAINTS = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
@@ -20,6 +21,8 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   const media = navigator.mediaDevices;
   const source = $('audio-source');
   const device = $('audio-device');
+  const deviceMeter = createDeviceMeter({ select: device, list: $('device-list'), constraints: AUDIO_CONSTRAINTS,
+    onDevicesChanged: () => { refreshDevices().catch(() => {}); } });
   const start = $('asr-start');
   const stop = $('asr-stop');
   const test = $('asr-test');
@@ -96,6 +99,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       }
     }
     if ([...device.options].some((option) => option.value === previous)) device.value = previous;
+    deviceMeter.refresh();
     return inputs;
   }
 
@@ -120,6 +124,8 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     stop.disabled = !online || (!local && !['listening', 'loading'].includes(phase));
     source.disabled = Boolean(local) || busy;
     device.disabled = Boolean(local) || busy || source.value === 'tab';
+    deviceMeter.setTab(source.value === 'tab');
+    deviceMeter.setPaused(device.disabled);
     test.disabled = !online || !shared?.configured || busy || Boolean(local);
     model.disabled = Boolean(local) || busy;
     if (modelCustom) modelCustom.disabled = model.disabled;
@@ -352,7 +358,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   });
   source.onchange = () => { refreshDevices().catch(() => {}); render(); };
   if ($('asr-correct')) $('asr-correct').onchange = ({ target }) => correct?.(target.checked);
-  window.addEventListener('pagehide', () => stopCapture());
+  window.addEventListener('pagehide', () => { stopCapture(); deviceMeter.stop(); });
   media?.addEventListener('devicechange', () => refreshDevices().catch(() => {}));
   if (media) refreshDevices().catch(() => {});
   return {

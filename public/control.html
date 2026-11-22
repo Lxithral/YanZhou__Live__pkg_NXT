@@ -321,7 +321,7 @@
               <summary><strong>音源 / 设备</strong></summary>
               <div class="asr-group-content">
                 <div class="field"><label class="field-label" for="speech-audio-source">音源</label><select class="select-input" id="speech-audio-source"><button type="button"><selectedcontent></selectedcontent></button><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select></div>
-                <div class="field"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device"><button type="button"><selectedcontent></selectedcontent></button><option value="">系统默认麦克风</option></select></div>
+                <div class="field"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device" hidden><button type="button"><selectedcontent></selectedcontent></button><option value="">系统默认麦克风</option></select><div class="device-list" id="speech-device-list" role="radiogroup" aria-label="输入设备"></div></div>
               </div>
             </details>
             <details class="asr-settings-group">

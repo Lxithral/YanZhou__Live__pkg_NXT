@@ -111,7 +111,7 @@
           <select id="audio-source"><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select>
           <button id="asr-start" class="primary" type="button" disabled>启动采集</button><button id="asr-stop" type="button" disabled>停止采集</button>
         </div>
-        <div class="tool-row"><label for="audio-device">输入设备</label><select id="audio-device"><option value="">系统默认麦克风</option></select></div>
+        <div class="tool-row"><label for="audio-device">输入设备</label><select id="audio-device" hidden><option value="">系统默认麦克风</option></select><div class="device-list" id="device-list" role="radiogroup" aria-label="输入设备"></div></div>
         <p class="muted">采集音频送百炼识别。A 列播放并推送时，用识别结果比对已导入的歌词，校准播放进度。</p>
         <label><input id="asr-correct" type="checkbox" disabled> 时间轴自动纠偏</label>
         <p class="muted" id="asr-alignment">偏移 — · 对齐置信度 —</p>
