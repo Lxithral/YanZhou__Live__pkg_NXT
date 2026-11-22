@@ -97,8 +97,7 @@
         </div>
       </section>
       <section class="focus-card" aria-labelledby="focusTitle">
-        <div class="focus-heading"><h2 id="focusTitle">Logo 挂角 · 局部放大</h2><div class="focus-actions"><span id="focusScale">自动适配</span><button type="button" class="button" id="programTear" aria-describedby="programTearHint" hidden disabled>撕开票根</button></div></div>
-        <p id="programTearHint" class="focus-hint" hidden></p>
+        <div class="focus-heading"><h2 id="focusTitle">Logo 挂角 · 局部放大</h2><span id="focusScale">自动适配</span></div>
         <div class="focus-stage" id="focusStage" data-background="checker" aria-label="选中模块的局部放大预览">
           <div class="focus-canvas" id="focusCanvas"></div>
         </div>
@@ -114,26 +113,31 @@
       </div>
       <section class="properties-card">
         <div class="visibility-row"><div class="visibility-copy"><strong id="visibilityTitle">显示 Logo 挂角</strong><small id="visibilityHint">关闭后按退场动画离开画面</small></div><label class="switch"><input id="moduleVisible" type="checkbox" checked aria-label="显示当前模块"><span></span></label></div>
+        <div class="ticket-controls" id="programTicketControls" hidden>
+          <button type="button" class="button" id="programTear" aria-describedby="programTearHint" disabled>撕开票根</button>
+          <label class="check-label" for="programAutoHideAfterTear"><input type="checkbox" id="programAutoHideAfterTear"><span>撕开票根后自动隐藏</span></label>
+          <p id="programTearHint" class="ticket-hint"></p>
+        </div>
         <div class="module-panel" data-module-panel="logo">
-          <div class="settings-section">
-            <h3><span>01</span>显示内容</h3>
+          <details class="settings-section" open>
+            <summary><h3><span>01</span>显示内容</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="logoTitle">主标题</label><input class="text-input" id="logoTitle" type="text" maxlength="80" autocomplete="off"></div>
               <div class="field"><label class="field-label" for="logoSubtitle">副标题 <span class="hint">可留空</span></label><input class="text-input" id="logoSubtitle" type="text" maxlength="120" autocomplete="off"></div>
               <div class="field field-wide"><div class="field-line"><label class="field-label" for="logoShowMark">显示校徽 <span class="hint">关闭后仅显示文字</span></label><label class="switch"><input id="logoShowMark" type="checkbox" checked aria-label="显示校徽图标"><span></span></label></div></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>02</span>外观</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>02</span>外观</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="logoTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="logoTextColor" aria-label="文字颜色，打开取色器"></button><input id="logoTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="logoWeight">字重</label><div class="slider-line"><input id="logoWeight" class="range-input" type="range" min="150" max="700" step="10"><div class="number-unit"><input id="logoWeightNumber" type="number" min="150" max="700" step="10" aria-label="字重数值"><span></span></div></div></div>
               <div class="field"><label class="field-label" for="logoScale">整体大小</label><div class="slider-line"><input id="logoScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="logoScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="logoOpacity">不透明度</label><div class="slider-line"><input id="logoOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="logoOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>03</span>位置</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>03</span>位置</h3></summary>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="logoX">水平 X</label><div class="number-unit"><input id="logoX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -146,33 +150,33 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="logoYMax">1080 px · 下</span></div>
               </div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>04</span>出场 / 退场</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>04</span>出场 / 退场</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="logoEnter">出场动画</label><select class="select-input" id="logoEnter"></select></div>
               <div class="field"><label class="field-label" for="logoExit">退场动画</label><select class="select-input" id="logoExit"></select></div>
               <div class="field field-wide"><label class="field-label" for="logoDuration">动画时长</label><div class="slider-line"><input id="logoDuration" class="range-input" type="range" min="200" max="2000" step="50"><div class="number-unit"><input id="logoDurationNumber" type="number" min="200" max="2000" step="50" aria-label="动画时长毫秒"><span>ms</span></div></div></div>
             </div>
-          </div>
+          </details>
         </div>
         <div class="module-panel" data-module-panel="hosts" hidden>
-          <div class="settings-section">
-            <h3><span>01</span>显示内容</h3>
+          <details class="settings-section" open>
+            <summary><h3><span>01</span>显示内容</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="hostsLabel">标签</label><input class="text-input" id="hostsLabel" type="text" maxlength="40" autocomplete="off"></div>
               <div class="field field-wide"><label class="field-label" for="hostsSlotCount">启用槽位 <span class="hint">停用槽位保留原选择</span></label><div class="slider-line"><input id="hostsSlotCount" class="range-input" type="range" min="1" max="4" step="1"><div class="number-unit"><input id="hostsSlotCountNumber" type="number" min="1" max="4" step="1" aria-label="显示人数"><span></span></div></div></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>02</span>外观</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>02</span>外观</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="hostsScale">整体大小</label><div class="slider-line"><input id="hostsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="hostsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="hostsOpacity">不透明度</label><div class="slider-line"><input id="hostsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="hostsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>03</span>位置 <span class="hint">左右人物条一起移动，X 调整两侧边距</span></h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>03</span>位置 <span class="hint">左右人物条一起移动，X 调整两侧边距</span></h3></summary>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="hostsX">水平 X</label><div class="number-unit"><input id="hostsX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -185,33 +189,33 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="hostsYMax">1080 px · 下</span></div>
               </div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>04</span>出场 / 退场</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>04</span>出场 / 退场</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="hostsEnter">出场动画</label><select class="select-input" id="hostsEnter"></select></div>
               <div class="field"><label class="field-label" for="hostsExit">退场动画</label><select class="select-input" id="hostsExit"></select></div>
               <div class="field field-wide"><label class="field-label" for="hostsDuration">动画时长</label><div class="slider-line"><input id="hostsDuration" class="range-input" type="range" min="200" max="2000" step="50"><div class="number-unit"><input id="hostsDurationNumber" type="number" min="200" max="2000" step="50" aria-label="动画时长毫秒"><span>ms</span></div></div></div>
             </div>
-          </div>
+          </details>
         </div>
         <div class="module-panel" data-module-panel="program" hidden>
-          <div class="settings-section">
-            <h3><span>01</span>显示内容</h3>
+          <details class="settings-section" open>
+            <summary><h3><span>01</span>显示内容</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="programLabel">标签</label><input class="text-input" id="programLabel" type="text" maxlength="40" autocomplete="off"></div>
               <div class="field"><label class="field-label" for="programNextLabel">下一个标签 <span class="hint">可留空</span></label><input class="text-input" id="programNextLabel" type="text" maxlength="40" autocomplete="off"></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>02</span>外观</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>02</span>外观</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="programScale">整体大小</label><div class="slider-line"><input id="programScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="programScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="programOpacity">不透明度</label><div class="slider-line"><input id="programOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="programOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>03</span>位置</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>03</span>位置</h3></summary>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="programX">水平 X</label><div class="number-unit"><input id="programX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -224,19 +228,19 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="programYMax">1080 px · 下</span></div>
               </div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>04</span>出场 / 退场</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>04</span>出场 / 退场</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="programEnter">出场动画</label><select class="select-input" id="programEnter"></select></div>
               <div class="field"><label class="field-label" for="programExit">退场动画</label><select class="select-input" id="programExit"></select></div>
               <div class="field field-wide"><label class="field-label" for="programDuration">动画时长</label><div class="slider-line"><input id="programDuration" class="range-input" type="range" min="200" max="2000" step="50"><div class="number-unit"><input id="programDurationNumber" type="number" min="200" max="2000" step="50" aria-label="动画时长毫秒"><span>ms</span></div></div></div>
             </div>
-          </div>
+          </details>
         </div>
         <div class="module-panel" data-module-panel="lyrics" hidden>
-          <div class="settings-section lyrics-playlist">
-            <h3><span>01</span>歌词控制</h3>
+          <details class="settings-section lyrics-playlist" open>
+            <summary><h3><span>01</span>歌词控制</h3></summary>
             <div class="skip-notice" id="skip-notice" role="status" hidden>
               <svg class="skip-notice-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.25"/><path d="M8 4.75v4M8 11.1v.15"/></svg>
               <span class="skip-notice-text" id="skip-notice-text"></span>
@@ -248,18 +252,18 @@
             </div>
             <progress id="lyricsProgress" max="1" value="0"></progress>
             <ol id="lyricsPlaylist" aria-label="歌词播放顺序"><li>曲库暂无歌曲</li></ol>
-          </div>
-          <div class="settings-section">
-            <h3><span>02</span>外观</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>02</span>外观</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="lyricsAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsAccent" aria-label="标签色，打开取色器"></button><input id="lyricsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="标签色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="lyricsTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsTextColor" aria-label="文字颜色，打开取色器"></button><input id="lyricsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="lyricsScale">整体大小</label><div class="slider-line"><input id="lyricsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="lyricsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="lyricsOpacity">不透明度</label><div class="slider-line"><input id="lyricsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="lyricsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>03</span>位置</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>03</span>位置</h3></summary>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="lyricsX">水平 X</label><div class="number-unit"><input id="lyricsX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -272,48 +276,71 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="lyricsYMax">1080 px · 下</span></div>
               </div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>04</span>出场 / 退场</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>04</span>出场 / 退场</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="lyricsEnter">出场动画</label><select class="select-input" id="lyricsEnter"></select></div>
               <div class="field"><label class="field-label" for="lyricsExit">退场动画</label><select class="select-input" id="lyricsExit"></select></div>
               <div class="field field-wide"><label class="field-label" for="lyricsDuration">动画时长</label><div class="slider-line"><input id="lyricsDuration" class="range-input" type="range" min="200" max="2000" step="50"><div class="number-unit"><input id="lyricsDurationNumber" type="number" min="200" max="2000" step="50" aria-label="动画时长毫秒"><span>ms</span></div></div></div>
             </div>
-          </div>
+          </details>
         </div>
         <div class="module-panel" data-module-panel="speech" hidden>
-          <div class="settings-section">
-            <h3><span>01</span>主持人语音</h3>
+          <details class="settings-section" open>
+            <summary><h3><span>01</span>主持人语音</h3></summary>
             <p class="speech-status" id="speech-asr-status" role="status">等待连接本机服务…</p>
-            <div class="field-grid">
-              <div class="field field-wide asr-engine-row"><label class="field-label" for="speech-asr-model">识别模型</label><select class="select-input" id="speech-asr-model"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式 · 支持热词</option></select><button class="button" id="speech-asr-test" type="button" disabled>测试连接</button></div>
-              <div class="field field-wide asr-hotwords" id="speech-asr-hotword-field" hidden>
+            <div class="speech-actions"><button class="button primary" id="speech-asr-start" type="button" disabled>启动识别</button><button class="button" id="speech-asr-stop" type="button" disabled>停止采集</button><button class="button" id="speech-clear" type="button" disabled>清屏</button><button class="button" id="speech-asr-test" type="button" disabled>测试连接</button></div>
+            <details class="asr-settings-group" id="speech-asr-config" open>
+              <summary><strong>API Key 配置</strong></summary>
+              <div class="asr-group-content">
+                <div class="field"><label class="field-label" for="speech-asr-api-key">API Key</label><div class="asr-key-row"><input class="text-input" id="speech-asr-api-key" type="password" autocomplete="off" spellcheck="false" maxlength="1024" placeholder="输入阿里云百炼 API Key"><button class="button" id="speech-asr-key-toggle" type="button" aria-label="显示 API Key" aria-pressed="false">显示</button></div></div>
+                <div class="field"><label class="field-label" for="speech-asr-workspace-id">业务空间 ID <span class="hint">可选</span></label><input class="text-input" id="speech-asr-workspace-id" type="text" autocomplete="off" spellcheck="false" maxlength="256"></div>
+                <div class="asr-config-footer"><button class="button primary" id="speech-asr-config-save" type="button" disabled>保存配置</button><p class="asr-config-note">保存到本机，主控台与歌词台共用。</p></div>
+                <p class="asr-config-status" id="speech-asr-config-status" role="status"></p>
+              </div>
+            </details>
+            <details class="asr-settings-group">
+              <summary><strong>识别模型</strong></summary>
+              <div class="asr-group-content"><select class="select-input" id="speech-asr-model" aria-label="识别模型"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式 · 支持热词</option></select></div>
+            </details>
+            <details class="asr-settings-group asr-hotwords" id="speech-asr-hotword-field" hidden>
+              <summary><strong>临时热词</strong></summary>
+              <div class="asr-group-content">
                 <div class="asr-hotword-heading">
-                  <label class="field-label" for="speech-asr-hotwords">临时热词</label>
                   <button class="button" id="speech-asr-hotword-preset" type="button">补入 2026 活动词表</button>
                 </div>
-                <textarea class="text-input" id="speech-asr-hotwords" rows="3" maxlength="3000" aria-describedby="speech-asr-hotword-hint" placeholder="烟洲中学&#10;烟声润景"></textarea>
-                <p class="muted" id="speech-asr-hotword-hint" aria-live="polite">一行一个，最多 50 项。可按本场活动删改，下次启动识别生效。</p>
+                <textarea class="text-input textarea-input" id="speech-asr-hotwords" rows="3" maxlength="3000" aria-label="临时热词" aria-describedby="speech-asr-hotword-hint" placeholder="烟洲中学&#10;烟声润景"></textarea>
+                <p class="muted" id="speech-asr-hotword-hint" aria-live="polite">一行一个，最多 50 项，下次启动识别生效。</p>
               </div>
-              <div class="field field-wide"><label class="field-label" for="speech-audio-source">音源</label><select class="select-input" id="speech-audio-source"><button type="button"><selectedcontent></selectedcontent></button><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select></div>
-              <div class="field field-wide"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device"><button type="button"><selectedcontent></selectedcontent></button><option value="">系统默认麦克风</option></select></div>
-              <div class="field field-wide speech-actions"><button class="button primary" id="speech-asr-start" type="button" disabled>启动识别</button><button class="button" id="speech-asr-stop" type="button" disabled>停止采集</button><button class="button" id="speech-clear" type="button" disabled>清屏</button></div>
-              <div class="field field-wide"><span class="field-label">实时识别</span><p class="speech-transcript" id="speech-asr-partial">等待语音</p><p class="speech-caption-status" id="speech-caption-status">字幕待推送</p></div>
-              <div class="field field-wide"><label class="field-label" for="speechHold">停顿后清屏</label><div class="slider-line"><input id="speechHold" class="range-input" type="range" min="1" max="30" step="1"><div class="number-unit"><input id="speechHoldNumber" type="number" min="1" max="30" step="1" aria-label="停顿后清屏秒数"><span>秒</span></div></div></div>
-            </div>
+            </details>
+            <details class="asr-settings-group">
+              <summary><strong>音源 / 设备</strong></summary>
+              <div class="asr-group-content">
+                <div class="field"><label class="field-label" for="speech-audio-source">音源</label><select class="select-input" id="speech-audio-source"><button type="button"><selectedcontent></selectedcontent></button><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select></div>
+                <div class="field"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device"><button type="button"><selectedcontent></selectedcontent></button><option value="">系统默认麦克风</option></select></div>
+              </div>
+            </details>
+            <details class="asr-settings-group">
+              <summary><strong>停顿后清屏</strong></summary>
+              <div class="asr-group-content slider-line"><input id="speechHold" class="range-input" type="range" min="1" max="30" step="1" aria-label="停顿后清屏秒数"><div class="number-unit"><input id="speechHoldNumber" type="number" min="1" max="30" step="1" aria-label="停顿后清屏秒数"><span>秒</span></div></div>
+            </details>
+            <details class="asr-settings-group">
+              <summary><strong>实时识别结果</strong></summary>
+              <div class="asr-group-content"><p class="speech-transcript" id="speech-asr-partial">等待语音</p><p class="speech-caption-status" id="speech-caption-status">字幕待推送</p></div>
+            </details>
             <p class="speech-hint">点击启动后，所选音源会发送到阿里云百炼。打开上方显示开关即可上屏。切到歌词纠偏前请先停止采集。</p>
-          </div>
-          <div class="settings-section">
-            <h3><span>02</span>外观</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>02</span>外观</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="speechTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="speechTextColor" aria-label="文字颜色，打开取色器"></button><input id="speechTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="speechScale">整体大小</label><div class="slider-line"><input id="speechScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="speechScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="speechOpacity">不透明度</label><div class="slider-line"><input id="speechOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="speechOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>03</span>位置</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>03</span>位置</h3></summary>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="speechX">水平 X</label><div class="number-unit"><input id="speechX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -326,15 +353,15 @@
                 <div class="range-caption"><span>0 px · 上</span><span id="speechYMax">1080 px · 下</span></div>
               </div>
             </div>
-          </div>
-          <div class="settings-section">
-            <h3><span>04</span>出场 / 退场</h3>
+          </details>
+          <details class="settings-section">
+            <summary><h3><span>04</span>出场 / 退场</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="speechEnter">出场动画</label><select class="select-input" id="speechEnter"></select></div>
               <div class="field"><label class="field-label" for="speechExit">退场动画</label><select class="select-input" id="speechExit"></select></div>
               <div class="field field-wide"><label class="field-label" for="speechDuration">动画时长</label><div class="slider-line"><input id="speechDuration" class="range-input" type="range" min="200" max="2000" step="50"><div class="number-unit"><input id="speechDurationNumber" type="number" min="200" max="2000" step="50" aria-label="动画时长毫秒"><span>ms</span></div></div></div>
             </div>
-          </div>
+          </details>
         </div>
         <div class="save-status" id="saveStatus" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><div><strong id="saveText">正在读取设置</strong><small id="saveDetail"></small></div></div>
       </section>

@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
 import { WebSocket } from 'ws';
 import { STREAMING_MODEL, validateAsrOptions } from '../public/js/asr/asr-settings.js';
+import { validateDashScopeCredentials } from './asr-config.js';
 
 const SAMPLE_RATE = 16_000;
 const FRAME_MS = 40;
@@ -13,7 +14,7 @@ const SESSION_OPTIONS = {
   sample_rate: SAMPLE_RATE,
   turn_detection: { type: 'server_vad', threshold: 0.0, silence_duration_ms: 400 },
 };
-const MISSING_KEY = '请在项目的 .env 中填写 DASHSCOPE_API_KEY，然后重启启动窗口。';
+const MISSING_KEY = '填写并保存 API Key 后即可使用语音识别。';
 const CONNECTION_FAILED = '无法连接百炼实时识别，请检查网络后重试。';
 const PROTOCOL_FAILED = '百炼实时识别返回了无法处理的消息，请重试。';
 
@@ -50,16 +51,17 @@ export function createAsrCapture({
   apiKey, workspaceId, configError, onStatus = () => {}, onResult = () => {}, onService = () => {},
   connect = (url, options) => new WebSocket(url, options), connectTimeoutMs = 10_000, finishTimeoutMs = 2500,
 } = {}) {
-  const key = apiKey?.trim() || '';
-  const workspace = workspaceId?.trim() || '';
-  const invalid = configError || (!key ? MISSING_KEY :
+  let key = apiKey?.trim() || '';
+  let workspace = workspaceId?.trim() || '';
+  let invalid = configError || (!key ? MISSING_KEY :
     !/^[\x21-\x7E]{1,1024}$/u.test(key) ? '百炼 API Key 格式无效，请检查 .env。' :
     workspace && !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/iu.test(workspace) ? '百炼业务空间 ID 格式无效，请检查 .env。' : '');
-  const configured = !invalid;
-  const endpoint = 'wss://' + (configured && workspace ? `${workspace}.cn-beijing.maas.aliyuncs.com` : 'dashscope.aliyuncs.com');
+  let configured = !invalid;
+  const endpoint = () => 'wss://' + (configured && workspace ? `${workspace}.cn-beijing.maas.aliyuncs.com` : 'dashscope.aliyuncs.com');
   let message = invalid || '百炼已配置 · 可测试连接或启动识别';
   let active;
   let closed = false;
+  let configuring = false;
 
   function send(socket, payload) {
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
@@ -127,7 +129,7 @@ export function createAsrCapture({
 
   function start({ socket, owner, probe = false, model, vocabulary }) {
     const taskId = model === STREAMING_MODEL ? randomUUID() : null;
-    const url = new URL(taskId ? '/api-ws/v1/inference' : '/api-ws/v1/realtime', endpoint);
+    const url = new URL(taskId ? '/api-ws/v1/inference' : '/api-ws/v1/realtime', endpoint());
     if (!taskId) url.searchParams.set('model', model);
     let upstream;
     try {
@@ -244,16 +246,32 @@ export function createAsrCapture({
   }
 
   return {
-    configured,
+    get configured() { return configured; },
+    get workspaceId() { return !workspace || /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/iu.test(workspace) ? workspace : ''; },
     get testing() { return Boolean(active?.probe); },
     get model() { return active?.model ?? null; },
     get message() { return message; },
     test(options) {
-      if (!closed && !active && configured) start({ probe: true, ...validateAsrOptions(options) });
+      if (!closed && !active && !configuring && configured) start({ probe: true, ...validateAsrOptions(options) });
+    },
+    async configure(options, persist) {
+      const credentials = validateDashScopeCredentials(options);
+      if (closed) throw new Error('服务正在关闭，请稍后重试。');
+      if (active || configuring) throw new Error('请先停止识别或等待连接测试结束，再保存 API Key。');
+      configuring = true;
+      try {
+        await persist(credentials);
+        key = credentials.apiKey;
+        workspace = credentials.workspaceId;
+        invalid = '';
+        configured = true;
+        message = '百炼凭证已保存 · 可测试连接或启动识别';
+      } finally { configuring = false; }
+      onService();
     },
     attach(socket, owner, options) {
-      if (closed || active || !configured || !['lyrics', 'speech'].includes(owner)) {
-        send(socket, { type: 'error', message: invalid || (active?.probe ? '正在测试百炼连接，请稍候。' :
+      if (closed || active || configuring || !configured || !['lyrics', 'speech'].includes(owner)) {
+        send(socket, { type: 'error', message: configuring ? '正在保存百炼凭证，请稍候。' : invalid || (active?.probe ? '正在测试百炼连接，请稍候。' :
           active ? '已有页面使用共用音源，请先停止当前识别。' : '识别请求无效。') });
         socket.close(1008);
         return;

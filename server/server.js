@@ -7,6 +7,7 @@ import { readFile, stat, mkdir, copyFile } from 'node:fs/promises';
 import { WebSocket, WebSocketServer } from 'ws';
 import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSettings } from './lyrics-session.js';
 import { createAsrCapture, readDashScopeConfig } from './asr-capture.js';
+import { saveDashScopeConfig } from './asr-config.js';
 import { createSpeechSession } from './speech-session.js';
 import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-library.js';
 
@@ -16,6 +17,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics', 'speech'];
 const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
+// 与 program-renderer.js 的撕开动画时长一致；撕完后才执行节目单退场。
+const PROGRAM_TEAR_DURATION_MS = 1080;
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 
 const FIELD_RULES = {
@@ -40,14 +43,15 @@ const FIELD_RULES = {
   slotCount: { kind: 'number', min: 1, max: 4, label: '槽位数量' },
   style: { kind: 'choice', values: ['h', 'g', 'i'], label: '样式' },
   customColors: { kind: 'boolean', label: '自定义颜色' },
+  autoHideAfterTear: { kind: 'boolean', label: '撕开票根后自动隐藏' },
 };
 // Fields that older settings files may lack; a missing value takes the default.
-const OPTIONAL_DEFAULTS = { hosts: { style: 'h', customColors: false } };
+const OPTIONAL_DEFAULTS = { hosts: { style: 'h', customColors: false }, program: { autoHideAfterTear: false } };
 
 const MODULE_FIELDS = {
   logo: ['visible', 'showMark', 'title', 'subtitle', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
   hosts: ['visible', 'label', 'names', 'slotCount', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
-  program: ['visible', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  program: ['visible', 'autoHideAfterTear', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   speech: ['visible', 'textColor', 'holdSeconds', 'x', 'y', 'scale', 'opacity'],
 };
@@ -88,6 +92,7 @@ export const DEFAULT_SETTINGS = {
     },
     program: {
       visible: false,
+      autoHideAfterTear: false,
       label: '正在演出',
       current: '节目名称',
       nextLabel: '接下来',
@@ -356,6 +361,7 @@ export async function createPackagingServer({
   saveDelayMs = 120,
   rootDir = ROOT,
   asr,
+  asrConfigPath = path.join(path.dirname(settingsPath), '.env'),
 } = {}) {
   let settings;
   let savedAt;
@@ -445,13 +451,22 @@ export async function createPackagingServer({
   // 上屏先后顺序只保存在内存里（不写入 settings.json）：先出现的模块在前，自动避让时后出现的让开。
   let showOrder;
   let ticket = { cycle: 0, tornAt: null };
+  let ticketHideTimer;
+  let ticketHideGeneration = 0;
+  const cancelTicketHide = () => {
+    clearTimeout(ticketHideTimer);
+    ticketHideTimer = undefined;
+    ticketHideGeneration += 1;
+  };
   const stageSnapshot = () => ({ showOrder: [...getShowOrder()], ticket: { ...ticket } });
   const getShowOrder = () => (showOrder ??= MODULE_IDS.filter((id) => settings.modules[id].visible));
   const trackShown = (previous, next) => {
     if ((!previous.program.visible && next.program.visible) || previous.program.selectedId !== next.program.selectedId ||
         (!next.program.current && !next.program.next && (previous.program.current || previous.program.next))) {
       ticket = { cycle: ticket.cycle + 1, tornAt: null };
+      cancelTicketHide();
     }
+    if (!next.program.visible || !next.program.autoHideAfterTear) cancelTicketHide();
     let order = getShowOrder();
     for (const id of MODULE_IDS) {
       const was = Boolean(previous[id]?.visible);
@@ -487,6 +502,28 @@ export async function createPackagingServer({
   };
   const broadcast = (message) => {
     for (const client of clients) send(client, message);
+  };
+  const scheduleTicketHide = () => {
+    cancelTicketHide();
+    if (!settings.modules.program.autoHideAfterTear || ticket.tornAt === null) return;
+    const tornTicket = ticket;
+    const generation = ticketHideGeneration;
+    ticketHideTimer = setTimeout(() => {
+      ticketHideTimer = undefined;
+      // 与控制指令串行执行，避免资料库保存期间旧节目把新节目隐藏。
+      const task = commandQueue.then(() => {
+        const program = settings.modules.program;
+        if (closing || generation !== ticketHideGeneration || ticket !== tornTicket || !program.visible || !program.autoHideAfterTear) return;
+        const next = { ...settings, modules: { ...settings.modules, program: { ...program, visible: false } } };
+        trackShown(settings.modules, next.modules);
+        settings = next;
+        revision += 1;
+        broadcast(getWireState());
+        scheduleSave();
+      });
+      commandQueue = task.catch(() => {});
+    }, PROGRAM_TEAR_DURATION_MS);
+    ticketHideTimer.unref();
   };
   const lyrics = createLyricsSession(settings.modules.lyrics, () => publishLyrics());
   const activeSongId = () => settings.modules.lyrics.song?.id ?? null;
@@ -547,7 +584,7 @@ export async function createPackagingServer({
   const speech = createSpeechSession({ holdSeconds: () => settings.modules.speech.holdSeconds, onChange: broadcast });
   let recognition = { phase: 'idle', owner: null, resultOwner: null, message: '', partial: '', finals: [] };
   const capture = createAsrCapture({
-    ...asr,
+    ...(asr ?? await readDashScopeConfig(asrConfigPath)),
     onService() {
       if (recognition.phase === 'error') recognition = { ...recognition, phase: 'idle', message: '' };
       broadcast(asrState());
@@ -579,6 +616,7 @@ export async function createPackagingServer({
   });
   const asrState = () => ({
     type: 'lyrics:asr', ...recognition, configured: capture.configured, testing: capture.testing,
+    credentialsEditable: true, workspaceId: capture.workspaceId,
     model: capture.model,
     serviceMessage: capture.message, correction: lyrics.correction(),
   });
@@ -730,6 +768,17 @@ export async function createPackagingServer({
         if (isBinary) throw new Error('只支持 JSON 文本消息。');
         const message = JSON.parse(data.toString());
         id = typeof message.id === 'string' ? message.id.slice(0, 80) : undefined;
+        if (message.type === 'asr:configure') {
+          try {
+            if (data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
+            if (Object.keys(message).some((key) => !['type', 'id', 'options'].includes(key))) throw new Error('百炼凭证设置格式无效。');
+            await capture.configure(message.options, (credentials) => saveDashScopeConfig(asrConfigPath, credentials));
+            send(client, { type: 'asr:config', ok: true, id, message: '百炼凭证已保存，可直接测试连接。' });
+          } catch (error) {
+            send(client, { type: 'asr:config', ok: false, id, message: error.message });
+          }
+          return;
+        }
         if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
         if (message.type === 'program:ticket-set') {
           if (Object.keys(message).some((key) => !['type', 'id', 'cycle', 'torn'].includes(key)) ||
@@ -740,6 +789,7 @@ export async function createPackagingServer({
           if (message.cycle === ticket.cycle && (ticket.tornAt !== null) !== message.torn &&
               program.visible && (program.current || program.next)) {
             ticket = { ...ticket, tornAt: message.torn ? Date.now() : null };
+            scheduleTicketHide();
             broadcast({ type: 'program:ticket', ticket: { ...ticket }, id });
           } else send(client, { type: 'program:ticket', ticket: { ...ticket }, id });
           return;
@@ -879,6 +929,7 @@ export async function createPackagingServer({
     async close() {
       if (closing) return;
       closing = true;
+      cancelTicketHide();
       clearInterval(heartbeat);
       clearInterval(lyricHeartbeat);
       clearInterval(lyricCheckpoint);
@@ -901,7 +952,7 @@ export async function createPackagingServer({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   let app;
   try {
-    app = await createPackagingServer({ asr: await readDashScopeConfig(path.join(ROOT, '.env')) });
+    app = await createPackagingServer();
     const port = Number(process.env.PORT || 3000);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须为 1–65535 的整数。');
     await app.listen(port);

@@ -27,12 +27,20 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   const preset = $('asr-hotword-preset');
   const hotwordHint = $('asr-hotword-hint');
   const defaultHotwordHint = hotwordHint?.textContent;
+  const apiKey = $('asr-api-key');
+  const workspaceId = $('asr-workspace-id');
+  const configSave = $('asr-config-save');
+  const configStatus = $('asr-config-status');
+  const keyToggle = $('asr-key-toggle');
   let shared;
   let online = false;
   let local;
   let failure = '';
   let lastFinals;
   let lastHistory;
+  let configPending = false;
+  let configMessage = '';
+  let configDirty = false;
 
   function options() {
     const selected = { model: model.value, hotwords: model.value === STREAMING_MODEL ? hotwords?.value ?? '' : '' };
@@ -79,8 +87,21 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
 
   function render() {
     const phase = shared?.phase;
-    const busy = ['listening', 'loading', 'stopping'].includes(phase) || shared?.testing;
+    const busy = ['listening', 'loading', 'stopping'].includes(phase) || shared?.testing || configPending;
     const ownCapture = shared?.owner === owner;
+    if (configSave) {
+      const editable = shared?.credentialsEditable === true;
+      configSave.disabled = !online || !editable || busy || Boolean(local) || configPending;
+      apiKey.disabled = workspaceId.disabled = busy || Boolean(local) || configPending;
+      keyToggle.disabled = apiKey.disabled;
+      configSave.textContent = configPending ? '正在保存…' : '保存 API Key';
+      apiKey.placeholder = shared?.configured ? '已配置，填写新 Key 可替换' : '填写北京区百炼 API Key';
+      if (!configDirty) workspaceId.value = shared?.workspaceId ?? '';
+      configStatus.textContent = !online ? '等待连接本机服务…' :
+        !editable ? '重启包装服务后即可在这里保存 API Key。' :
+        configPending ? '正在保存到本机…' : configMessage ||
+        (shared?.configured ? 'API Key 已配置，可测试连接。' : '填写并保存 API Key 后即可使用语音识别。');
+    }
     start.disabled = !online || !media || !shared?.configured || Boolean(local) || busy;
     stop.disabled = !online || (!local && !['listening', 'loading'].includes(phase));
     source.disabled = Boolean(local) || busy;
@@ -102,6 +123,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       phase === 'stopping' ? '正在完成最后一句…' :
       local || phase === 'loading' ? '正在连接音源与百炼…' :
       !media && shared?.configured ? '当前浏览器无法采集音频，请用 Edge 或 Chrome 打开本机地址。' :
+      shared && !shared.configured ? '填写并保存 API Key 后即可使用语音识别。' :
       shared?.serviceMessage || '正在读取百炼配置…');
     $('asr-partial').textContent = (ownCapture && (shared.partial || (owner === 'speech' ? shared.finals?.at(-1)?.text : ''))) || '等待语音';
     const finals = shared?.resultOwner === owner ? shared.finals : undefined;
@@ -251,6 +273,33 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     catch (error) { failure = error.message; }
     render();
   };
+  if (configSave) {
+    const changed = () => { configDirty = true; configMessage = '配置已修改，保存后生效。'; render(); };
+    apiKey.oninput = workspaceId.oninput = changed;
+    keyToggle.onclick = () => {
+      const visible = apiKey.type === 'password';
+      apiKey.type = visible ? 'text' : 'password';
+      keyToggle.textContent = visible ? '隐藏' : '显示';
+      keyToggle.setAttribute('aria-label', visible ? '隐藏 API Key' : '显示 API Key');
+      keyToggle.setAttribute('aria-pressed', String(visible));
+    };
+    configSave.onclick = () => {
+      if (configSave.disabled) return;
+      const key = apiKey.value.trim();
+      const workspace = workspaceId.value.trim();
+      if (!/^[\x21-\x7E]{1,1024}$/u.test(key)) {
+        configMessage = '请填写有效的 API Key。'; apiKey.focus(); render(); return;
+      }
+      if (workspace && !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/iu.test(workspace)) {
+        configMessage = '业务空间 ID 格式无效。'; workspaceId.focus(); render(); return;
+      }
+      configPending = true;
+      configMessage = '';
+      try { command('asr:configure', { apiKey: key, workspaceId: workspace }); }
+      catch { configPending = false; configMessage = '无法保存，请检查本机服务连接。'; }
+      render();
+    };
+  }
   restoreOptions();
   model.onchange = () => { saveOptions(); failure = ''; render(); };
   if (hotwordField) {
@@ -287,9 +336,24 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
   media?.addEventListener('devicechange', () => refreshDevices().catch(() => {}));
   if (media) refreshDevices().catch(() => {});
   return {
+    configResult(result) {
+      if (!configSave) return;
+      configPending = false;
+      configMessage = result.message || (result.ok ? 'API Key 已保存，可测试连接。' : '保存失败，请重试。');
+      if (result.ok) {
+        apiKey.value = '';
+        apiKey.type = 'password';
+        keyToggle.textContent = '显示';
+        keyToggle.setAttribute('aria-label', '显示 API Key');
+        keyToggle.setAttribute('aria-pressed', 'false');
+        configDirty = false;
+      }
+      render();
+    },
     update(state, connected) {
       shared = state;
       online = connected;
+      if (!online && configPending) { configPending = false; configMessage = '连接已断开，请重连后检查配置。'; }
       if (!online && local) stopCapture('与本机服务断开，已停止采集。');
       else if (local?.started && !['listening', 'loading'].includes(shared?.phase)) stopCapture(shared?.phase === 'error' ? shared.message : '');
       render();

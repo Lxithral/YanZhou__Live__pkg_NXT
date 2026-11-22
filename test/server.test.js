@@ -686,7 +686,7 @@ test('recognition capture is same-origin and a missing API key preserves existin
   await assert.rejects(setup.connect(audio), /403/);
   const capture = await setup.connect(audio, { origin: url });
   const failed = await capture.waitFor((message) => message.type === 'error');
-  assert.match(failed.message, /DASHSCOPE_API_KEY/);
+  assert.match(failed.message, /API Key/);
   const manual = await lyricCommand(client, 'lyrics:onair', { source: 'manual' });
   assert.equal(manual.source, 'manual');
 });
@@ -733,6 +733,87 @@ test('the ticket can tear and restore while visible, synchronizes to reconnects,
   const disk = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
   assert.equal(disk.stage, undefined);
   assert.equal(disk.modules.program.tornAt, undefined);
+});
+
+test('ticket auto-hide defaults to off for older settings, validates, syncs and persists', async (t) => {
+  const setup = await fixture(t);
+  const legacy = structuredClone(DEFAULT_SETTINGS);
+  delete legacy.modules.program.autoHideAfterTear;
+  const before = JSON.stringify(legacy, null, 2) + '\n';
+  await writeFile(setup.settingsPath, before);
+  const first = await setup.start();
+  const controller = await setup.connect(first.wsUrl);
+  const overlay = await setup.connect(first.wsUrl);
+  assert.equal((await controller.waitFor((message) => message.type === 'state')).settings.modules.program.autoHideAfterTear, false);
+  assert.equal(await readFile(setup.settingsPath, 'utf8'), before, 'a missing preference does not rewrite the file');
+  controller.send({ type: 'patch', id: 'auto-hide-on', patch: { modules: { program: { autoHideAfterTear: true } } } });
+  const enabled = await overlay.waitFor((message) => message.type === 'state' && message.id === 'auto-hide-on');
+  assert.equal(enabled.settings.modules.program.autoHideAfterTear, true);
+  for (const [index, value] of ['yes', 1, null].entries()) {
+    const id = `bad-auto-hide-${index}`;
+    controller.send({ type: 'patch', id, patch: { modules: { program: { autoHideAfterTear: value } } } });
+    assert.equal((await controller.waitFor((message) => message.id === id)).type, 'error');
+  }
+  await setup.stop(first.app);
+  assert.equal(JSON.parse(await readFile(setup.settingsPath, 'utf8')).modules.program.autoHideAfterTear, true);
+  const second = await setup.start();
+  assert.equal(second.app.getState().settings.modules.program.autoHideAfterTear, true);
+  await setup.stop(second.app);
+  const malformed = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  malformed.modules.program.autoHideAfterTear = 'yes';
+  await writeFile(setup.settingsPath, JSON.stringify(malformed));
+  await assert.rejects(setup.start(), /布尔值/);
+});
+
+test('ticket auto-hide waits for the tear animation, reaches the overlay after the control disconnects and saves', async (t) => {
+  const setup = await fixture(t);
+  const { app, wsUrl } = await setup.start();
+  const controller = await setup.connect(wsUrl);
+  const overlay = await setup.connect(wsUrl);
+  await overlay.waitFor((message) => message.type === 'state');
+  controller.send({ type: 'patch', id: 'show-auto-ticket', patch: { modules: { program: { visible: true, autoHideAfterTear: true } } } });
+  const shown = await controller.waitFor((message) => message.type === 'state' && message.id === 'show-auto-ticket');
+  controller.send({ type: 'program:ticket-set', id: 'auto-tear', cycle: shown.stage.ticket.cycle, torn: true });
+  const torn = await overlay.waitFor((message) => message.type === 'program:ticket' && message.id === 'auto-tear');
+  assert.equal(app.getState().settings.modules.program.visible, true, 'tearing does not hide immediately');
+  controller.close();
+  const hidden = await overlay.waitFor((message) => message.type === 'state' && !message.settings.modules.program.visible);
+  assert.ok(Date.now() - torn.ticket.tornAt >= 1050, 'the full tear animation plays before exit');
+  assert.equal(hidden.settings.modules.program.autoHideAfterTear, true);
+  assert.ok(!hidden.stage.showOrder.includes('program'));
+  await setup.stop(app);
+  assert.equal(JSON.parse(await readFile(setup.settingsPath, 'utf8')).modules.program.visible, false);
+});
+
+test('pending ticket auto-hide is cancelled by restoring, changing programs, reappearing, opting out or closing', { concurrency: true }, async (t) => {
+  await Promise.all(['restore', 'change', 'reappear', 'opt-out', 'close', 'disabled'].map((action) => t.test(action, { concurrency: true }, async (subtest) => {
+    const setup = await fixture(subtest);
+    const { app, wsUrl } = await setup.start();
+    const controller = await setup.connect(wsUrl);
+    const patch = async (id, program) => {
+      controller.send({ type: 'patch', id, patch: { modules: { program } } });
+      return controller.waitFor((message) => message.type === 'state' && message.id === id);
+    };
+    const shown = await patch('show-ticket', { visible: true, autoHideAfterTear: action !== 'disabled' });
+    controller.send({ type: 'program:ticket-set', id: 'tear-ticket', cycle: shown.stage.ticket.cycle, torn: true });
+    await controller.waitFor((message) => message.id === 'tear-ticket');
+    if (action === 'restore') {
+      controller.send({ type: 'program:ticket-set', id: 'restore-ticket', cycle: shown.stage.ticket.cycle, torn: false });
+      await controller.waitFor((message) => message.id === 'restore-ticket');
+    } else if (action === 'change') {
+      const next = shown.settings.modules.program.items.find((item) => item.id !== shown.settings.modules.program.selectedId);
+      controller.send({ type: 'program:manage', id: 'change-program', payload: { action: 'select', id: next.id } });
+      await controller.waitFor((message) => message.type === 'state' && message.id === 'change-program');
+    } else if (action === 'reappear') {
+      await patch('hide-ticket', { visible: false });
+      await patch('reshow-ticket', { visible: true });
+    } else if (action === 'opt-out') {
+      await patch('auto-hide-off', { autoHideAfterTear: false });
+      await patch('auto-hide-on-again', { autoHideAfterTear: true });
+    } else if (action === 'close') await setup.stop(app);
+    await new Promise((resolve) => setTimeout(resolve, 1150));
+    assert.equal(app.getState().settings.modules.program.visible, true, `${action} prevents the old tear from hiding the current program`);
+  })));
 });
 
 test('manual confirmation, stepping, and clear produce complete display states', async (t) => {

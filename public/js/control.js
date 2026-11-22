@@ -25,7 +25,7 @@ const ANIMATION_OPTIONS = [
 ];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
 const GEOMETRY_KEYS = new Set(['x', 'y', 'scale']);
-const NO_CLAMP_KEYS = new Set(['x', 'y', 'scale', 'opacity', 'visible', 'animation', 'color', 'textColor', 'accentColor', 'queue']);
+const NO_CLAMP_KEYS = new Set(['x', 'y', 'scale', 'opacity', 'visible', 'autoHideAfterTear', 'animation', 'color', 'textColor', 'accentColor', 'queue']);
 
 const MODULES = {
   speech: {
@@ -81,6 +81,7 @@ const MODULES = {
     fields: [
       { key: 'label', id: 'programLabel', kind: 'text' },
       { key: 'nextLabel', id: 'programNextLabel', kind: 'text' },
+      { key: 'autoHideAfterTear', id: 'programAutoHideAfterTear', kind: 'boolean' },
       { key: 'scale', id: 'programScale', numberId: 'programScaleNumber', kind: 'percent' },
       { key: 'opacity', id: 'programOpacity', numberId: 'programOpacityNumber', kind: 'opacity' },
     ],
@@ -110,7 +111,7 @@ const FALLBACK_SETTINGS = {
     speech: { visible: false, textColor: '#F4F0E8', holdSeconds: 6, x: 240, y: 848, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', textColor: '#F4F0E8', weight: 500, x: 112, y: 70, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    program: { visible: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1280, y: 770, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    program: { visible: false, autoHideAfterTear: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1280, y: 770, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 678, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
 };
@@ -566,14 +567,17 @@ function renderTicketControl() {
   const program = settings.modules.program;
   const hint = $('programTearHint');
   const torn = program.visible && Number.isFinite(ticketState?.tornAt);
-  programTear.hidden = hint.hidden = !active;
+  const supportsAutoHide = typeof program.autoHideAfterTear === 'boolean';
+  $('programTicketControls').hidden = !active;
+  $('programAutoHideAfterTear').disabled = !ready || !supportsAutoHide;
   programTear.disabled = !ready || !ticketState || Boolean(pendingTicketId) ||
     !program.visible || !(program.current || program.next);
   programTear.textContent = torn ? '恢复票根' : '撕开票根';
   hint.textContent = !ready ? '等待连接本机服务。' : !ticketState ? '请更新并重启包装服务。' :
     !program.visible ? '打开「显示 节目单」后即可撕票。' :
-    torn ? '票根已撕开，可恢复后再撕。' :
-    '撕开和恢复都会同步到 OBS。';
+    torn ? (program.autoHideAfterTear ? '撕票动画结束后自动隐藏，可点恢复取消。' : '票根已撕开，可恢复后再撕。') :
+    program.autoHideAfterTear ? '撕票动画结束后自动隐藏节目单。' :
+    supportsAutoHide ? '撕开和恢复都会同步到 OBS。' : '自动隐藏需重启包装服务后启用。';
 }
 
 function applyServerState(message) {
@@ -704,6 +708,8 @@ function connect() {
     } else if (message.type === 'lyrics:asr') {
       sharedAsr = message;
       speechAsr.update(message, ready);
+    } else if (message.type === 'asr:config') {
+      speechAsr.configResult(message);
     } else if (message.type === 'management:result') {
       stageControls.result(message);
     } else if (message.type === 'saved') {

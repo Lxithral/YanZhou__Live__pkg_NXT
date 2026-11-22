@@ -72,13 +72,16 @@ export function bindStageControls({ send, edit, toast }) {
     const next = node('div', undefined, 'stage-next');
     const quick = node('div', undefined, 'stage-quick');
     const add = button(kind === 'hosts' ? '+ 添加主持人' : '+ 添加节目', () => open(kind), `add-${kind}`, 'stage-add');
-    const libraryHead = node('div', undefined, 'stage-section-head');
+    add.onclick = (event) => { event.preventDefault(); open(kind); };
+    const library = node('details', undefined, 'stage-library');
+    const libraryHead = node('summary', undefined, 'stage-section-head');
     const libraryCount = node('span', '', 'stage-section-count');
     libraryHead.append(node('strong', kind === 'hosts' ? '人物资料库' : '节目资料库'), libraryCount, add);
     const quickHead = node('div', undefined, 'stage-section-head');
     quickHead.append(node('strong', kind === 'hosts' ? '字幕条' : '快速切换'), node('span', kind === 'hosts' ? '点姓名换人，点「显示/隐藏」单条上下屏' : '单击切换 · 按住拖动排序', 'stage-section-note'));
     const list = node('div', undefined, 'stage-list');
     list.setAttribute('aria-label', kind === 'hosts' ? '主持人资料卡片' : '节目资料卡片');
+    library.append(libraryHead, list);
     const hotkeys = node('div', undefined, 'stage-hotkeys');
     hotkeys.append(node('span', '热键', 'stage-hotkeys-label'));
     if (kind === 'hosts') hotkeys.append(kbd('0'), node('span', '整体显隐'), kbd('1'), node('span', '–'), kbd('4'), node('span', '单条显隐'));
@@ -104,9 +107,9 @@ export function bindStageControls({ send, edit, toast }) {
     now.append(current, next);
     area.append(title);
     if (top) area.append(top);
-    area.append(hotkeys, now, quickHead, quick, slots, libraryHead, list);
+    area.append(hotkeys, now, quickHead, quick, slots, library);
     grid.append(area);
-    areas[kind] = { area, badge, state, status, top, slots, current, next, quick, list, libraryCount };
+    areas[kind] = { area, badge, state, status, top, slots, current, next, quick, library, list, libraryCount };
   }
   sortable(areas.program.list, { item:'.stage-record', handle:'.stage-drag-handle', threshold:3, grid:false });
   sortable(areas.program.quick, { item:'.stage-quick-cell', threshold:6, grid:true });
@@ -418,9 +421,13 @@ export function bindStageControls({ send, edit, toast }) {
         if (grip) grip.dataset.unavailable = String(Boolean(editor) || records.length < 2);
         return cached.card;
       }
-      const card = node('article', undefined, 'stage-record');
+      const card = node('details', undefined, 'stage-record stage-record-fold');
+      card.open = editor?.item.id === item.id || Boolean(cached?.card.open);
       card.dataset.recordId = item.id;
       card.classList.toggle('is-current', item.id === module.selectedId);
+      const summary = node('summary', undefined, 'stage-record-summary');
+      summary.dataset.focusKey = `record-${kind}-${item.id}`;
+      const body = node('div', undefined, 'stage-record-body');
       if (kind === 'program') {
         const grip = limited(button('', () => {}, `drag-${item.id}`, 'stage-drag-handle'), Boolean(editor) || records.length < 2);
         grip.append(gripIcon());
@@ -431,25 +438,25 @@ export function bindStageControls({ send, edit, toast }) {
           event.preventDefault();
           moveByKey(item.id, event.key === 'ArrowUp' ? -1 : 1);
         };
-        card.append(grip);
+        summary.append(grip);
       }
       const head = node('div', undefined, 'stage-record-head');
       head.append(node('span', kind === 'hosts' ? String(index + 1).padStart(2,'0') : item.number || String(index + 1).padStart(2,'0'), 'stage-number'));
       const heading = node('div', undefined, 'stage-record-title');
       heading.append(node('h4', kind === 'hosts' ? item.name : item.title));
       if (kind === 'program' && item.type) heading.append(node('span', item.type, 'stage-type'));
-      card.append(head, heading);
+      summary.append(head, heading);
       const meta = kind === 'hosts' ? item.title : item.performer;
       if (meta) {
         const line = node('p', undefined, 'stage-record-meta');
         line.append(node('span', kind === 'hosts' ? '身份：' : '演出：'), document.createTextNode(meta));
-        card.append(line);
+        body.append(line);
       }
       const desc = kind === 'hosts' ? item.bio : item.desc;
-      if (desc) card.append(node('p', desc, 'stage-record-desc'));
+      if (desc) body.append(node('p', desc, 'stage-record-desc'));
       if (editor?.item.id === item.id) {
         card.classList.add('is-editing');
-        card.append(editor.form);
+        body.append(editor.form);
       } else {
         const actions = node('div', undefined, 'stage-actions');
         actions.append(button('编辑', () => open(kind, item), `edit-${item.id}`, 'stage-edit'),
@@ -460,8 +467,9 @@ export function bindStageControls({ send, edit, toast }) {
           const badge = node('span', '当前节目', 'stage-current-badge');
           badge.hidden = item.id !== module.selectedId; actions.append(badge);
         }
-        card.append(actions);
+        summary.append(actions);
       }
+      card.append(summary, body);
       libraryCache[kind].set(item.id, { key, card });
       return card;
     });
@@ -479,9 +487,11 @@ export function bindStageControls({ send, edit, toast }) {
     if (!items.length) areas[kind].list.append(node('p', '暂无资料，请添加。'));
   }
   function open(kind, item) {
+    areas[kind].library.open = true;
     if (editors.has(kind)) {
       const current = editors.get(kind);
-      areas[kind].list.querySelector(`[data-record-id="${CSS.escape(current.item.id)}"]`)?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+      const card = areas[kind].list.querySelector(`[data-record-id="${CSS.escape(current.item.id)}"]`);
+      if (card) { card.open = true; card.scrollIntoView({ block:'nearest', behavior:'smooth' }); }
       return;
     }
     const isNew = !item;
