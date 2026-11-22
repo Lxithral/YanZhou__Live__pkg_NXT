@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, readdir, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { createPackagingServer, DEFAULT_SETTINGS } from '../server/server.js';
-import { buildLyricDocument, jsonBytes, LYRIC_BYTES, parseLrc, timelineIndex } from '../public/js/lyrics/lyrics-model.js';
+import { buildLyricDocument, documentEnd, jsonBytes, LYRIC_BYTES, parseLrc, timelineIndex } from '../public/js/lyrics/lyrics-model.js';
 import { createLyricsClock } from '../public/js/lyrics/lyrics-clock.js';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -431,7 +431,8 @@ test('LRC preview accepts mixed scripts and timestamps while reporting bad rows'
   assert.deepEqual(doc[1].tokens.filter((token) => token.text.trim()).map((token) => token.text), ['烟', '洲', 'live', 'again']);
   assert.equal(doc[2].tokens.length, 0);
   assert.equal(timelineIndex(doc, 1200), 1);
-  assert.equal(timelineIndex(doc, 4300), doc.length);
+  assert.equal(timelineIndex(doc, 4300), doc.length - 1);
+  assert.equal(timelineIndex(doc, documentEnd(doc)), doc.length);
   const overlaps = buildLyricDocument(parseLrc('[00:01]<00:02.50>越界\n[00:01]重复\n[00:02]有效'));
   assert.deepEqual(overlaps.doc.map((line) => line.text), ['有效']);
   assert.equal(overlaps.errors.length, 2);
@@ -567,7 +568,7 @@ test('song files survive restart, same titles coexist, and explicit replacement 
   assert.deepEqual(initial.doc, alternate);
   const loaded = await lyricCommand(fresh, 'lyrics:select-song', { id: secondSong.activeId });
   assert.deepEqual(loaded.doc, alternate);
-  assert.deepEqual(loaded.transport, { position: 0, rate: 1, playing: false, end: 900 });
+  assert.deepEqual(loaded.transport, { position: 0, rate: 1, playing: false, end: documentEnd(alternate) });
   assert.equal((await lyricCommand(fresh, 'lyrics:select-song', { id: '../bad' })).type, 'error');
   assert.equal(after.app.getState().settings.modules.lyrics.song.id, secondSong.activeId);
 });
@@ -641,7 +642,7 @@ test('timeline transport progresses independently of the selected output and sen
   await send('onair', { source: 'timeline' });
   await send('transport', { action: 'seek', value: 3000 });
   const rate = await send('transport', { action: 'rate', value: 1.1 });
-  assert.deepEqual(rate.transport, { position: 3000, rate: 1.1, playing: false, end: 12800 });
+  assert.deepEqual(rate.transport, { position: 3000, rate: 1.1, playing: false, end: documentEnd(demoDoc) });
   assert.equal(Object.hasOwn(rate, 'doc'), false);
   const play = await send('transport', { action: 'play', value: null });
   assert.equal(play.transport.playing, true);
@@ -673,6 +674,50 @@ test('only a supported source is armed and a rejected payload does not change st
   const stopped = await lyricCommand(client, 'lyrics:onair', { source: null });
   assert.equal(stopped.armed, false);
   assert.deepEqual(stopped.manual, pushed.manual);
+});
+
+test('a second pause acknowledges the request without changing revision or rewriting settings', async (t) => {
+  const setup = await fixture(t);
+  const { app, wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  await lyricCommand(client, 'lyrics:load', { doc: demoDoc });
+  await lyricCommand(client, 'lyrics:transport', { action: 'play', value: null });
+  const pause = { action: 'pause', value: null };
+  const paused = await lyricCommand(client, 'lyrics:transport', pause, 'pause-once');
+  await client.waitFor((message) => message.type === 'saved' && message.revision === paused.revision);
+  const saved = await stat(setup.settingsPath, { bigint: true });
+  const again = await lyricCommand(client, 'lyrics:transport', pause, 'pause-again');
+  assert.equal(again.type, 'lyrics:state');
+  assert.equal(again.revision, paused.revision);
+  assert.deepEqual(again.transport, paused.transport);
+  await new Promise((resolve) => setTimeout(resolve, 180));
+  assert.equal(app.getState().savedRevision, paused.revision);
+  assert.equal((await stat(setup.settingsPath, { bigint: true })).mtimeNs, saved.mtimeNs);
+});
+
+test('a skipped translation and the explicit end survive saving, selecting and restarting a song', async (t) => {
+  const setup = await fixture(t);
+  const first = await setup.start();
+  const client = await setup.connect(first.wsUrl);
+  const entries = parseLrc('[offset:+500]\n[00:04]First line\n[00:04]跳过的译文\n[00:10]Final line');
+  entries[2].skip = true;
+  const { doc } = buildLyricDocument(entries, { endTime: '00:26.250' });
+  const loaded = await lyricCommand(client, 'lyrics:load', { title: '时间校对', doc });
+  assert.equal(loaded.doc[0].start, 3500);
+  assert.equal(loaded.doc[0].translation, undefined);
+  assert.equal(loaded.transport.end, 26250);
+  const seeked = await lyricCommand(client, 'lyrics:transport', { action: 'seek', value: 25000 });
+  assert.equal(seeked.transport.position, 25000);
+  await setup.stop(first.app);
+  const second = await setup.start();
+  const fresh = await setup.connect(second.wsUrl);
+  const initial = await fresh.waitFor((message) => message.type === 'lyrics:state');
+  assert.equal(initial.transport.end, 26250);
+  assert.equal(initial.transport.position, 25000);
+  assert.deepEqual(initial.doc, doc);
+  const selected = await lyricCommand(fresh, 'lyrics:select-song', { id: initial.songId });
+  assert.equal(selected.transport.end, 26250);
+  assert.deepEqual(selected.doc, doc);
 });
 
 test('recognition capture is same-origin and a missing API key preserves existing playout', async (t) => {
@@ -1257,4 +1302,24 @@ test('a no-op programme step or repeated slot edit does not rewrite the file or 
   await client.waitFor((m) => m.type === 'management:result' && m.id === 'same-slot');
   assert.equal(first.app.getState().revision, revision);
   assert.deepEqual(await readFile(setup.settingsPath), bytes);
+});
+
+test('single programme moves and their undo reject a stale order without overwriting another client', async (t) => {
+  const setup = await fixture(t);
+  const { app, wsUrl } = await setup.start();
+  const client = await setup.connect(wsUrl);
+  const programme = () => app.getState().settings.modules.program;
+  const original = programme().items.map(({ id }) => id);
+  const other = await setup.connect(wsUrl);
+  client.send({ type: 'program:manage', id: 'move', payload: { action: 'reorder', order: original, move: { id: original[0], to: 1 } } });
+  await client.waitFor((message) => message.type === 'management:result' && message.id === 'move');
+  const moved = [original[1], original[0], ...original.slice(2)];
+  assert.deepEqual(programme().items.map(({ id }) => id), moved);
+  const revision = app.getState().revision;
+  other.send({ type: 'program:manage', id: 'stale', payload: { action: 'reorder', order: original, move: { id: original[0], to: 2 } } });
+  await other.waitFor((message) => message.type === 'error' && message.id === 'stale');
+  assert.equal(app.getState().revision, revision);
+  client.send({ type: 'program:manage', id: 'undo', payload: { action: 'reorder', order: moved, move: { id: original[0], to: 0 } } });
+  await client.waitFor((message) => message.type === 'management:result' && message.id === 'undo');
+  assert.deepEqual(programme().items.map(({ id }) => id), original);
 });

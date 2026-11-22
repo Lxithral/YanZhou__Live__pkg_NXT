@@ -42,13 +42,20 @@ export function queueManagement(queue, command, limit = 30) {
   if (action === 'navigate' && queue.length < limit) return [...queue, command];
   return queue;
 }
+export function hasVisibleHosts(hosts) {
+  return Boolean(hosts.visible && hosts.slots?.some((slot, index) =>
+    index < hosts.slotCount && !slot.hidden && hosts.people?.some(({ id }) => id === slot.personId)));
+}
 export function bindStageControls({ send, edit, toast }) {
   let settings;
   let ready = false;
   let request;
   let last;
   let savingKind;
-  let reordering = false;
+  let sortingEnabled = false;
+  let pendingMove;
+  let undoMove;
+  let pickerSlot = null;
   const editors = new Map();
   const areas = {};
   for (const kind of ['hosts', 'program']) {
@@ -78,7 +85,7 @@ export function bindStageControls({ send, edit, toast }) {
     const libraryCount = node('span', '', 'stage-section-count');
     libraryHead.append(node('strong', kind === 'hosts' ? '人物资料库' : '节目资料库'), libraryCount, add);
     const quickHead = node('div', undefined, 'stage-section-head');
-    quickHead.append(node('strong', kind === 'hosts' ? '字幕条' : '快速切换'), node('span', kind === 'hosts' ? '点姓名换人，点「显示/隐藏」单条上下屏' : '单击切换 · 按住拖动排序', 'stage-section-note'));
+    quickHead.append(node('strong', kind === 'hosts' ? '字幕条' : '快速切换'));
     const list = node('div', undefined, 'stage-list');
     list.setAttribute('aria-label', kind === 'hosts' ? '主持人资料卡片' : '节目资料卡片');
     library.append(libraryHead, list);
@@ -111,11 +118,45 @@ export function bindStageControls({ send, edit, toast }) {
     grid.append(area);
     areas[kind] = { area, badge, state, status, top, slots, current, next, quick, library, list, libraryCount };
   }
-  sortable(areas.program.list, { item:'.stage-record', handle:'.stage-drag-handle', threshold:3, grid:false });
-  sortable(areas.program.quick, { item:'.stage-quick-cell', threshold:6, grid:true });
-  const dragNote = node('span', undefined, 'stage-section-note');
-  dragNote.append('按住 ', gripIcon('stage-grip-icon is-inline'), ' 拖动排序，编号自动更新');
-  areas.program.libraryCount.after(dragNote);
+  sortable(areas.program.list);
+  const sortTools = node('div', undefined, 'stage-sort-tools');
+  const sortLock = button('解锁排序', () => {
+    sortingEnabled = !sortingEnabled;
+    cancelDrag();
+    refreshEnabled();
+  }, 'sort-lock');
+  const sortUndo = button('撤销排序', () => {
+    if (canUndo()) sendMove(undoMove.to, undoMove.from, true);
+  }, 'sort-undo');
+  const sortStatus = node('span', '', 'stage-section-note');
+  sortStatus.setAttribute('role', 'status');
+  sortTools.append(sortLock, sortUndo, sortStatus);
+  areas.program.list.before(sortTools);
+
+  const personPicker = node('dialog', undefined, 'stage-person-picker');
+  const pickerTitle = node('h2', '选择人物');
+  pickerTitle.id = 'stage-person-picker-title';
+  personPicker.setAttribute('aria-labelledby', pickerTitle.id);
+  const pickerHead = node('div', undefined, 'stage-person-picker-head');
+  pickerHead.append(pickerTitle, button('关闭', () => personPicker.close()));
+  const pickerSearch = node('input', undefined, 'text-input');
+  pickerSearch.type = 'search';
+  pickerSearch.id = 'stage-person-search';
+  pickerSearch.placeholder = '姓名或班级';
+  const searchLabel = node('label', '搜索人物');
+  searchLabel.htmlFor = pickerSearch.id;
+  const pickerResults = node('div', undefined, 'stage-person-results');
+  pickerResults.setAttribute('role', 'group');
+  pickerResults.setAttribute('aria-label', '搜索结果');
+  const pickerStatus = node('p', '', 'stage-person-status');
+  pickerStatus.setAttribute('role', 'status');
+  personPicker.append(pickerHead, searchLabel, pickerSearch, pickerStatus, pickerResults);
+  document.body.append(personPicker);
+  pickerSearch.addEventListener('input', renderPersonPicker);
+  personPicker.addEventListener('close', () => {
+    areas.hosts.slots.querySelector(`[data-focus-key="pick-person-${pickerSlot}"]`)?.focus({ preventScroll:true });
+    pickerSlot = null;
+  });
   const hostPosition = node('div', undefined, 'stage-position');
   hostPosition.append(node('strong', '字幕条位置'));
   for (const [key, caption] of [['x','X 坐标（左边距）'],['bottom','Y 坐标（底边距）']]) {
@@ -132,16 +173,25 @@ export function bindStageControls({ send, edit, toast }) {
     };
     label.append(input); hostPosition.append(label);
   }
-  // ---------- 拖动排序（v19）：原生 Pointer Events，无依赖 ----------
-  // list：只从左侧六点手柄起拖；quick：整个格子可拖，但移动超过阈值才算拖动，单击照常切换节目。
   let drag;
+  const programOrder = () => settings?.modules.program.items?.map(({ id }) => id) ?? [];
+  const sameOrder = (first, second) => first.length === second.length && first.every((id, i) => id === second[i]);
   function canReorder() {
-    return ready && !request && !editors.has('program') && (settings?.modules.program.items?.length ?? 0) > 1;
+    return sortingEnabled && ready && !request && !editors.has('program') && programOrder().length > 1;
   }
-  function sendOrder(ids) {
-    const current = (settings.modules.program.items ?? []).map((item) => item.id);
-    if (ids.length !== current.length || ids.every((id, i) => id === current[i])) return false;
-    return command('program', { action:'reorder', order:ids });
+  function canUndo() {
+    return Boolean(undoMove && canReorder() && sameOrder(undoMove.after, programOrder()));
+  }
+  function sendMove(from, to, undo = false) {
+    if (!canReorder()) return;
+    const before = programOrder();
+    if (from < 0 || to < 0 || from === to || from >= before.length || to >= before.length) return;
+    const after = [...before];
+    const [id] = after.splice(from, 1);
+    after.splice(to, 0, id);
+    pendingMove = { from, to, after, undo };
+    if (command('program', { action:'reorder', order:before, move:{ id, to } })) paintOrder(after);
+    else pendingMove = undefined;
   }
   // 资料库和快速切换是两份列表。拖完只改其中一份时，另一份会变成「新编号贴在旧行上」。
   function paintOrder(ids) {
@@ -169,20 +219,21 @@ export function bindStageControls({ send, edit, toast }) {
     }
     return document.scrollingElement;
   }
-  function sortable(container, { item, handle, threshold, grid }) {
+  function sortable(container) {
     container.addEventListener('pointerdown', (event) => {
       if (event.button !== 0 || drag || !canReorder()) return;
-      const source = event.target.closest(item);
-      if (!source || !container.contains(source) || (handle && !event.target.closest(handle))) return;
-      if (handle) event.preventDefault();
-      drag = { container, source, grid, threshold, item, pointer:event.pointerId, x:event.clientX, y:event.clientY, active:false };
+      const handle = event.target.closest('.stage-drag-handle');
+      const source = handle?.closest('.stage-record');
+      if (!source || !container.contains(source)) return;
+      drag = { container, source, pointer:event.pointerId, x:event.clientX, y:event.clientY, active:false };
+      container.setPointerCapture(event.pointerId);
     });
     container.addEventListener('pointermove', (event) => {
       if (!drag || drag.container !== container || event.pointerId !== drag.pointer) return;
       drag.lastX = event.clientX; drag.lastY = event.clientY;
       if (!drag.active) {
-        if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < drag.threshold) return;
-        startDrag(event);
+        if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 3) return;
+        startDrag();
       }
       moveDrag(event.clientX, event.clientY);
     });
@@ -191,25 +242,24 @@ export function bindStageControls({ send, edit, toast }) {
       if (!drag.active) { drag = undefined; return; }
       finishDrag(true);
     });
-    container.addEventListener('pointercancel', () => drag?.container === container && finishDrag(false));
-    container.addEventListener('lostpointercapture', () => drag?.container === container && drag.active && finishDrag(true));
-    // 拖动结束后浏览器还会补发一次 click，吞掉它，避免误切节目。
+    container.addEventListener('pointercancel', cancelDrag);
+    container.addEventListener('lostpointercapture', cancelDrag);
+    // 吞掉拖动结束后补发的点击，避免折叠资料卡。
     container.addEventListener('click', (event) => {
       if (container.dataset.suppressClick) { event.stopPropagation(); event.preventDefault(); delete container.dataset.suppressClick; }
     }, true);
   }
-  function startDrag(event) {
+  function startDrag() {
     drag.active = true;
-    drag.container.setPointerCapture(drag.pointer);
-    drag.items = [...drag.container.querySelectorAll(':scope > ' + drag.item)];
+    drag.items = [...drag.container.querySelectorAll(':scope > .stage-record')];
     drag.from = drag.items.indexOf(drag.source);
     drag.source.classList.add('is-drag-source');
     drag.container.classList.add('is-sorting');
     document.documentElement.classList.add('is-stage-dragging');
-    drag.line = node('div', undefined, 'stage-drop-line' + (drag.grid ? ' is-vertical' : ''));
+    drag.line = node('div', undefined, 'stage-drop-line');
     drag.line.setAttribute('aria-hidden', 'true');
     drag.container.append(drag.line);
-    const title = drag.source.querySelector('h4, .stage-quick-title')?.textContent ?? '';
+    const title = drag.source.querySelector('h4')?.textContent ?? '';
     const number = drag.source.querySelector('.stage-number')?.textContent ?? '';
     drag.ghost = node('div', undefined, 'stage-drag-ghost');
     drag.ghost.append(node('span', number, 'stage-number'), node('strong', title));
@@ -230,28 +280,10 @@ export function bindStageControls({ send, edit, toast }) {
     drag.ghost.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y + 10)}px)`;
     const host = drag.container.getBoundingClientRect();
     const rects = drag.items.map((el) => el.getBoundingClientRect());
-    let to;
-    if (drag.grid) {
-      // 网格：找最近的格子，按其左右半边决定插在前还是后。
-      let best = 0, bestDistance = Infinity;
-      rects.forEach((r, i) => {
-        const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
-        const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
-        const d = dy * 4 + dx;
-        if (d < bestDistance) { bestDistance = d; best = i; }
-      });
-      const r = rects[best];
-      to = x < r.left + r.width / 2 ? best : best + 1;
-      const gap = parseFloat(getComputedStyle(drag.container).columnGap) || 6;
-      const left = to === best ? r.left - gap / 2 : r.right + gap / 2;
-      Object.assign(drag.line.style, { left:`${left - host.left - 1}px`, top:`${r.top - host.top}px`, height:`${r.height}px`, width:'' });
-    } else {
-      to = rects.findIndex((r) => y < r.top + r.height / 2);
-      if (to < 0) to = rects.length;
-      const gap = parseFloat(getComputedStyle(drag.container).rowGap) || 8;
-      const edgeY = to < rects.length ? rects[to].top - gap / 2 : rects.at(-1).bottom + gap / 2;
-      Object.assign(drag.line.style, { top:`${Math.max(0, Math.min(host.height - 2, edgeY - host.top - 1))}px`, left:`${rects[0].left - host.left}px`, width:`${rects[0].width}px`, height:'' });
-    }
+    let to = rects.findIndex((r) => y < r.top + r.height / 2);
+    if (to < 0) to = rects.length;
+    const edgeY = to < rects.length ? rects[to].top : rects.at(-1).bottom;
+    Object.assign(drag.line.style, { top:`${Math.max(0, Math.min(host.height - 2, edgeY - host.top - 1))}px`, left:`${rects[0].left - host.left}px`, width:`${rects[0].width}px` });
     drag.to = to;
     // 落回原位时不显示指示线。
     drag.line.hidden = to === drag.from || to === drag.from + 1;
@@ -268,30 +300,28 @@ export function bindStageControls({ send, edit, toast }) {
     state.container.dataset.suppressClick = 'true';
     setTimeout(() => delete state.container.dataset.suppressClick, 0);
     if (!commit || state.to === undefined || state.to === state.from || state.to === state.from + 1) return;
-    const ids = state.items.map((el) => el.dataset.recordId);
-    const [moved] = ids.splice(state.from, 1);
-    ids.splice(state.to > state.from ? state.to - 1 : state.to, 0, moved);
-    if (sendOrder(ids)) paintOrder(ids);
+    sendMove(state.from, state.to > state.from ? state.to - 1 : state.to);
   }
   function cancelDrag() {
-    if (drag?.active) finishDrag(false);
+    if (!drag) return;
+    if (drag.active) { finishDrag(false); return; }
+    const { container, pointer } = drag;
     drag = undefined;
+    if (container.hasPointerCapture(pointer)) container.releasePointerCapture(pointer);
   }
   function moveByKey(id, delta) {
     if (!canReorder()) return;
-    const ids = (settings.modules.program.items ?? []).map((item) => item.id);
+    const ids = programOrder();
     const from = ids.indexOf(id), to = from + delta;
     if (from < 0 || to < 0 || to >= ids.length) return;
-    ids.splice(to, 0, ...ids.splice(from, 1));
     pendingFocus = `drag-${id}`;
-    if (sendOrder(ids)) paintOrder(ids);
+    sendMove(from, to);
   }
   let pendingFocus;
   let followUps = [];
   function beginCommand(kind, payload) {
     request = `management-${crypto.randomUUID()}`;
     savingKind = payload.action === 'save' ? kind : null;
-    reordering = payload.action === 'reorder';
     send({ type:`${kind}:manage`, id:request, payload });
     refreshEnabled();
   }
@@ -314,13 +344,21 @@ export function bindStageControls({ send, edit, toast }) {
     const settling = ready && !request && sourceStatusSince && performance.now() - sourceStatusSince < 250;
     if (settling) sourceStatusTimer = setTimeout(refreshEnabled, 250 - (performance.now() - sourceStatusSince));
     else if (!request) sourceStatusSince = 0;
+    areas.program.area.dataset.sortEnabled = String(sortingEnabled);
+    sortLock.textContent = sortingEnabled ? '锁定排序' : '解锁排序';
+    sortLock.dataset.unavailable = String(Boolean(request) || editors.has('program') || programOrder().length < 2);
+    sortUndo.dataset.unavailable = String(!canUndo());
+    const orderStatus = sortingEnabled ? '拖动手柄，或聚焦手柄后按 ↑ / ↓' : '排序已锁定';
+    if (sortStatus.textContent !== orderStatus) sortStatus.textContent = orderStatus;
+    if (personPicker.open) pickerResults.querySelectorAll('button').forEach((input) => { input.disabled = !ready || Boolean(request); });
     for (const [kind, { area, status }] of Object.entries(areas)) {
       area.classList.toggle('is-pending', Boolean(request));
       area.setAttribute('aria-busy', String(Boolean(request)));
       area.querySelectorAll('button,input,textarea,select').forEach((input) => {
         // A round trip must not dim every programme button. Commands are
         // guarded while pending; only draft fields need a temporary lock.
-        input.disabled = !ready || input.dataset.unavailable === 'true' || (Boolean(request) && Boolean(input.closest('form')));
+        input.disabled = !ready || input.dataset.unavailable === 'true' ||
+          (Boolean(request) && Boolean(input.closest('form') || input.matches('.stage-drag-handle')));
       });
       status.textContent = !ready ? '连接断开 · 草稿已保留' : (request || settling) ? '正在保存…' : 'settings.json · 已连接';
       status.classList.toggle('is-offline', !ready);
@@ -342,9 +380,9 @@ export function bindStageControls({ send, edit, toast }) {
     return nav;
   }
   const quickCache = new Map();
-  function quickCell(item, index, selected, action, key, kind, upcoming = false) {
+  function quickCell(item, index, selected, action, key, upcoming) {
     const signature = JSON.stringify([item, index]);
-    const old = kind === 'program' && quickCache.get(item.id);
+    const old = quickCache.get(item.id);
     if (old?.signature === signature) {
       old.cell.setAttribute('aria-pressed', String(selected));
       old.cell.dataset.next = String(upcoming);
@@ -354,10 +392,40 @@ export function bindStageControls({ send, edit, toast }) {
     cell.setAttribute('aria-pressed', String(selected));
     if (upcoming) cell.dataset.next = 'true';
     cell.append(node('span', item.number || String(index + 1).padStart(2,'0'), 'stage-number'),
-      node('strong', kind === 'hosts' ? item.name : item.title, 'stage-quick-title'));
-    if (kind === 'program' && item.type) cell.append(node('small', item.type, 'stage-quick-type'));
-    if (kind === 'program') { quickCache.set(item.id, { signature, cell }); cell.dataset.recordId = item.id; cell.title = '单击切换 · 按住拖动调整顺序'; }
+      node('strong', item.title, 'stage-quick-title'));
+    if (item.type) cell.append(node('small', item.type, 'stage-quick-type'));
+    quickCache.set(item.id, { signature, cell });
+    cell.dataset.recordId = item.id;
     return cell;
+  }
+  function openPersonPicker(index) {
+    if (!ready || request) return;
+    pickerSlot = index;
+    pickerTitle.textContent = `选择字幕条 ${index + 1} 的人物`;
+    pickerSearch.value = '';
+    renderPersonPicker();
+    personPicker.showModal();
+    pickerSearch.focus();
+  }
+  function renderPersonPicker() {
+    const { hosts } = settings.modules;
+    if (pickerSlot === null) return;
+    if (pickerSlot >= hosts.slotCount) { personPicker.close(); return; }
+    const slot = hosts.slots[pickerSlot];
+    const query = pickerSearch.value.trim().normalize('NFKC').toLowerCase();
+    const results = hosts.people.filter(({ name, title }) =>
+      `${name} ${title}`.normalize('NFKC').toLowerCase().includes(query));
+    pickerStatus.textContent = results.length ? `找到 ${results.length} 位人物` : '没有匹配的人物';
+    pickerResults.replaceChildren(...results.map((person) => {
+      const option = button('', () => {
+        if (command('hosts', { action:'slot', index:pickerSlot, patch:{ personId:person.id } })) personPicker.close();
+      }, `pick-result-${person.id}`, 'stage-person-option');
+      option.setAttribute('aria-pressed', String(slot.personId === person.id));
+      option.disabled = !ready || Boolean(request);
+      option.append(node('strong', person.name));
+      if (person.title) option.append(node('small', person.title));
+      return option;
+    }));
   }
   function renderHostSlots(hosts) {
     const people = hosts.people ?? [];
@@ -366,22 +434,22 @@ export function bindStageControls({ send, edit, toast }) {
       card.dataset.slot = index;
       card.style.setProperty('--slot-color', slot.accentColor);
       const inactive = index >= hosts.slotCount;
+      const at = people.findIndex((p) => p.id === slot.personId);
       card.classList.toggle('is-inactive', inactive);
       // 状态：画面中（整体显示且本条显示）/ 待上屏（本条显示但整体隐藏）/ 已隐藏 / 未启用
-      const state = inactive ? 'off' : slot.hidden || !slot.personId ? 'hidden' : hosts.visible ? 'live' : 'cued';
+      const state = inactive ? 'off' : slot.hidden || at < 0 ? 'hidden' : hosts.visible ? 'live' : 'cued';
       card.dataset.state = state;
       const head = node('div', undefined, 'stage-slot-head');
       const name = node('div', undefined, 'stage-slot-name');
       name.append(node('strong', `字幕条 ${index + 1}`), node('span', { live:'画面中', cued:'待上屏', hidden:'已隐藏', off:'未启用' }[state], 'stage-slot-state'));
-      const toggle = limited(button(slot.hidden ? '显示' : '隐藏', () => command('hosts', { action:'slot', index, patch:{ hidden:!slot.hidden } }), `visible-${index}`, slot.hidden ? 'is-hidden' : 'is-live'), inactive || !slot.personId);
+      const toggle = limited(button(slot.hidden ? '显示' : '隐藏', () => command('hosts', { action:'slot', index, patch:{ hidden:!slot.hidden } }), `visible-${index}`, slot.hidden ? 'is-hidden' : 'is-live'), inactive || at < 0);
       toggle.append(kbd(String(index + 1)));
       toggle.setAttribute('aria-label', `${slot.hidden ? '显示' : '隐藏'}字幕条 ${index + 1}`);
       head.append(name, toggle);
-      const at = people.findIndex((p) => p.id === slot.personId);
       const nav = navigation('hosts', people[at], at, people.length, index);
-      const quick = node('div', undefined, 'stage-slot-quick');
-      people.forEach((person, i) => quick.append(quickCell(person, i, person.id === slot.personId,
-        () => command('hosts', { action:'slot', index, patch:{ personId:person.id } }), `person-${index}-${person.id}`, 'hosts')));
+      const pick = limited(button('选择人物', () => openPersonPicker(index), `pick-person-${index}`, 'stage-slot-picker'), inactive || !people.length);
+      pick.setAttribute('aria-label', `为字幕条 ${index + 1} 选择人物`);
+      pick.setAttribute('aria-haspopup', 'dialog');
       const appearance = node('details', undefined, 'stage-slot-appearance');
       appearance.append(node('summary', '自定义颜色'));
       const styles = node('div', undefined, 'stage-style-row');
@@ -401,7 +469,7 @@ export function bindStageControls({ send, edit, toast }) {
         input.onchange = () => command('hosts', { action:'slot', index, patch:{ [key]:input.value, customColors:true } });
         l.append(input); appearance.append(l);
       }
-      card.append(head, nav, quick, styles, appearance);
+      card.append(head, nav, pick, styles, appearance);
       if (inactive) card.querySelectorAll('button,input').forEach((control) => control.dataset.unavailable = 'true');
       return card;
     }));
@@ -434,7 +502,7 @@ export function bindStageControls({ send, edit, toast }) {
         grip.setAttribute('aria-label', `拖动调整「${item.title}」的顺序，也可按 ↑ ↓ 移动`);
         grip.title = '拖动调整顺序（↑ ↓ 也可移动）';
         grip.onkeydown = (event) => {
-          if (!['ArrowUp','ArrowDown'].includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
+          if (!['ArrowUp','ArrowDown'].includes(event.key) || event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
           event.preventDefault();
           moveByKey(item.id, event.key === 'ArrowUp' ? -1 : 1);
         };
@@ -534,6 +602,7 @@ export function bindStageControls({ send, edit, toast }) {
     settings = nextSettings; ready = connected;
     const hosts = settings.modules.hosts;
     const program = settings.modules.program;
+    if (undoMove && !sameOrder(undoMove.after, programOrder())) undoMove = undefined;
     const signature = JSON.stringify([hosts.people,hosts.slots,hosts.slotCount,hosts.visible,program.items,program.selectedId,program.visible]);
     if (signature !== last) {
       last = signature;
@@ -546,7 +615,7 @@ export function bindStageControls({ send, edit, toast }) {
       areas.hosts.libraryCount.textContent = `${people.length}`;
       areas.program.libraryCount.textContent = `${items.length}`;
       for (const kind of ['hosts','program']) {
-        const on = settings.modules[kind].visible;
+        const on = kind === 'hosts' ? hasVisibleHosts(hosts) : program.visible;
         areas[kind].state.textContent = on ? '画面中' : '未显示';
         areas[kind].state.classList.toggle('is-live', on);
         areas[kind].area.dataset.live = String(on);
@@ -562,6 +631,7 @@ export function bindStageControls({ send, edit, toast }) {
       count.append(numbers);
       areas.hosts.top.append(count,hostPosition);
       renderHostSlots(hosts);
+      if (personPicker.open) renderPersonPicker();
       const index = items.findIndex((p) => p.id === program.selectedId);
       const previousProgram = areas.program.current.dataset.content;
       const currentContent = JSON.stringify([items[index], items[index + 1]]);
@@ -572,7 +642,7 @@ export function bindStageControls({ send, edit, toast }) {
         node('strong',nextItem?.title ?? '没有下一个节目了'),
         node('span', nextItem ? [nextItem.number,nextItem.type,nextItem.performer].filter(Boolean).join(' · ') : '已到达最后一个节目'));
       const quickCards = items.map((item,i) => quickCell(item,i,item.id===program.selectedId,
-        ()=>command('program',{ action:'select', id:item.id }), `select-${item.id}`,'program', i === index + 1));
+        ()=>command('program',{ action:'select', id:item.id }), `select-${item.id}`, i === index + 1));
       for (const [id, entry] of quickCache) if (!quickCards.includes(entry.cell)) { entry.cell.remove(); quickCache.delete(id); }
       [...areas.program.quick.children].filter((cell) => !quickCards.includes(cell)).forEach((cell) => cell.remove());
       quickCards.forEach((cell,i) => { if (areas.program.quick.children[i] !== cell) areas.program.quick.insertBefore(cell, areas.program.quick.children[i] ?? null); });
@@ -597,7 +667,11 @@ export function bindStageControls({ send, edit, toast }) {
     navigateProgram: () => command('program',{ action:'navigate', direction:1 }),
     disconnected() {
       followUps = [];
-      request = undefined; ready = false; savingKind = null; reordering = false; refreshEnabled();
+      if (pendingMove) last = undefined;
+      pendingMove = undefined; undoMove = undefined; sortingEnabled = false;
+      cancelDrag();
+      if (personPicker.open) personPicker.close();
+      request = undefined; ready = false; savingKind = null; refreshEnabled();
       for (const { message } of editors.values()) message.textContent = '连接中断，草稿已保留。';
     },
     result(message) {
@@ -606,11 +680,13 @@ export function bindStageControls({ send, edit, toast }) {
         editors.get(savingKind)?.message.replaceChildren(document.createTextNode(message.message));
         toast(message.message);
         // 排序失败：本地已乐观挪动，按服务器状态重绘还原。
-        if (reordering) { last = undefined; render(settings, ready); }
+        if (pendingMove) { last = undefined; render(settings, ready); }
+      } else if (pendingMove) {
+        undoMove = !pendingMove.undo && sameOrder(pendingMove.after, programOrder()) ? pendingMove : undefined;
       } else if (savingKind) {
         editors.delete(savingKind); renderLibraries(savingKind);
       }
-      savingKind = null; reordering = false;
+      savingKind = null; pendingMove = undefined;
       const next = followUps.shift();
       if (next && ready) beginCommand(next.kind, next.payload);
       else { request = undefined; refreshEnabled(); }

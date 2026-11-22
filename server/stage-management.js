@@ -77,7 +77,7 @@ function projectProgram(module) {
   return { ...module, current: module.items[index]?.title ?? '', next: module.items[index + 1]?.title ?? '', queue: '' };
 }
 export function applyManagement(module, kind, payload) {
-  fields(payload, ['action', 'item', 'id', 'direction', 'index', 'patch', 'order']);
+  fields(payload, ['action', 'item', 'id', 'direction', 'index', 'patch', 'order', 'move']);
   const next = structuredClone(module);
   const key = kind === 'hosts' ? 'people' : 'items';
   const records = next[key];
@@ -110,17 +110,28 @@ export function applyManagement(module, kind, payload) {
     }
   } else if (kind === 'program' && payload.action === 'reorder') {
     // 拖动排序：order 必须是当前全部节目 ID 的一个排列；当前节目按 ID 追踪，排序后保持不变。
-    fields(payload, ['action', 'order']);
-    if (!Array.isArray(payload.order) || payload.order.length !== records.length) throw new Error('节目列表已变化，请刷新后再排序。');
+    fields(payload, ['action', 'order', 'move']);
+    let { order } = payload;
+    if (!Array.isArray(order) || order.length !== records.length) throw new Error('节目列表已变化，请刷新后再排序。');
+    if (Object.hasOwn(payload, 'move')) {
+      fields(payload.move, ['id', 'to']);
+      if (records.some(({ id }, index) => id !== order[index])) throw new Error('节目顺序已在另一端调整，请按当前顺序重试。');
+      const { id, to } = payload.move;
+      const from = order.indexOf(itemId(id));
+      if (from < 0 || !Number.isSafeInteger(to) || to < 0 || to >= order.length) throw new Error('节目移动位置无效。');
+      if (from === to) return next;
+      order = [...order];
+      order.splice(to, 0, ...order.splice(from, 1));
+    }
     const byId = new Map(records.map((item) => [item.id, item]));
     const seen = new Set();
-    for (const id of payload.order) {
+    for (const id of order) {
       if (!byId.has(itemId(id)) || seen.has(id)) throw new Error('节目列表已变化，请刷新后再排序。');
       seen.add(id);
     }
     // 拖动后按新顺序重写编号：01、02…，至少两位，超过 99 个自动变三位。只有拖动排序触发，编辑/新增不改编号。
     const width = Math.max(2, String(records.length).length);
-    next.items = payload.order.map((id, index) => ({ ...byId.get(id), number:String(index + 1).padStart(width, '0') }));
+    next.items = order.map((id, index) => ({ ...byId.get(id), number:String(index + 1).padStart(width, '0') }));
   } else if (kind === 'program' && payload.action === 'select') {
     fields(payload, ['action', 'id']);
     next.selectedId = itemId(payload.id);
