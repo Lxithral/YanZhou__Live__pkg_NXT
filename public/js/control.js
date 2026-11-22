@@ -1,4 +1,4 @@
-import { bindStageControls } from './stage/stage-controls.js';
+import { bindStageControls, hasVisibleHosts } from './stage/stage-controls.js';
 import { createLogoRenderer } from './render/logo-renderer.js';
 import { createHostsRenderer } from './render/hosts-renderer.js';
 import { createProgramRenderer } from './render/program-renderer.js';
@@ -156,7 +156,9 @@ programTear.onclick = () => {
   }));
   renderTicketControl();
 };
-const avoidance = createAvoidance(previewRenderers, () => ({ settings, showOrder }));
+const avoidance = createAvoidance(previewRenderers, () => ({ settings, showOrder }), {
+  fixedElements: [$('eventMark')],
+});
 let renderFrame = 0;
 function scheduleRender() {
   if (!renderFrame) renderFrame = requestAnimationFrame(() => { renderFrame = 0; render(); });
@@ -421,6 +423,11 @@ function renderModuleCard(moduleId, knownBounds) {
   }
 }
 
+function moduleIsShowing(moduleId) {
+  const module = settings.modules[moduleId];
+  return moduleId === 'hosts' ? hasVisibleHosts(module) : module.visible;
+}
+
 function renderControls() {
   for (const moduleId of MODULE_ORDER) {
     const module = settings.modules[moduleId];
@@ -462,25 +469,28 @@ function renderControls() {
     setInput(animation.durationNumber, module.animation.duration);
     updatePositionControls(moduleId);
     const toggle = document.querySelector(`[data-module-visibility="${moduleId}"]`);
+    const showing = moduleIsShowing(moduleId);
     toggle.textContent = module.visible ? '隐藏' : '显示';
     toggle.setAttribute('aria-label', `${module.visible ? '隐藏' : '显示'}${MODULES[moduleId].name}`);
     toggle.setAttribute('aria-pressed', String(module.visible));
-    document.querySelector(`[data-module-button="${moduleId}"]`)?.classList.toggle('is-off', !module.visible);
-    toggle.closest('.module-card')?.classList.toggle('is-live', Boolean(module.visible));
+    document.querySelector(`[data-module-button="${moduleId}"]`)?.classList.toggle('is-off', !showing);
+    toggle.closest('.module-card')?.classList.toggle('is-live', showing);
     const state = document.querySelector(`[data-module-state="${moduleId}"]`);
-    if (state) state.textContent = module.visible ? '画面中' : '未显示';
+    if (state) state.textContent = showing ? '画面中' : '未显示';
     const summary = document.querySelector(`[data-module-summary="${moduleId}"]`);
     if (summary && moduleId !== 'lyrics') summary.textContent = MODULES[moduleId].summary(module);
     renderModuleCard(moduleId);
   }
-  const liveCount = MODULE_ORDER.filter((moduleId) => settings.modules[moduleId].visible).length;
+  const liveCount = MODULE_ORDER.filter(moduleIsShowing).length;
   $('liveCount').textContent = `画面中 ${liveCount} / ${MODULE_ORDER.length}`;
   const active = settings.modules[activeModule];
   $('moduleVisible').checked = active.visible;
   $('moduleVisible').setAttribute('aria-label', `显示 ${MODULES[activeModule].name}`);
   $('visibilityTitle').textContent = `显示 ${MODULES[activeModule].name}`;
-  $('visibilityHint').textContent = active.visible ? '显示中 · 关闭后按退场动画离开画面' : '已隐藏 · 打开后按出场动画进入画面';
-  document.querySelector('.visibility-row').classList.toggle('is-live', Boolean(active.visible));
+  const showing = moduleIsShowing(activeModule);
+  $('visibilityHint').textContent = showing ? '显示中 · 关闭后按退场动画离开画面' :
+    active.visible ? '已启用 · 当前没有上屏的字幕条' : '已隐藏 · 打开后按出场动画进入画面';
+  document.querySelector('.visibility-row').classList.toggle('is-live', showing);
 }
 
 function updateSummary() {
@@ -489,13 +499,14 @@ function updateSummary() {
   $('summaryX').textContent = module.x;
   $('summaryY').textContent = module.y;
   $('summaryScale').textContent = Math.round(module.scale * 100) + '%';
-  $('visibilitySummary').textContent = module.visible ? '显示中' : '已隐藏';
-  $('visibilitySummary').classList.toggle('hidden-state', !module.visible);
+  const showing = moduleIsShowing(activeModule);
+  $('visibilitySummary').textContent = showing ? '显示中' : module.visible ? '未显示' : '已隐藏';
+  $('visibilitySummary').classList.toggle('hidden-state', !showing);
 }
 
 function updateSelection() {
   for (const moduleId of MODULE_ORDER) {
-    const selected = moduleId === activeModule && settings.modules[moduleId].visible;
+    const selected = moduleId === activeModule && moduleIsShowing(moduleId);
     previewRenderers[moduleId].element.classList.toggle('is-selected', selected);
   }
 }
@@ -1208,6 +1219,12 @@ function bindGlobalControls() {
     });
   }
   $('moduleVisible').addEventListener('change', (event) => edit(activeModule, { visible: event.target.checked }));
+  $('openMotionSettings').addEventListener('click', () => {
+    const section = $(MODULES[activeModule].animation.duration).closest('.settings-section');
+    section.open = true;
+    section.querySelector('summary').focus({ preventScroll: true });
+    section.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  });
   $('previewStage').addEventListener('keydown', (event) => {
     if (event.target !== $('previewStage') || !settings.modules[activeModule].visible) return;
     const amount = event.shiftKey ? 10 : 1;

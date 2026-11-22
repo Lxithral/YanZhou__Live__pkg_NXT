@@ -1,4 +1,4 @@
-import { buildLyricDocument, LYRIC_BYTES, jsonBytes, parseLrc, RATES, timelineIndex } from './lyrics/lyrics-model.js';
+import { buildLyricDocument, documentEnd, LYRIC_BYTES, jsonBytes, parseLrc, RATES, timelineIndex } from './lyrics/lyrics-model.js';
 import { createLyricsClock, timecode } from './lyrics/lyrics-clock.js';
 import { createLyricsRenderer } from './render/lyrics-renderer.js';
 import { bindAsrControls } from './asr/asr-controls.js';
@@ -11,7 +11,6 @@ const clock = createLyricsClock();
 const preview = createLyricsRenderer($('mini-canvas'));
 const asr = bindAsrControls({ command: (type, options) => { if (ready) socket.send(JSON.stringify({ type, options })); }, correct: (enabled) => send('lyrics:correct', { enabled }), timecode });
 const liveControls = [...document.querySelectorAll('[data-live]')];
-const playButtons = [...document.querySelectorAll('[data-play]')];
 const pending = new Map();
 const instance = crypto.randomUUID();
 const dialog = $('import-dialog');
@@ -28,6 +27,7 @@ let lyricsVisible = true;
 let entries = [];
 let importDoc = [];
 let importFits = true;
+let importEndError = '';
 let importRequest;
 let importKey;
 let suggestedTitle = '';
@@ -40,8 +40,6 @@ let nextColumnOpen = false;
 let renderFrame;
 let timelineRow = -2;
 let manualRow = null;
-let manualSelection;
-let manualFollowsTimeline = false;
 let timelineFollowTimer;
 let seekPreview = null;
 let seekRequest;
@@ -82,8 +80,9 @@ function message(text = '') {
 
 function updateControls() {
   for (const control of liveControls) control.disabled = !ready;
-  for (const id of ['play', 'manual-play', 'back', 'forward', 'rate', 'playback-progress']) $(id).disabled = !ready || !clock.doc.length;
-  $('load').disabled = !ready || !importDoc.length || !importFits || !$('song-title').value.trim() || Boolean(importRequest);
+  for (const id of ['play', 'back', 'forward', 'rate', 'playback-progress']) $(id).disabled = !ready || !clock.doc.length;
+  $('manual-play').disabled = !ready || !clock.state?.manual.next;
+  $('load').disabled = !ready || !importDoc.length || !importFits || Boolean(importEndError) || !$('song-title').value.trim() || Boolean(importRequest);
   $('song-select').disabled = !ready || !songCatalog.length;
   $('song-load').disabled = !ready || !$('song-select').value;
   $('load-next').disabled = !ready || !nextSong;
@@ -99,10 +98,7 @@ function send(type, payload, onAccepted) {
 }
 
 const transport = (action, value = null) => send('lyrics:transport', { action, value });
-const manual = (action, value = null) => {
-  if (action !== 'auto') manualFollowsTimeline = false;
-  return send('lyrics:manual', { action, value });
-};
+const manual = (action, value = null) => send('lyrics:manual', { action, value });
 const push = (source) => send('lyrics:onair', { source });
 
 function renderList(id, lines, display, select) {
@@ -196,11 +192,11 @@ timelineList.addEventListener('keydown', (event) => {
 columns.addEventListener('transitionend', (event) => {
   if (event.target !== columns || event.propertyName !== 'grid-template-columns') return;
   if (!timelineFollowTimer) centerRow(timelineList, timelineRow);
-  if (manualFollowsTimeline) centerRow($('manual-list'), manualRow);
+  centerRow($('manual-list'), manualRow);
   centerRow($('reference-list'), timelineRow);
 });
 
-function drawTimeline(position, state, playing) {
+function drawTimeline(position, state) {
   const index = Math.min(clock.doc.length - 1, timelineIndex(clock.doc, position, state.transport.end));
   if (index !== timelineRow) {
     markRow('timeline-list', timelineRow, index);
@@ -208,11 +204,9 @@ function drawTimeline(position, state, playing) {
     timelineRow = index;
     if (!timelineFollowTimer) centerRow(timelineList, index);
   }
-  if (playing && clock.usesDocument) manualFollowsTimeline = true;
-  const manualIndex = manualFollowsTimeline ? index : state.manual.index;
+  const manualIndex = state.manual.index;
   if (manualRow !== manualIndex) {
-    markRow('manual-list', manualRow, manualIndex, !manualFollowsTimeline);
-    if (manualFollowsTimeline) centerRow($('manual-list'), manualIndex);
+    markRow('manual-list', manualRow, manualIndex, true);
     manualRow = manualIndex;
   }
 }
@@ -237,12 +231,10 @@ function drawClock() {
     position >= state.transport.end ? '已结束' : '已暂停';
   if ($('playback-state').textContent !== playbackState) $('playback-state').textContent = playbackState;
   updateNextColumn(position);
-  drawTimeline(position, state, playing);
+  drawTimeline(position, state);
   showCorrectionFeedback(performance.now());
-  for (const button of playButtons) {
-    const label = playing ? '暂停' : '播放';
-    if (button.textContent !== label) button.textContent = label;
-  }
+  const playLabel = playing ? '暂停' : '播放';
+  if ($('play').textContent !== playLabel) $('play').textContent = playLabel;
   const remaining = ready ? clock.remaining() : null;
   $('countdown').hidden = remaining === null;
   if (remaining !== null) {
@@ -279,21 +271,16 @@ function renderState(state) {
     renderList('timeline-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''), (line) => transport('seek', line.start));
     renderList('reference-list', clock.doc, (line) => line.text + (line.credit ? ' · 署名' : ''));
     timelineRow = -2;
-    manualFollowsTimeline = false;
   }
   if (Object.hasOwn(state.manual, 'lines')) {
     renderList('manual-list', clock.lines, (line) => line, (_line, index) => manual('select', index));
     manualRow = undefined;
-    if (!clock.usesDocument) manualFollowsTimeline = false;
-  }
-  if (manualSelection !== state.manual.index) {
-    manualSelection = state.manual.index;
-    manualFollowsTimeline = false;
   }
   $('manual-current').textContent = state.manual.current || '—';
   $('manual-next').textContent = state.manual.next || '—';
   $('rate').value = state.transport.rate;
-  $('auto').value = state.manual.autoSeconds;
+  if (state.manual.autoSeconds) $('auto').value = state.manual.autoSeconds;
+  $('manual-play').textContent = state.manual.autoSeconds ? '停止自动切句' : '开始自动切句';
   updateOutput();
   updateControls();
   cancelAnimationFrame(renderFrame);
@@ -488,20 +475,36 @@ function updateNextColumn(position = clock.position()) {
 
 function syncImport() {
   importKey = undefined;
-  const result = buildLyricDocument(entries);
+  const endInput = $('song-end');
+  const result = buildLyricDocument(entries, { endTime: endInput.value });
   importDoc = result.doc;
   importFits = jsonBytes(importDoc) <= LYRIC_BYTES;
+  importEndError = result.endError;
+  endInput.setAttribute('aria-invalid', String(Boolean(importEndError) && Boolean(endInput.value.trim())));
   const errors = new Map(result.errors.map(({ line, message: detail }) => [line, detail]));
   let invalid = 0;
   for (const entry of entries) {
     const error = entry.skip ? '' : entry.error || entry.lines.map((line) => errors.get(line)).find(Boolean);
     if (error) invalid += 1;
-    entry.status.textContent = entry.skip ? '已跳过' : entry.translation ? '译文 · 并入上一行' :
-      error || (entry.lines.some((line) => line.credit) ? '署名 · 仅显示' : '有效');
+    let status = error || '有效';
+    if (entry.timing?.kind === 'offset') {
+      const { value } = entry.timing;
+      status = value ? `全曲${value > 0 ? '提前' : '延后'} ${Math.abs(value)} 毫秒` : '全曲无偏移';
+    } else if (entry.timing?.kind === 'length') {
+      status = `LRC 结束时间 · ${timecode(entry.timing.value)}`;
+    } else if (!error && entry.lines.some((line) => result.beforeStart.has(line))) {
+      status = '已在播放起点前结束';
+    } else if (!error && result.translations.has(entry)) {
+      status = '译文 · 并入上一行';
+    } else if (!error && entry.lines.includes(result.credit)) {
+      status = '署名 · 仅显示';
+    }
+    entry.status.textContent = entry.skip ? '已跳过' : status;
     entry.status.classList.toggle('invalid', Boolean(error));
   }
-  $('import-result').textContent = !importFits ? '歌词文档超过 200 KiB，请删减后再载入。' :
-    `${importDoc.length} 句可载入 · ${invalid} 行有问题`;
+  const endLabel = importDoc.length ? ` · 结束 ${timecode(documentEnd(importDoc))}${importDoc.at(-1).end === undefined ? '（自动）' : ''}` : '';
+  $('import-result').textContent = importEndError || (!importFits ? '歌词文档超过 200 KiB，请删减后再载入。' :
+    `${importDoc.length} 句可载入 · ${invalid} 行有问题${endLabel}`);
   updateControls();
 }
 
@@ -536,8 +539,8 @@ function prepareImport(filename = '') {
     input.addEventListener('input', () => {
       const edited = parseLrc(input.value)[0];
       entry.lines = edited?.lines ?? [];
-      entry.translation = false;
-      entry.error = edited?.error || (entry.lines.length ? '' : '空白或元数据行');
+      entry.timing = edited?.timing;
+      entry.error = edited?.error || (entry.lines.length || entry.timing ? '' : '空白或元数据行');
       syncImport();
     });
     const skip = document.createElement('button');
@@ -577,9 +580,7 @@ $('output-source').onchange = (event) => {
   updateOutput();
   push(source);
 };
-for (const button of playButtons) {
-  button.onclick = () => transport(clock.state.transport.playing && clock.position() < clock.state.transport.end ? 'pause' : 'play');
-}
+$('play').onclick = () => transport(clock.state.transport.playing && clock.position() < clock.state.transport.end ? 'pause' : 'play');
 $('back').onclick = () => transport('nudge', -500);
 $('forward').onclick = () => transport('nudge', 500);
 $('rate').onchange = ({ target }) => transport('rate', Number(target.value));
@@ -612,7 +613,10 @@ $('playback-progress').addEventListener('blur', () => {
 $('previous').onclick = () => manual('step', -1);
 $('next').onclick = () => manual('step', 1);
 $('clear').onclick = () => manual('clear');
-$('auto').onchange = ({ target }) => manual('auto', Number(target.value));
+$('manual-play').onclick = () => manual('auto', clock.state.manual.autoSeconds ? 0 : Number($('auto').value));
+$('auto').onchange = ({ target }) => {
+  if (clock.state?.manual.autoSeconds) manual('auto', Number(target.value));
+};
 $('manual-column').addEventListener('keydown', (event) => {
   if (!ready || event.isComposing || event.keyCode === 229 || event.repeat ||
       event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -632,6 +636,7 @@ $('song-title').oninput = () => {
   updateControls();
 };
 $('song-artist').oninput = () => { importKey = undefined; };
+$('song-end').oninput = syncImport;
 $('replace-song').onchange = () => { importKey = undefined; };
 $('song-select').onchange = updateControls;
 function loadSong(id) {
@@ -670,6 +675,7 @@ $('load').onclick = () => {
     message(`已保存并载入《${title}》 · ${count} 句`);
     $('song-title').value = '';
     $('song-artist').value = '';
+    $('song-end').value = '';
     $('lrc-input').value = '';
     $('lrc-file').value = '';
     suggestedTitle = '';

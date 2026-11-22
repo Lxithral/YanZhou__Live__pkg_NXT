@@ -849,7 +849,9 @@ export async function createPackagingServer({
               lyrics.apply(message.type, message.payload);
               broadcast(asrState());
             } else {
-              publishLyrics(lyrics.apply(message.type, message.payload), id);
+              const change = lyrics.apply(message.type, message.payload);
+              if (change) publishLyrics(change, id);
+              else send(client, lyricState(undefined, id));
               if (message.type === 'lyrics:correct') broadcast(asrState());
             }
           });

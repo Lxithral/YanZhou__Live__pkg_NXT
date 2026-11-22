@@ -16,7 +16,9 @@ const RENDERERS = {
 };
 const lyricsClock = createLyricsClock();
 let stage = { settings: null, showOrder: null };
-const avoidance = createAvoidance(RENDERERS, () => stage);
+const avoidance = createAvoidance(RENDERERS, () => stage, {
+  fixedElements: [document.getElementById('eventMark')],
+});
 
 let disposed = false;
 let reconnectAttempt = 0;

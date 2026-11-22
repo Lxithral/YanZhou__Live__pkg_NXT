@@ -52,6 +52,7 @@ export function validateLyricSettings({ source, doc, transport, manual, armed })
 
 export function createLyricsSession(initial, onChange) {
   let { source, doc, transport, manual, armed = false } = initial;
+  if (manual.autoSeconds) manual = { ...manual, autoSeconds: 0 };
   let documentLines = doc.map((line) => line.text);
   if (documentLines.length && manual.lines?.length === 0) {
     manual = { ...manual, lines: null };
@@ -87,7 +88,11 @@ export function createLyricsSession(initial, onChange) {
   function scheduleAuto() {
     clearTimeout(autoTimer);
     deadline = null;
-    if (!manual.autoSeconds || !nextLine()) return;
+    if (!manual.autoSeconds) return;
+    if (!nextLine()) {
+      manual = { ...manual, autoSeconds: 0 };
+      return;
+    }
     const delay = manual.autoSeconds * 1000;
     deadline = performance.now() + delay;
     autoTimer = setTimeout(() => {
@@ -110,6 +115,7 @@ export function createLyricsSession(initial, onChange) {
         playing = true;
         break;
       case 'pause':
+        if (startedAt === null) return false;
         playing = false;
         break;
       case 'seek':
@@ -130,6 +136,7 @@ export function createLyricsSession(initial, onChange) {
     transport = { position: nextPosition, rate };
     startedAt = playing && nextPosition < end ? now : null;
     adjustment = undefined;
+    return true;
   }
 
   function applyManual(action, value) {
@@ -182,13 +189,12 @@ export function createLyricsSession(initial, onChange) {
           correction = { ...correction, offset: null, confidence: null, history: [] };
           if (armed && source === 'manual') manual = { ...manual, lines: null, index: null };
           else manual = { ...manual, lines: null, index: 0, current: documentLines[0] };
-          clearTimeout(autoTimer);
-          deadline = null;
+          manual = { ...manual, autoSeconds: 0 };
+          scheduleAuto();
           return { doc: true, lines: true };
         case 'lyrics:transport':
           requireFields(payload, ['action', 'value']);
-          applyTransport(payload.action, payload.value);
-          return {};
+          return applyTransport(payload.action, payload.value) ? {} : null;
         case 'lyrics:manual':
           requireFields(payload, ['action', 'value']);
           applyManual(payload.action, payload.value);

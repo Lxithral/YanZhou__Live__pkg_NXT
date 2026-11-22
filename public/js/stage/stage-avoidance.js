@@ -169,6 +169,10 @@ export function measureModule(moduleId, renderer, module) {
   const element = renderer.element;
   if (!module?.visible || element.hidden) return null;
   if (['lyrics', 'speech'].includes(moduleId) && element.dataset.hasContent !== 'true') return null;
+  if (moduleId === 'logo') {
+    const { width: w, height: h } = renderer.getBounds();
+    return [{ x: element.offsetLeft, y: element.offsetTop, w, h }];
+  }
   const scale = Number(module.scale) || 1;
   const rect = (node, fit = 1, anchorRight = false) => {
     const { x, y } = offsetWithin(node, element);
@@ -208,7 +212,7 @@ const CSS = `
  * renderers: { moduleId: renderer }；getState() 返回 { settings, showOrder }。
  * schedule() 在下一帧统一量取（先全部读，再全部写，避免布局抖动）。freeze(true) 时保持当前偏移不变（拖动中）。
  */
-export function createAvoidance(renderers, getState, { animate = true } = {}) {
+export function createAvoidance(renderers, getState, { animate = true, fixedElements = [] } = {}) {
   if (!document.getElementById(STYLE_ID)) {
     const style = document.createElement('style');
     style.id = STYLE_ID;
@@ -227,6 +231,7 @@ export function createAvoidance(renderers, getState, { animate = true } = {}) {
     observer.observe(renderer.body ?? renderer.element);
     hiddenObserver.observe(renderer.element, { attributes: true, attributeFilter: ['hidden'] });
   }
+  for (const element of fixedElements) observer.observe(element);
   document.fonts?.ready.then(() => schedule());
 
   function run() {
@@ -237,7 +242,7 @@ export function createAvoidance(renderers, getState, { animate = true } = {}) {
     const enabled = settings.layout?.autoAvoid !== false;
     const boxes = {};
     const partNodes = {};
-    const fixed = [];
+    const fixed = fixedElements.map(({ offsetLeft: x, offsetTop: y, offsetWidth: w, offsetHeight: h }) => ({ x, y, w, h }));
     const exiting = new Set();
     if (enabled) {
       for (const [id, renderer] of Object.entries(renderers)) {

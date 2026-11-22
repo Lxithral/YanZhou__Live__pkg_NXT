@@ -6,7 +6,9 @@ export const RATES = Array.from({ length: 11 }, (_, index) => (90 + index * 2) /
 const STAMP = '(\\d{1,4}):([0-5]\\d)(?:\\.(\\d{1,3}))?';
 const LINE_STAMP = new RegExp('^\\[' + STAMP + '\\]');
 const WORD_STAMP = new RegExp('<' + STAMP + '>', 'g');
-const METADATA = /^\[(?:ar|al|ti|by|re|ve|length|offset):[^\]]*\]$/i;
+const METADATA = /^\[(?:ar|al|ti|by|re|ve):[^\]]*\]$/i;
+const TIMING_TAG = /^\[(offset|length):([^\]]*)\]$/i;
+const END_STAMP = new RegExp('^' + STAMP + '$');
 const CREDIT = /^(?:作[词曲]|词|曲|编曲|演唱|歌手|原唱|制作|混音|录音|监制|credits?|lyrics|music|arrang(?:er|ement)|vocal(?:s)?)\s*[:：]/iu;
 const HAN = /\p{Script=Han}/u;
 const TEXT = /^[^\u0000-\u001F\u007F]*$/u;
@@ -18,6 +20,17 @@ export const isLine = (value) => typeof value === 'string' && value.length <= MA
 
 function stampMs(match) {
   return Number(match[1]) * 60_000 + Number(match[2]) * 1000 + Number((match[3] || '').padEnd(3, '0'));
+}
+
+function parseEndTime(value) {
+  const stamp = END_STAMP.exec(value.trim());
+  const time = stamp ? stampMs(stamp) : NaN;
+  if (!isTime(time)) throw new Error('结束时间格式应为 分:秒，可带小数。');
+  return time;
+}
+
+function lastTimestamp(line) {
+  return line.tokens.at(-1)?.start ?? line.start;
 }
 
 function appendChunk(tokens, chunk, start, end) {
@@ -71,48 +84,63 @@ export function parseLrc(source) {
   for (const [index, raw] of source.replace(/^\uFEFF/, '').split(/\r\n?|\n/u).entries()) {
     if (!raw.trim() || METADATA.test(raw.trim())) continue;
     try {
+      const tag = TIMING_TAG.exec(raw.trim());
+      if (tag) {
+        const kind = tag[1].toLowerCase();
+        const text = tag[2].trim();
+        const value = kind === 'length' ? parseEndTime(text) : Number(text);
+        if (kind === 'offset' && (!/^[+-]?\d+$/u.test(text) || !isTime(Math.abs(value)))) {
+          throw new Error('offset 必须是带可选正负号的毫秒整数。');
+        }
+        entries.push({ number: index + 1, raw, lines: [], error: '', timing: { kind, value } });
+        continue;
+      }
       const lines = parseLine(raw);
       if (lines.length) entries.push({ number: index + 1, raw, lines, error: '' });
     } catch (error) {
       entries.push({ number: index + 1, raw, lines: [], error: error.message });
     }
   }
-  const ordered = entries.flatMap((entry) => entry.lines).sort((a, b) => a.start - b.start);
-  if (ordered[0]?.start === 0 && CREDIT.test(ordered[0].text)) ordered[0].credit = true;
-  pairTranslations(entries);
   return entries;
 }
 
-// 双语 LRC 的常见写法：原文行与译文行使用同一个时间戳相邻排列。
-// 把相邻同time、且只有一方含汉字的行合成一句，译文挂在原文行的 translation 上。
-function isTranslationPair(first, second) {
-  if (first.skip || second.skip || first.lines.length !== 1 || second.lines.length !== 1) return false;
-  const [left, right] = [first.lines[0], second.lines[0]];
-  if (left.start !== right.start || left.credit || right.credit) return false;
-  return HAN.test(left.text) !== HAN.test(right.text);
-}
-
-// 三行挤在同一个时间戳时无法判断谁是译文，保持原样，交给重复时间戳的校验去报告。
-function pairTranslations(entries) {
+// 只在当前保留的原文行上配对，避免跳过、删除或编辑译文后保留旧译文。
+function pairTranslations(entries, credit) {
+  const paired = new Map();
+  const translations = new Set();
   let index = 0;
   while (index < entries.length) {
-    const start = entries[index].lines[0]?.start;
+    const primary = entries[index].lines[0];
     let end = index + 1;
-    while (start !== undefined && end < entries.length &&
-        entries[end].lines.length === 1 && entries[end].lines[0].start === start) end += 1;
-    if (end - index === 2 && isTranslationPair(entries[index], entries[index + 1])) {
-      // LRC 里原文在前、译文在后，所以先出现的那一行保持主行。
-      const [primary, secondary] = [entries[index], entries[index + 1]];
-      primary.lines[0].translation = secondary.lines[0].text;
-      secondary.lines = [];
-      secondary.translation = true;
+    while (primary && end < entries.length &&
+        entries[end].lines.length === 1 && entries[end].lines[0].start === primary.start) end += 1;
+    if (end - index === 2 && entries[index].lines.length === 1) {
+      const secondary = entries[index + 1];
+      const translation = secondary.lines[0];
+      if (primary !== credit && translation !== credit && HAN.test(primary.text) !== HAN.test(translation.text)) {
+        paired.set(primary, translation.text);
+        translations.add(secondary);
+      }
     }
-    index = Math.max(end, index + 1);
+    index = end;
   }
+  return { paired, translations };
 }
 
-export function buildLyricDocument(entries) {
-  const lines = entries.filter((entry) => !entry.skip).flatMap((entry) => entry.lines)
+export function buildLyricDocument(entries, { endTime = '' } = {}) {
+  const active = entries.filter((entry) => !entry.skip);
+  let offset = 0;
+  let end = null;
+  for (const { timing } of active) {
+    if (timing?.kind === 'offset') offset = timing.value;
+    if (timing?.kind === 'length') end = timing.value;
+  }
+  const rows = active.filter((entry) => !entry.timing);
+  const first = rows.flatMap((entry) => entry.lines).reduce((earliest, line) =>
+    !earliest || line.start < earliest.start ? line : earliest, null);
+  const credit = first?.start === 0 && CREDIT.test(first.text) ? first : null;
+  const { paired, translations } = pairTranslations(rows, credit);
+  const lines = rows.filter((entry) => !translations.has(entry)).flatMap((entry) => entry.lines)
     .sort((a, b) => a.start - b.start);
   const errors = [];
   const unique = lines.filter((line, index) => {
@@ -120,9 +148,13 @@ export function buildLyricDocument(entries) {
       errors.push({ line, message: '与另一行的开始时间重复' });
       return false;
     }
+    if (lastTimestamp(line) - offset > MAX_TIME) {
+      errors.push({ line, message: '应用 offset 后时间超出范围' });
+      return false;
+    }
     return true;
   });
-  const doc = unique.filter((line, index) => {
+  const valid = unique.filter((line, index) => {
     const next = unique[index + 1];
     if (next && line.tokens.at(-1)?.start >= next.start) {
       errors.push({ line, message: '字时间延伸到下一行' });
@@ -130,7 +162,26 @@ export function buildLyricDocument(entries) {
     }
     return true;
   });
-  return { doc, errors };
+  // 正 offset 提前显示。零点只保留当时正在显示的一句，逐字高亮从零点接续。
+  const firstAtZero = Math.max(0, valid.findLastIndex((line) => line.start <= offset));
+  const beforeStart = new Set(valid.slice(0, firstAtZero));
+  const doc = valid.slice(firstAtZero).map((line) => ({
+    ...line, start: Math.max(0, line.start - offset), credit: line === credit,
+    tokens: offset ? line.tokens.map((token) => ({ ...token, start: Math.max(0, token.start - offset) })) : line.tokens,
+    ...(paired.has(line) && { translation: paired.get(line) }),
+  }));
+  let endError = '';
+  try {
+    if (endTime.trim()) end = parseEndTime(endTime);
+    const last = doc.at(-1);
+    if (last && end !== null) {
+      if (end <= lastTimestamp(last)) throw new Error('结束时间须晚于最后一句的最后时间戳。');
+      last.end = end;
+    }
+  } catch (error) {
+    endError = error.message;
+  }
+  return { doc, errors, translations, beforeStart, credit, endError };
 }
 
 function hasFields(value, fields) {
@@ -141,7 +192,10 @@ function hasFields(value, fields) {
 function validLine(line) {
   if (line === null || typeof line !== 'object' || Array.isArray(line)) return false;
   const translated = Object.hasOwn(line, 'translation');
-  const fields = translated ? ['start', 'text', 'tokens', 'credit', 'translation'] : ['start', 'text', 'tokens', 'credit'];
+  const timedEnd = Object.hasOwn(line, 'end');
+  const fields = ['start', 'text', 'tokens', 'credit'];
+  if (translated) fields.push('translation');
+  if (timedEnd) fields.push('end');
   if (!hasFields(line, fields) || !isTime(line.start) ||
       !isLine(line.text) || !line.text.trim() || typeof line.credit !== 'boolean' ||
       !Array.isArray(line.tokens) || line.tokens.length > MAX_LINE) return false;
@@ -152,6 +206,7 @@ function validLine(line) {
         !isLine(token.text) || !token.text) return false;
     start = token.start;
   }
+  if (timedEnd && (!isTime(line.end) || line.end <= start)) return false;
   return !line.tokens.length || line.tokens.map((token) => token.text).join('') === line.text;
 }
 
@@ -159,7 +214,9 @@ export function validateDocument(doc, { allowEmpty = false } = {}) {
   if (!Array.isArray(doc) || (!allowEmpty && !doc.length)) throw new Error('没有可载入的歌词。');
   if (jsonBytes(doc) > LYRIC_BYTES) throw new Error('歌词文档超过 200 KiB。');
   for (const [index, line] of doc.entries()) {
-    if (!validLine(line)) throw new Error(`第 ${index + 1} 行歌词格式无效。`);
+    if (!validLine(line) || (line.end !== undefined && index !== doc.length - 1)) {
+      throw new Error(`第 ${index + 1} 行歌词格式无效。`);
+    }
     const previous = doc[index - 1];
     if (previous && (previous.start >= line.start || previous.tokens.at(-1)?.start >= line.start)) {
       throw new Error(`第 ${index + 1} 行歌词时间重叠或顺序无效。`);
@@ -170,7 +227,14 @@ export function validateDocument(doc, { allowEmpty = false } = {}) {
 
 export function documentEnd(doc) {
   const last = doc.at(-1);
-  return last ? (last.tokens.at(-1)?.start ?? last.start) + 800 : 0;
+  if (!last) return 0;
+  if (last.end !== undefined) return last.end;
+  if (last.tokens.length) return lastTimestamp(last) + 800;
+  const recent = doc.slice(-5).filter((line) => !line.credit);
+  const gaps = recent.slice(1).map((line, index) => line.start - recent[index].start).sort((a, b) => a - b);
+  const units = last.text.match(TOKEN)?.filter((part) => part.trim()).length ?? 0;
+  const readingTime = Math.max(units * 350, gaps[Math.floor(gaps.length / 2)] ?? 0);
+  return last.start + Math.max(3000, Math.min(10_000, readingTime));
 }
 
 export function timelineIndex(doc, position, end = documentEnd(doc)) {

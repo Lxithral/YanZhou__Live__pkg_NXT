@@ -8,6 +8,7 @@
   <script src="/js/core/theme.js"></script>
   <link rel="icon" type="image/x-icon" href="/assets/favicon.ico" sizes="16x16 32x32 48x48 64x64">
   <link rel="stylesheet" href="/css/control.css">
+  <link rel="stylesheet" href="/css/event-mark.css">
 </head>
 <body class="control-page">
   <header class="app-header">
@@ -92,6 +93,7 @@
         <div class="preview-stage" id="previewStage" data-background="checker" tabindex="0" aria-label="画面位置预览，可拖动模块或使用方向键微调">
           <div class="preview-canvas" id="previewCanvas">
             <div class="safe-area" id="safeArea" aria-hidden="true"></div>
+            <img id="eventMark" class="event-mark" src="/assets/singing-competition-mark.png" width="1206" height="346" alt="烟洲中学歌手大赛">
           </div>
           <div class="preview-offline" id="previewOffline" hidden><span></span>连接恢复后同步</div>
         </div>
@@ -110,6 +112,7 @@
     <aside class="properties-column" aria-labelledby="propertiesTitle">
       <div class="properties-heading">
         <h2 id="propertiesTitle">Logo 挂角设置</h2>
+        <button type="button" class="button" id="openMotionSettings">出场 / 退场</button>
       </div>
       <section class="properties-card">
         <div class="visibility-row"><div class="visibility-copy"><strong id="visibilityTitle">显示 Logo 挂角</strong><small id="visibilityHint">关闭后按退场动画离开画面</small></div><label class="switch"><input id="moduleVisible" type="checkbox" checked aria-label="显示当前模块"><span></span></label></div>

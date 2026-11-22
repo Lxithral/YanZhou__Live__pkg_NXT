@@ -56,7 +56,7 @@
       </header>
       <div class="column-controls">
         <div class="tool-row">
-          <button id="play" class="primary" data-play data-live disabled>播放</button>
+          <button id="play" class="primary" data-live disabled>播放</button>
           <button id="back" data-live disabled>−0.5 秒</button>
           <button id="forward" data-live disabled>+0.5 秒</button>
           <label for="rate">速率</label><select id="rate" data-live disabled></select>
@@ -85,12 +85,12 @@
         <p class="line-preview">手动当前句 <span id="manual-current">—</span></p>
         <p class="line-preview">手动下一句 <span id="manual-next">—</span></p>
         <div class="tool-row">
-          <button id="manual-play" class="primary" data-play data-live disabled>播放</button>
           <button id="previous" data-live disabled>上一句</button>
           <button id="next" data-live disabled>下一句</button>
           <button id="clear" class="caution" data-live disabled>清屏</button>
-          <label for="auto">自动</label>
-          <select id="auto" data-live disabled><option value="0">关闭</option><option value="5">5 秒</option><option value="10">10 秒</option></select>
+          <label for="auto">切句间隔</label>
+          <select id="auto" data-live disabled><option value="5">5 秒</option><option value="10">10 秒</option></select>
+          <button id="manual-play" class="primary" data-live disabled>开始自动切句</button>
         </div>
         <div id="manual-hotkeys" class="hotkey-area" tabindex="0" title="Enter / → / 空格 下一句，← 上一句，Esc 清屏"><span class="hotkey-title">切句热键</span><span class="hotkey-keys"><kbd>Enter</kbd><kbd>→</kbd><kbd>空格</kbd> 下一句 · <kbd>←</kbd> 上一句 · <kbd>Esc</kbd> 清屏</span></div>
       </div>
@@ -166,6 +166,10 @@
     <div class="tool-row">
       <label for="lrc-file">或选择文件</label><input id="lrc-file" type="file" accept=".lrc,.txt,text/plain">
       <button id="parse">解析预览</button>
+    </div>
+    <div class="tool-row">
+      <label for="song-end">歌曲结束时间</label>
+      <input id="song-end" maxlength="13" placeholder="如 03:45.500（选填）" aria-describedby="import-result">
     </div>
     <p id="import-result" role="status">解析后可逐行编辑、删除或跳过。</p>
     <ol id="import-list" class="import-list" aria-label="导入逐行预览"></ol>
