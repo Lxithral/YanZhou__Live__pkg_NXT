@@ -1007,7 +1007,7 @@ test('management initializes once, backs up old settings, and keeps empty librar
   const first = await setup.start();
   const snapshot = first.app.getState().settings;
   assert.equal(snapshot.modules.hosts.people.length, 4);
-  assert.equal(snapshot.modules.program.items.length, 12);
+  assert.equal(snapshot.modules.program.items.length, 13);
   assert.equal(snapshot.modules.hosts.visible, false);
   assert.deepEqual(JSON.parse(await readFile(setup.settingsPath + '.pre-management.bak', 'utf8')), old);
   const client = await setup.connect(first.wsUrl);

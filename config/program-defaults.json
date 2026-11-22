@@ -1,33 +1,41 @@
 [
   {
+    "number": "",
+    "type": "嘉宾节目",
+    "title": "绿光",
+    "performer": "kic",
+    "desc": "",
+    "cover": ""
+  },
+  {
     "number": "01",
     "type": "歌曲",
-    "title": "任我行",
-    "performer": "高一10班 陈浩天",
-    "desc": "",
+    "title": "身骑白马",
+    "performer": "高二16班 高可心",
+    "desc": "徐佳莹版本",
     "cover": ""
   },
   {
     "number": "02",
     "type": "歌曲",
-    "title": "至少还有你",
-    "performer": "高二19班 温子晴",
+    "title": "天若有情",
+    "performer": "高一8班 黄珈翎、陈咏怡",
     "desc": "",
     "cover": ""
   },
   {
     "number": "03",
-    "type": "多器乐",
-    "title": "Rolling in the Deep",
-    "performer": "高一14班 部珊伊",
+    "type": "歌曲",
+    "title": "素颜",
+    "performer": "高二10班 张芷萍；高二18班 吴靖；高二15班 郗彬皓、陈羽斯瀚",
     "desc": "",
     "cover": ""
   },
   {
     "number": "04",
     "type": "歌曲",
-    "title": "天若有情",
-    "performer": "高一8班 黄珈翎、陈咏怡",
+    "title": "背对背拥抱",
+    "performer": "高一25班 缪宇峰",
     "desc": "",
     "cover": ""
   },
@@ -40,19 +48,27 @@
     "cover": ""
   },
   {
+    "number": "",
+    "type": "互动",
+    "title": "互动游戏",
+    "performer": "",
+    "desc": "",
+    "cover": ""
+  },
+  {
     "number": "06",
     "type": "歌曲",
-    "title": "那些你很冒险的梦",
-    "performer": "高一25班 缪宇峰",
+    "title": "至少还有你",
+    "performer": "高二19班 温子晴",
     "desc": "",
     "cover": ""
   },
   {
     "number": "07",
     "type": "歌曲",
-    "title": "雨天",
-    "performer": "高一13班 魏子渝",
-    "desc": "孙燕姿版本",
+    "title": "Rolling in the Deep",
+    "performer": "高一14班 部珊伊",
+    "desc": "",
     "cover": ""
   },
   {
@@ -66,33 +82,25 @@
   {
     "number": "09",
     "type": "歌曲",
-    "title": "野心家",
-    "performer": "",
+    "title": "够钟",
+    "performer": "高一10班 陈浩天",
     "desc": "",
     "cover": ""
   },
   {
     "number": "10",
     "type": "歌曲",
-    "title": "素颜",
-    "performer": "高二15班 陈羽斯瀚、郗彬皓；高二10班 张芷萍；高二18班 吴靖",
+    "title": "大眠",
+    "performer": "高一13班 魏子渝",
     "desc": "",
-    "cover": ""
-  },
-  {
-    "number": "11",
-    "type": "歌曲",
-    "title": "身骑白马",
-    "performer": "高二16班 高可心",
-    "desc": "徐佳莹版本",
     "cover": ""
   },
   {
     "number": "",
     "type": "嘉宾节目",
-    "title": "刻在我心底的名字",
-    "performer": "曾子琪、李泽薇",
-    "desc": "时间不足不上场",
+    "title": "RUDE",
+    "performer": "kpy",
+    "desc": "",
     "cover": ""
   }
 ]
