@@ -1,0 +1,371 @@
+{
+  "title": "Rolling in the Deep",
+  "artist": "Adele",
+  "updatedAt": 1794730653297,
+  "doc": [
+    {
+      "start": 5000,
+      "text": "There's a fire starting in my heart",
+      "tokens": [],
+      "credit": false,
+      "translation": "我心中燃起一把火"
+    },
+    {
+      "start": 9540,
+      "text": "Reaching a fever pitch and it's bring me out the dark",
+      "tokens": [],
+      "credit": false,
+      "translation": "那温度驱走了黑暗"
+    },
+    {
+      "start": 14140,
+      "text": "Finally I can see you crystal clear",
+      "tokens": [],
+      "credit": false,
+      "translation": "终于我看清你"
+    },
+    {
+      "start": 18670,
+      "text": "Go ahead and sell me out and I'll lay your ship bare",
+      "tokens": [],
+      "credit": false,
+      "translation": "放弃自己的全部 赤裸地留在你的心中"
+    },
+    {
+      "start": 23290,
+      "text": "See how I'll leave with every piece of you",
+      "tokens": [],
+      "credit": false,
+      "translation": "我会把你从我的记忆中删除"
+    },
+    {
+      "start": 27800,
+      "text": "Don't underestimate the things that I will do",
+      "tokens": [],
+      "credit": false,
+      "translation": "不要认为我不会这么做"
+    },
+    {
+      "start": 32300,
+      "text": "There's a fire starting in my heart",
+      "tokens": [],
+      "credit": false,
+      "translation": "我心中燃起一把火"
+    },
+    {
+      "start": 36950,
+      "text": "Reaching a fever pitch and it's bring me out the dark",
+      "tokens": [],
+      "credit": false,
+      "translation": "那温度驱走了黑暗"
+    },
+    {
+      "start": 42520,
+      "text": "The scars of your love remind me of us",
+      "tokens": [],
+      "credit": false,
+      "translation": "害怕爱你让我更了解我自己"
+    },
+    {
+      "start": 46920,
+      "text": "They keep me thinking that we almost had it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "让我觉得总是有一步之遥"
+    },
+    {
+      "start": 51470,
+      "text": "The scars of your love they leave me breathless",
+      "tokens": [],
+      "credit": false,
+      "translation": "害怕爱你让我无法呼吸"
+    },
+    {
+      "start": 56160,
+      "text": "I can't help feeling",
+      "tokens": [],
+      "credit": false,
+      "translation": "我无法阻止我自己的情绪"
+    },
+    {
+      "start": 58390,
+      "text": "We could have had it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "我们本可以拥有一切"
+    },
+    {
+      "start": 63300,
+      "text": "Rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "你拥有我的心"
+    },
+    {
+      "start": 67510,
+      "text": "You had my heart inside your hand",
+      "tokens": [],
+      "credit": false,
+      "translation": "你俘获了我的芳心"
+    },
+    {
+      "start": 72670,
+      "text": "And you played it to the beat so we",
+      "tokens": [],
+      "credit": false,
+      "translation": "但是你玩弄它"
+    },
+    {
+      "start": 82680,
+      "text": "Baby I have no story to be told",
+      "tokens": [],
+      "credit": false,
+      "translation": "宝贝，我没有故事可讲"
+    },
+    {
+      "start": 87220,
+      "text": "But I've heard one on you and I'm gonna make your head burn",
+      "tokens": [],
+      "credit": false,
+      "translation": "但是我听说了一件有关你的事情 我会让你焦头烂额"
+    },
+    {
+      "start": 91790,
+      "text": "Think of me in the depths of your despair",
+      "tokens": [],
+      "credit": false,
+      "translation": "在绝望的深渊中想起我"
+    },
+    {
+      "start": 96310,
+      "text": "Making a home down there as mine sure won't be shared",
+      "tokens": [],
+      "credit": false,
+      "translation": "就在那里安家吧 因为我的家园绝对没你的份"
+    },
+    {
+      "start": 101760,
+      "text": "The scars of your love remind me of us",
+      "tokens": [],
+      "credit": false,
+      "translation": "害怕爱你让我更了解我自己"
+    },
+    {
+      "start": 106310,
+      "text": "They keep me thinking that we almost had it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "让我觉得总是有一步之遥"
+    },
+    {
+      "start": 110960,
+      "text": "The scars of your love they leave me breathless",
+      "tokens": [],
+      "credit": false,
+      "translation": "害怕爱你让我无法呼吸"
+    },
+    {
+      "start": 115500,
+      "text": "I can't help feeling",
+      "tokens": [],
+      "credit": false,
+      "translation": "我无法阻止我自己的情绪"
+    },
+    {
+      "start": 117760,
+      "text": "We could have had it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "我们本可以拥有一切"
+    },
+    {
+      "start": 122660,
+      "text": "Rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "你拥有我的心"
+    },
+    {
+      "start": 127000,
+      "text": "You had my heart inside your hand",
+      "tokens": [],
+      "credit": false,
+      "translation": "你俘获了我的芳心"
+    },
+    {
+      "start": 132060,
+      "text": "And you played it to the beat",
+      "tokens": [],
+      "credit": false,
+      "translation": "但是你玩弄它"
+    },
+    {
+      "start": 136050,
+      "text": "You could have had it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "我们本该拥有一切"
+    },
+    {
+      "start": 140880,
+      "text": "Rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "你拥有我的心"
+    },
+    {
+      "start": 145150,
+      "text": "You had my heart inside your hand",
+      "tokens": [],
+      "credit": false,
+      "translation": "我们本该拥有一切"
+    },
+    {
+      "start": 150350,
+      "text": "But you played it with a beating",
+      "tokens": [],
+      "credit": false,
+      "translation": "但是你玩弄它"
+    },
+    {
+      "start": 156020,
+      "text": "Throw your soul through every open door",
+      "tokens": [],
+      "credit": false,
+      "translation": "打开每一扇门将你的灵魂驱赶出去"
+    },
+    {
+      "start": 160340,
+      "text": "Count your blessings to find what you look for",
+      "tokens": [],
+      "credit": false,
+      "translation": "细数你的祷告，知道你在寻找什么"
+    },
+    {
+      "start": 164930,
+      "text": "Turn my sorrow into treasured gold",
+      "tokens": [],
+      "credit": false,
+      "translation": "把我的悲痛化作珍宝"
+    },
+    {
+      "start": 169250,
+      "text": "You pay me back in kind and reap just what you sow do",
+      "tokens": [],
+      "credit": false,
+      "translation": "我要让你付出同样的代价，你自作自受自食其果"
+    },
+    {
+      "start": 192520,
+      "text": "You're gonna wish you never had met me",
+      "tokens": [],
+      "credit": false,
+      "translation": "你可能希望从未见过我"
+    },
+    {
+      "start": 196860,
+      "text": "Tears are gonna fall rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "眼泪滑落 你拥有我的心"
+    },
+    {
+      "start": 201530,
+      "text": "You're gonna wish you never had met me",
+      "tokens": [],
+      "credit": false,
+      "translation": "你可能希望从未见过我"
+    },
+    {
+      "start": 206040,
+      "text": "Tears are gonna fall rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "眼泪滑落 你拥有我的心"
+    },
+    {
+      "start": 210760,
+      "text": "You're gonna wish you never had met me",
+      "tokens": [],
+      "credit": false,
+      "translation": "你可能希望从未见过我"
+    },
+    {
+      "start": 215190,
+      "text": "Tears are gonna fall rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "眼泪滑落 你拥有我的心"
+    },
+    {
+      "start": 219780,
+      "text": "You're gonna wish you never had met me",
+      "tokens": [],
+      "credit": false,
+      "translation": "你可能希望从未见过我"
+    },
+    {
+      "start": 224200,
+      "text": "It all it all it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "一切的一切"
+    },
+    {
+      "start": 227500,
+      "text": "We could have had it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "我们本可以拥有一切"
+    },
+    {
+      "start": 232390,
+      "text": "Rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "你拥有我的心"
+    },
+    {
+      "start": 236690,
+      "text": "You had my heart and soul",
+      "tokens": [],
+      "credit": false,
+      "translation": "你本用用我的灵魂"
+    },
+    {
+      "start": 241800,
+      "text": "And you played it to the beat",
+      "tokens": [],
+      "credit": false,
+      "translation": "但是你玩弄它"
+    },
+    {
+      "start": 245810,
+      "text": "You could have had it all",
+      "tokens": [],
+      "credit": false,
+      "translation": "我们本该拥有一切"
+    },
+    {
+      "start": 250610,
+      "text": "Rolling in the deep",
+      "tokens": [],
+      "credit": false,
+      "translation": "你拥有我的心"
+    },
+    {
+      "start": 254860,
+      "text": "You had my heart and soul inside your hands",
+      "tokens": [],
+      "credit": false,
+      "translation": "我们本该拥有一切"
+    },
+    {
+      "start": 260020,
+      "text": "But you played it you played it played it you played me to the beat",
+      "tokens": [],
+      "credit": false,
+      "translation": "但是你玩弄了它 你玩弄了它 玩弄了我"
+    }
+  ]
+}
