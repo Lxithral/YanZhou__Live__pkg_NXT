@@ -184,6 +184,8 @@ export function measureModule(moduleId, renderer, module) {
     return { x: element.offsetLeft + left * scale, y: element.offsetTop + top * scale, w: w * fit * scale, h: h * fit * scale };
   };
   if (moduleId === 'hosts') {
+    const plate = element.querySelector('.solo-name:not([hidden])');
+    if (plate) return [rect(plate)];
     const rects = [];
     const nodes = [];
     for (const content of element.querySelectorAll('.host-slot:not([hidden]) > .slot-content[aria-hidden=false]')) {

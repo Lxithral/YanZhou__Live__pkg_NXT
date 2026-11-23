@@ -6,13 +6,14 @@ import { createLyricsRenderer } from './render/lyrics-renderer.js';
 import { createLyricsClock, timecode } from './lyrics/lyrics-clock.js';
 import { createAvoidance } from './stage/stage-avoidance.js';
 import { createSpeechRenderer } from './render/speech-renderer.js';
+import { createEventMarkRenderer } from './render/event-mark-renderer.js';
 import { bindAsrControls } from './asr/asr-controls.js';
 
 import { initThemedSelects } from './core/themed-select.js';
 
 const $ = (id) => document.getElementById(id);
 initThemedSelects();
-const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics', 'speech'];
+const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark'];
 const lyricsClock = createLyricsClock();
 const ANIMATION_OPTIONS = [
   ['none', '无动画'],
@@ -39,6 +40,17 @@ const MODULES = {
     position: { x: 'speechX', xRange: 'speechXRange', xMax: 'speechXMax', y: 'speechY', yRange: 'speechYRange', yMax: 'speechYMax' },
     animation: { enter: 'speechEnter', exit: 'speechExit', duration: 'speechDuration', durationNumber: 'speechDurationNumber' },
     summary() { return '主持人语音字幕'; },
+  },
+  eventMark: {
+    name: '活动角标',
+    create: createEventMarkRenderer,
+    fields: [
+      { key: 'scale', id: 'eventMarkScale', numberId: 'eventMarkScaleNumber', kind: 'percent' },
+      { key: 'opacity', id: 'eventMarkOpacity', numberId: 'eventMarkOpacityNumber', kind: 'opacity' },
+    ],
+    position: { x: 'eventMarkX', xRange: 'eventMarkXRange', xMax: 'eventMarkXMax', y: 'eventMarkY', yRange: 'eventMarkYRange', yMax: 'eventMarkYMax' },
+    animation: { enter: 'eventMarkEnter', exit: 'eventMarkExit', duration: 'eventMarkDuration', durationNumber: 'eventMarkDurationNumber' },
+    summary() { return '烟洲中学 · 歌手大赛'; },
   },
   logo: {
     name: 'Logo 挂角',
@@ -69,9 +81,9 @@ const MODULES = {
     animation: { enter: 'hostsEnter', exit: 'hostsExit', duration: 'hostsDuration', durationNumber: 'hostsDurationNumber' },
     summary(module) {
       const people = module.people ?? [];
-      return [module.label, ...(module.slots ?? []).slice(0, module.slotCount)
-        .filter((slot) => !slot.hidden).map((slot) => people.find((p) => p.id === slot.personId)?.name)]
-        .filter(Boolean).join(' · ') || '人物信息条';
+      const slot = (module.slots ?? [])[module.activeSlot ?? 0];
+      const person = people.find(({ id }) => id === slot?.personId);
+      return person ? [person.name, person.title].filter(Boolean).join(' · ') : '人物信息条';
     },
   },
   program: {
@@ -108,8 +120,9 @@ const FALLBACK_SETTINGS = {
   canvas: { width: 1920, height: 1080 },
   modules: {
     speech: { visible: false, textColor: '#F4F0E8', x: 240, y: 848, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
+    eventMark: { visible: true, x: 1544, y: 940, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', textColor: '#F4F0E8', weight: 500, x: 112, y: 70, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
-    hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
+    hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, activeSlot: 0, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, autoHideAfterTear: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1280, y: 770, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     lyrics: { visible: true, accentColor: '#F4F0E8', textColor: '#F4F0E8', x: 240, y: 678, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
   },
@@ -156,9 +169,7 @@ programTear.onclick = () => {
   }));
   renderTicketControl();
 };
-const avoidance = createAvoidance(previewRenderers, () => ({ settings, showOrder }), {
-  fixedElements: [$('eventMark')],
-});
+const avoidance = createAvoidance(previewRenderers, () => ({ settings, showOrder }));
 let renderFrame = 0;
 function scheduleRender() {
   if (!renderFrame) renderFrame = requestAnimationFrame(() => { renderFrame = 0; render(); });
@@ -525,11 +536,22 @@ function fitFocus() {
     (stage.clientWidth - 64) / Math.max(bounds.width + limits.right, 1),
     (stage.clientHeight - 40) / Math.max(bounds.height + limits.bottom, 1),
   ));
-  canvas.style.width = `${bounds.width}px`;
-  canvas.style.height = `${bounds.height}px`;
-  canvas.style.transform = `scale(${zoom})`;
-  canvas.style.left = `${Math.max(0, (stage.clientWidth - (bounds.width + limits.right) * zoom) / 2)}px`;
-  canvas.style.top = `${Math.max(0, (stage.clientHeight - (bounds.height + limits.bottom) * zoom) / 2)}px`;
+  if (activeModule === 'logo') {
+    // 局部放大按放大后的真实尺寸重绘，避免 1920 画布被缩放后发虚。
+    focusRenderer.update({ ...module, x: 0, y: 0, visible: true, opacity: 100, scale: module.scale * zoom }, { constrain: false });
+    const scaled = focusRenderer.getBounds();
+    canvas.style.width = `${scaled.width}px`;
+    canvas.style.height = `${scaled.height}px`;
+    canvas.style.transform = 'none';
+    canvas.style.left = `${Math.max(0, (stage.clientWidth - scaled.width) / 2)}px`;
+    canvas.style.top = `${Math.max(0, (stage.clientHeight - scaled.height) / 2)}px`;
+  } else {
+    canvas.style.width = `${bounds.width}px`;
+    canvas.style.height = `${bounds.height}px`;
+    canvas.style.transform = `scale(${zoom})`;
+    canvas.style.left = `${Math.max(0, (stage.clientWidth - (bounds.width + limits.right) * zoom) / 2)}px`;
+    canvas.style.top = `${Math.max(0, (stage.clientHeight - (bounds.height + limits.bottom) * zoom) / 2)}px`;
+  }
   $('focusScale').textContent = `${Math.round(zoom * 100)}% 查看`;
 }
 
@@ -543,7 +565,30 @@ function rebuildFocus() {
   fitFocus();
 }
 
+function renderHostPicker() {
+  const pick = $('hostsActivePick');
+  if (!pick) return;
+  const hosts = settings.modules.hosts;
+  const people = hosts.people ?? [];
+  const active = Number.isInteger(hosts.activeSlot) ? hosts.activeSlot : 0;
+  pick.replaceChildren(...(hosts.slots ?? []).slice(0, Math.max(1, hosts.slotCount)).map((slot, index) => {
+    const person = people.find(({ id }) => id === slot.personId);
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'host-pick-item';
+    item.setAttribute('aria-pressed', String(index === active));
+    item.disabled = !ready || !person;
+    const name = document.createElement('strong');
+    name.textContent = person?.name ?? '未选人';
+    const title = document.createElement('small');
+    title.textContent = person?.title ?? '';
+    item.append(name, title);
+    item.onclick = () => edit('hosts', { activeSlot: index });
+    return item;
+  }));
+}
 function render() {
+  renderHostPicker();
   stageControls.render(settings, ready);
   renderTicketControl();
   speechAsr.update(sharedAsr, ready);
@@ -1221,12 +1266,6 @@ function bindGlobalControls() {
     });
   }
   $('moduleVisible').addEventListener('click', () => edit(activeModule, { visible: !settings.modules[activeModule].visible }));
-  $('openMotionSettings').addEventListener('click', () => {
-    const section = $(MODULES[activeModule].animation.duration).closest('.settings-section');
-    section.open = true;
-    section.querySelector('summary').focus({ preventScroll: true });
-    section.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-  });
   $('previewStage').addEventListener('keydown', (event) => {
     if (event.target !== $('previewStage') || !settings.modules[activeModule].visible) return;
     const amount = event.shiftKey ? 10 : 1;

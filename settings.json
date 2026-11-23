@@ -23,10 +23,11 @@
       }
     },
     "hosts": {
-      "visible": false,
+      "visible": true,
       "label": "主持人",
       "names": "张三｜高三（2）班\n李四｜学生会",
       "slotCount": 4,
+      "activeSlot": 0,
       "style": "g",
       "customColors": false,
       "accentColor": "#D4AB78",
@@ -105,9 +106,9 @@
       "visible": true,
       "autoHideAfterTear": true,
       "label": "正在演出",
-      "current": "绿光",
+      "current": "For the First Time in Forever",
       "nextLabel": "接下来",
-      "next": "身骑白马",
+      "next": "够钟",
       "queue": "",
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
@@ -123,7 +124,7 @@
       "items": [
         {
           "id": "program-1",
-          "number": "",
+          "number": "01",
           "type": "嘉宾节目",
           "title": "绿光",
           "performer": "kic",
@@ -132,7 +133,7 @@
         },
         {
           "id": "program-2",
-          "number": "01",
+          "number": "02",
           "type": "歌曲",
           "title": "身骑白马",
           "performer": "高二16班 高可心",
@@ -141,7 +142,7 @@
         },
         {
           "id": "program-3",
-          "number": "02",
+          "number": "03",
           "type": "歌曲",
           "title": "天若有情",
           "performer": "高一8班 黄珈翎、陈咏怡",
@@ -150,7 +151,7 @@
         },
         {
           "id": "program-4",
-          "number": "03",
+          "number": "04",
           "type": "歌曲",
           "title": "素颜",
           "performer": "高二10班 张芷萍；高二18班 吴靖；高二15班 郗彬皓、陈羽斯瀚",
@@ -159,7 +160,7 @@
         },
         {
           "id": "program-5",
-          "number": "04",
+          "number": "05",
           "type": "歌曲",
           "title": "背对背拥抱",
           "performer": "高一25班 缪宇峰",
@@ -168,7 +169,7 @@
         },
         {
           "id": "program-6",
-          "number": "05",
+          "number": "06",
           "type": "歌曲",
           "title": "天上掉下个林妹妹",
           "performer": "高一3班 李殷悦",
@@ -177,7 +178,7 @@
         },
         {
           "id": "program-7",
-          "number": "",
+          "number": "07",
           "type": "互动",
           "title": "互动游戏",
           "performer": "",
@@ -186,7 +187,7 @@
         },
         {
           "id": "program-8",
-          "number": "06",
+          "number": "08",
           "type": "歌曲",
           "title": "至少还有你",
           "performer": "高二19班 温子晴",
@@ -195,7 +196,7 @@
         },
         {
           "id": "program-9",
-          "number": "07",
+          "number": "09",
           "type": "歌曲",
           "title": "Rolling in the Deep",
           "performer": "高一14班 部珊伊",
@@ -204,7 +205,7 @@
         },
         {
           "id": "program-10",
-          "number": "08",
+          "number": "10",
           "type": "歌曲",
           "title": "For the First Time in Forever",
           "performer": "高二30班 张媛",
@@ -213,7 +214,7 @@
         },
         {
           "id": "program-11",
-          "number": "09",
+          "number": "11",
           "type": "歌曲",
           "title": "够钟",
           "performer": "高一10班 陈浩天",
@@ -222,7 +223,7 @@
         },
         {
           "id": "program-12",
-          "number": "10",
+          "number": "12",
           "type": "歌曲",
           "title": "大眠",
           "performer": "高一13班 魏子渝",
@@ -231,7 +232,7 @@
         },
         {
           "id": "program-13",
-          "number": "",
+          "number": "13",
           "type": "嘉宾节目",
           "title": "RUDE",
           "performer": "kpy",
@@ -239,10 +240,10 @@
           "cover": ""
         }
       ],
-      "selectedId": "program-1"
+      "selectedId": "program-10"
     },
     "lyrics": {
-      "visible": false,
+      "visible": true,
       "accentColor": "#FFFFFF",
       "textColor": "#F4F0E8",
       "x": 260,
@@ -291,6 +292,18 @@
       "textColor": "#F4F0E8",
       "x": 219,
       "y": 881,
+      "scale": 1,
+      "opacity": 100,
+      "animation": {
+        "enter": "fade",
+        "exit": "fade",
+        "duration": 200
+      }
+    },
+    "eventMark": {
+      "visible": true,
+      "x": 1404,
+      "y": 936,
       "scale": 1,
       "opacity": 100,
       "animation": {

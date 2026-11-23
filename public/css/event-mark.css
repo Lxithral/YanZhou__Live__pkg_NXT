@@ -1,9 +1,0 @@
-.event-mark {
-  position: absolute;
-  right: 96px;
-  bottom: 60px;
-  width: 280px;
-  height: auto;
-  z-index: 1;
-  pointer-events: none;
-}

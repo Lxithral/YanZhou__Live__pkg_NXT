@@ -14,7 +14,7 @@ import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-l
 // 服务代码在 server/ 下；设置、public/、assets/ 都在项目根目录。
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics', 'speech'];
+export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark'];
 const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
 // 与 program-renderer.js 的撕开动画时长一致；撕完后才执行节目单退场。
@@ -43,16 +43,18 @@ const FIELD_RULES = {
   style: { kind: 'choice', values: ['h', 'g', 'i'], label: '样式' },
   customColors: { kind: 'boolean', label: '自定义颜色' },
   autoHideAfterTear: { kind: 'boolean', label: '撕开票根后自动隐藏' },
+  activeSlot: { kind: 'number', min: 0, max: 3, label: '当前主持人' },
 };
 // Fields that older settings files may lack; a missing value takes the default.
-const OPTIONAL_DEFAULTS = { hosts: { style: 'h', customColors: false }, program: { autoHideAfterTear: false } };
+const OPTIONAL_DEFAULTS = { hosts: { style: 'h', customColors: false, activeSlot: 0 }, program: { autoHideAfterTear: false } };
 
 const MODULE_FIELDS = {
   logo: ['visible', 'showMark', 'title', 'subtitle', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
-  hosts: ['visible', 'label', 'names', 'slotCount', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  hosts: ['visible', 'label', 'names', 'slotCount', 'activeSlot', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'autoHideAfterTear', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   speech: ['visible', 'textColor', 'x', 'y', 'scale', 'opacity'],
+  eventMark: ['visible', 'x', 'y', 'scale', 'opacity'],
 };
 
 const clone = (value) => structuredClone(value);
@@ -79,6 +81,7 @@ export const DEFAULT_SETTINGS = {
       label: '主持人',
       names: '张三\n李四',
       slotCount: 2,
+      activeSlot: 0,
       style: 'h',
       customColors: false,
       accentColor: '#71C4DE',
@@ -115,6 +118,10 @@ export const DEFAULT_SETTINGS = {
       x: 240, y: 848, scale: 1, opacity: 100,
       animation: { enter: 'fade', exit: 'fade', duration: 200 },
     },
+    eventMark: {
+      visible: true, x: 1544, y: 940, scale: 1, opacity: 100,
+      animation: { enter: 'none', exit: 'none', duration: 200 },
+    },
   },
 };
 
@@ -141,6 +148,7 @@ function isObject(value) {
 function validateField(field, value) {
   const rule = FIELD_RULES[field];
   if (field === 'slotCount' && !Number.isInteger(value)) throw new Error('槽位数量必须是整数。');
+  if (field === 'activeSlot' && !Number.isInteger(value)) throw new Error('当前主持人必须是整数。');
   if (rule.kind === 'boolean') {
     if (typeof value !== 'boolean') throw new Error(`${rule.label}必须是布尔值。`);
     return value;

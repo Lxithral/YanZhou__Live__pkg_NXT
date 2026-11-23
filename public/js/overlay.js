@@ -5,6 +5,7 @@ import { createLyricsRenderer } from './render/lyrics-renderer.js';
 import { createLyricsClock } from './lyrics/lyrics-clock.js';
 import { createAvoidance } from './stage/stage-avoidance.js';
 import { createSpeechRenderer } from './render/speech-renderer.js';
+import { createEventMarkRenderer } from './render/event-mark-renderer.js';
 
 const canvas = document.getElementById('overlay-canvas');
 const RENDERERS = {
@@ -13,12 +14,11 @@ const RENDERERS = {
   program: createProgramRenderer(canvas),
   lyrics: createLyricsRenderer(canvas),
   speech: createSpeechRenderer(canvas),
+  eventMark: createEventMarkRenderer(canvas),
 };
 const lyricsClock = createLyricsClock();
 let stage = { settings: null, showOrder: null };
-const avoidance = createAvoidance(RENDERERS, () => stage, {
-  fixedElements: [document.getElementById('eventMark')],
-});
+const avoidance = createAvoidance(RENDERERS, () => stage);
 
 let disposed = false;
 let reconnectAttempt = 0;

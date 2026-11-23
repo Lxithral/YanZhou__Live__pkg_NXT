@@ -258,7 +258,6 @@ input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(-
 .properties-column { display: flex; flex-direction: column; overflow: hidden; }
 .properties-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 48px; flex: none; padding: 0 18px; border-bottom: 1px solid var(--line); background: var(--panel-head); }
 .properties-heading h2 { font-size: 14px; font-weight: 600; }
-#openMotionSettings { flex: none; min-height: 30px; padding-inline: 10px; font-size: 12px; }
 .properties-card { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .visibility-row { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; width: calc(100% - 32px); margin: 14px 16px 6px; padding: 12px 14px; border: 0; border-radius: 8px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color 160ms, box-shadow 160ms; }
 .visibility-row.is-live { background: var(--on-soft); box-shadow: inset 0 0 0 1px var(--on-line); }
@@ -748,3 +747,21 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
   :is(.select-input, .lyric-page select):has(> .select-display) option:checked:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--accent) 24%, var(--panel)); }
   :is(.select-input, .lyric-page select):has(> .select-display) option::checkmark { order: 1; flex: none; margin-inline-start: auto; color: var(--accent); }
 }
+.host-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.host-pick-item { display: grid; gap: 2px; min-width: 118px; padding: 8px 12px; border: 0; border-radius: 8px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.host-pick-item strong { font-size: 13px; font-weight: 600; }
+.host-pick-item small { color: var(--muted); font-size: 11px; }
+.host-pick-item[aria-pressed=true] { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.host-pick-item:disabled { opacity: .5; cursor: default; }
+.stage-slot { min-height: 150px; align-content: space-between; }
+.stage-slot-person { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.stage-slot-title { font-size: 12px; color: var(--muted); }
+.stage-slot .stage-slot-picker { width: 100%; min-height: 38px; justify-content: center; }
+.stage-slot[data-state=live] { background: var(--on-soft); }
+.stage-slot { display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: auto auto; align-items: center; column-gap: 10px; row-gap: 2px; min-height: 0; padding: 11px 12px; }
+.stage-slot-person { grid-area: 1 / 1; font-size: 17px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stage-slot-meta { grid-area: 2 / 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.stage-slot-title { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.stage-slot .stage-slot-picker { grid-area: 1 / 2 / 3 / 3; width: auto; min-height: 28px; padding: 0 10px; font-size: 12px; align-self: center; justify-self: end; margin: 0; box-shadow: inset 0 0 0 1px var(--line-2); }
+.stage-slot-state { font-size: 10px; line-height: 18px; padding: 0 6px; border-radius: 4px; background: var(--accent-soft); color: var(--on-text); font-weight: 500; }
+.stage-slot[data-state=live] { background: var(--panel); box-shadow: inset 0 0 0 1px var(--on-line); }

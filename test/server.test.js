@@ -111,7 +111,7 @@ test('a control change immediately reaches another client and is saved on disk',
   const overlayInitial = await overlay.waitFor((message) => message.type === 'state');
   assert.deepEqual(overlayInitial.settings, initial.settings);
   assert.equal(initial.settings.version, 5);
-  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics', 'speech']);
+  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
     title: '校园开放日', subtitle: 'LIVE · 2026', textColor: '#abcdef',
@@ -1057,6 +1057,7 @@ test('the show order follows when modules go on screen and is broadcast but neve
   const base = structuredClone(DEFAULT_SETTINGS);
   base.modules.hosts.visible = false;
   base.modules.program.visible = false;
+  base.modules.eventMark.visible = false;
   await writeFile(setup.settingsPath, JSON.stringify(base));
   const first = await setup.start();
   const controller = await setup.connect(first.wsUrl);

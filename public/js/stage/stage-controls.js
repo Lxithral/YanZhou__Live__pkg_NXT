@@ -85,13 +85,13 @@ export function bindStageControls({ send, edit, toast }) {
     const libraryCount = node('span', '', 'stage-section-count');
     libraryHead.append(node('strong', kind === 'hosts' ? '人物资料库' : '节目资料库'), libraryCount, add);
     const quickHead = node('div', undefined, 'stage-section-head');
-    quickHead.append(node('strong', kind === 'hosts' ? '字幕条' : '快速切换'));
+    quickHead.append(node('strong', kind === 'hosts' ? '上屏名单' : '快速切换'));
     const list = node('div', undefined, 'stage-list');
     list.setAttribute('aria-label', kind === 'hosts' ? '主持人资料卡片' : '节目资料卡片');
     library.append(libraryHead, list);
     const hotkeys = node('div', undefined, 'stage-hotkeys');
     hotkeys.append(node('span', '热键', 'stage-hotkeys-label'));
-    if (kind === 'hosts') hotkeys.append(kbd('0'), node('span', '整体显隐'), kbd('1'), node('span', '–'), kbd('4'), node('span', '单条显隐'));
+    if (kind === 'hosts') hotkeys.append(kbd('0'), node('span', '整体显隐'));
     else hotkeys.append(kbd('←'), kbd('→'), node('span', '切节目'), kbd('0'), node('span', '显隐'));
     hotkeys.append(node('span', '点此框后生效', 'stage-hotkeys-hint'));
     hotkeys.tabIndex = 0;
@@ -101,11 +101,13 @@ export function bindStageControls({ send, edit, toast }) {
       if (event.target !== hotkeys || event.isComposing || event.repeat || event.ctrlKey || event.altKey || event.metaKey || !ready) return;
       const module = settings.modules[kind];
       if (event.key === '0') edit(kind, { visible:!module.visible });
+      /* 单条显隐热键 1–4 已停用（画面只显示一位）：
       else if (kind === 'hosts' && /^[1-4]$/u.test(event.key)) {
         const index = Number(event.key) - 1;
         if (index >= module.slotCount) return;
         command(kind, { action:'slot', index, patch:{ hidden:!module.slots[index].hidden } });
-      } else if (kind === 'program' && ['ArrowLeft','ArrowRight'].includes(event.key)) {
+      }
+      */ else if (kind === 'program' && ['ArrowLeft','ArrowRight'].includes(event.key)) {
         command(kind, { action:'navigate', direction:event.key === 'ArrowLeft' ? -1 : 1 });
       } else return;
       event.preventDefault();
@@ -418,7 +420,10 @@ export function bindStageControls({ send, edit, toast }) {
     pickerStatus.textContent = results.length ? `找到 ${results.length} 位人物` : '没有匹配的人物';
     pickerResults.replaceChildren(...results.map((person) => {
       const option = button('', () => {
-        if (command('hosts', { action:'slot', index:pickerSlot, patch:{ personId:person.id } })) personPicker.close();
+        if (command('hosts', { action:'slot', index:pickerSlot, patch:{ personId:person.id } })) {
+          personPicker.close();
+          edit('hosts', { activeSlot: pickerSlot });
+        }
       }, `pick-result-${person.id}`, 'stage-person-option');
       option.setAttribute('aria-pressed', String(slot.personId === person.id));
       option.disabled = !ready || Boolean(request);
@@ -429,48 +434,25 @@ export function bindStageControls({ send, edit, toast }) {
   }
   function renderHostSlots(hosts) {
     const people = hosts.people ?? [];
-    areas.hosts.slots.replaceChildren(...(hosts.slots ?? []).map((slot, index) => {
+    const active = Number.isInteger(hosts.activeSlot) ? hosts.activeSlot : 0;
+    areas.hosts.slots.replaceChildren(...(hosts.slots ?? []).slice(0, 4).map((slot, index) => {
+      const person = people.find(({ id }) => id === slot.personId);
       const card = node('div', undefined, 'stage-slot');
       card.dataset.slot = index;
-      card.style.setProperty('--slot-color', slot.accentColor);
-      const inactive = index >= hosts.slotCount;
-      const at = people.findIndex((p) => p.id === slot.personId);
-      card.classList.toggle('is-inactive', inactive);
-      // 状态：画面中（整体显示且本条显示）/ 待上屏（本条显示但整体隐藏）/ 已隐藏 / 未启用
-      const state = inactive ? 'off' : slot.hidden || at < 0 ? 'hidden' : hosts.visible ? 'live' : 'cued';
-      card.dataset.state = state;
-      const head = node('div', undefined, 'stage-slot-head');
-      const name = node('div', undefined, 'stage-slot-name');
-      name.append(node('strong', `字幕条 ${index + 1}`), node('span', { live:'画面中', cued:'待上屏', hidden:'已隐藏', off:'未启用' }[state], 'stage-slot-state'));
-      const toggle = limited(button(slot.hidden ? '显示' : '隐藏', () => command('hosts', { action:'slot', index, patch:{ hidden:!slot.hidden } }), `visible-${index}`, slot.hidden ? 'is-hidden' : 'is-live'), inactive || at < 0);
-      toggle.append(kbd(String(index + 1)));
-      toggle.setAttribute('aria-label', `${slot.hidden ? '显示' : '隐藏'}字幕条 ${index + 1}`);
-      head.append(name, toggle);
-      const nav = navigation('hosts', people[at], at, people.length, index);
-      const pick = limited(button('选择人物', () => openPersonPicker(index), `pick-person-${index}`, 'stage-slot-picker'), inactive || !people.length);
-      pick.setAttribute('aria-label', `为字幕条 ${index + 1} 选择人物`);
+      card.dataset.state = index === active && person && !slot.hidden ? (hosts.visible ? 'live' : 'cued') : 'hidden';
+      card.style.cursor = person ? 'pointer' : '';
+      const name = node('div', undefined, 'stage-slot-person');
+      name.textContent = person?.name ?? '未选择人物';
+      const meta = node('div', undefined, 'stage-slot-meta');
+      meta.append(node('span', person?.title ?? '', 'stage-slot-title'));
+      const pick = button(person ? '更换人物' : '选择人物', (event) => {
+        event.stopPropagation();
+        openPersonPicker(index);
+      }, `pick-person-${index}`, 'stage-slot-picker');
       pick.setAttribute('aria-haspopup', 'dialog');
-      const appearance = node('details', undefined, 'stage-slot-appearance');
-      appearance.append(node('summary', '自定义颜色'));
-      const styles = node('div', undefined, 'stage-style-row');
-      styles.setAttribute('role', 'group');
-      styles.setAttribute('aria-label', `字幕条 ${index + 1} 样式`);
-      for (const [id, name] of [['h','烟洲新闻'],['g','烟洲校色'],['i','烟洲印记']]) {
-        const b = button(name, () => command('hosts', { action:'slot', index, patch:{ style:id } }), `style-${index}-${id}`);
-        b.setAttribute('aria-pressed', String(slot.style === id));
-        styles.append(b);
-      }
-      for (const [key, label] of [['accentColor','标签色'],['textColor','姓名色']]) {
-        const l = node('label', label);
-        const input = node('input');
-        input.type = 'color'; input.value = slot[key];
-        input.dataset.focusKey = `${key}-${index}`;
-        input.setAttribute('aria-label', `字幕条 ${index + 1} ${label}`);
-        input.onchange = () => command('hosts', { action:'slot', index, patch:{ [key]:input.value, customColors:true } });
-        l.append(input); appearance.append(l);
-      }
-      card.append(head, nav, pick, styles, appearance);
-      if (inactive) card.querySelectorAll('button,input').forEach((control) => control.dataset.unavailable = 'true');
+      pick.setAttribute('aria-label', `为第 ${index + 1} 个框选择人物`);
+      card.onclick = () => { if (person) edit('hosts', { activeSlot: index }); };
+      card.append(name, meta, pick);
       return card;
     }));
   }
@@ -603,7 +585,7 @@ export function bindStageControls({ send, edit, toast }) {
     const hosts = settings.modules.hosts;
     const program = settings.modules.program;
     if (undoMove && !sameOrder(undoMove.after, programOrder())) undoMove = undefined;
-    const signature = JSON.stringify([hosts.people,hosts.slots,hosts.slotCount,hosts.visible,program.items,program.selectedId,program.visible]);
+    const signature = JSON.stringify([hosts.people,hosts.slots,hosts.slotCount,hosts.activeSlot,hosts.visible,program.items,program.selectedId,program.visible]);
     if (signature !== last) {
       last = signature;
       cancelDrag();
@@ -621,6 +603,7 @@ export function bindStageControls({ send, edit, toast }) {
         areas[kind].area.dataset.live = String(on);
       }
       areas.hosts.top.replaceChildren();
+      /* 「显示数量 1–4 位」已去掉：固定四个框，一次只上屏一位。
       const count = node('div', undefined, 'stage-count');
       count.append(node('span', '显示数量'));
       const numbers = node('div', undefined, 'stage-count-buttons');
@@ -630,6 +613,8 @@ export function bindStageControls({ send, edit, toast }) {
       }
       count.append(numbers);
       areas.hosts.top.append(count,hostPosition);
+      */
+      /* 字幕条位置（X/Y）已去掉，位置在预览里拖动或在下方位置段调整。 */
       renderHostSlots(hosts);
       if (personPicker.open) renderPersonPicker();
       const index = items.findIndex((p) => p.id === program.selectedId);
