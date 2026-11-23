@@ -260,12 +260,17 @@ input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(-
 .properties-heading h2 { font-size: 14px; font-weight: 600; }
 #openMotionSettings { flex: none; min-height: 30px; padding-inline: 10px; font-size: 12px; }
 .properties-card { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-.visibility-row { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 16px 6px; padding: 12px 14px; border-radius: 8px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); transition: background-color 160ms, box-shadow 160ms; }
+.visibility-row { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 12px; width: calc(100% - 32px); margin: 14px 16px 6px; padding: 12px 14px; border: 0; border-radius: 8px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color 160ms, box-shadow 160ms; }
 .visibility-row.is-live { background: var(--on-soft); box-shadow: inset 0 0 0 1px var(--on-line); }
+.visibility-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .visibility-copy { display: grid; gap: 2px; min-width: 0; }
 .visibility-row strong { font-size: 14px; font-weight: 600; }
 .visibility-copy small { color: var(--muted); font-size: 12px; }
 .visibility-row.is-live .visibility-copy small { color: var(--on-text); }
+.visibility-action { flex: none; display: grid; place-items: center; min-width: 56px; height: 30px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); color: var(--text); font-size: 13px; font-weight: 500; }
+.visibility-row.is-live .visibility-action { background: var(--panel); color: var(--on-text); box-shadow: inset 0 0 0 1px var(--on-line); }
+.visibility-row:hover .visibility-action { box-shadow: inset 0 0 0 1px var(--line-3); }
+.visibility-row.is-live:hover .visibility-action { box-shadow: inset 0 0 0 1px var(--on-line); }
 
 .switch { position: relative; display: block; width: 40px; height: 24px; flex: none; }
 .switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }

@@ -115,7 +115,7 @@
         <button type="button" class="button" id="openMotionSettings">出场 / 退场</button>
       </div>
       <section class="properties-card">
-        <div class="visibility-row"><div class="visibility-copy"><strong id="visibilityTitle">显示 Logo 挂角</strong><small id="visibilityHint">关闭后按退场动画离开画面</small></div><label class="switch"><input id="moduleVisible" type="checkbox" checked aria-label="显示当前模块"><span></span></label></div>
+        <button type="button" class="visibility-row is-live" id="moduleVisible" aria-pressed="true" aria-label="隐藏当前模块"><span class="visibility-copy"><strong id="visibilityTitle">Logo 挂角</strong><small id="visibilityHint">显示中 · 点击隐藏，按退场动画离开画面</small></span><span class="visibility-action" id="visibilityAction" aria-hidden="true">隐藏</span></button>
         <div class="ticket-controls" id="programTicketControls" hidden>
           <button type="button" class="button" id="programTear" aria-describedby="programTearHint" disabled>撕开票根</button>
           <label class="check-label" for="programAutoHideAfterTear"><input type="checkbox" id="programAutoHideAfterTear"><span>撕开票根后自动隐藏</span></label>

@@ -484,12 +484,14 @@ function renderControls() {
   const liveCount = MODULE_ORDER.filter(moduleIsShowing).length;
   $('liveCount').textContent = `画面中 ${liveCount} / ${MODULE_ORDER.length}`;
   const active = settings.modules[activeModule];
-  $('moduleVisible').checked = active.visible;
-  $('moduleVisible').setAttribute('aria-label', `显示 ${MODULES[activeModule].name}`);
-  $('visibilityTitle').textContent = `显示 ${MODULES[activeModule].name}`;
+  const moduleName = MODULES[activeModule].name;
   const showing = moduleIsShowing(activeModule);
-  $('visibilityHint').textContent = showing ? '显示中 · 关闭后按退场动画离开画面' :
-    active.visible ? '已启用 · 当前没有上屏的字幕条' : '已隐藏 · 打开后按出场动画进入画面';
+  $('moduleVisible').setAttribute('aria-pressed', String(Boolean(active.visible)));
+  $('moduleVisible').setAttribute('aria-label', `${active.visible ? '隐藏' : '显示'} ${moduleName}`);
+  $('visibilityTitle').textContent = moduleName;
+  $('visibilityHint').textContent = showing ? '显示中 · 点击隐藏，按退场动画离开画面' :
+    active.visible ? '已启用 · 当前没有上屏的字幕条' : '已隐藏 · 点击显示，按出场动画进入画面';
+  $('visibilityAction').textContent = active.visible ? '隐藏' : '显示';
   document.querySelector('.visibility-row').classList.toggle('is-live', showing);
 }
 
@@ -1218,7 +1220,7 @@ function bindGlobalControls() {
       target.focus();
     });
   }
-  $('moduleVisible').addEventListener('change', (event) => edit(activeModule, { visible: event.target.checked }));
+  $('moduleVisible').addEventListener('click', () => edit(activeModule, { visible: !settings.modules[activeModule].visible }));
   $('openMotionSettings').addEventListener('click', () => {
     const section = $(MODULES[activeModule].animation.duration).closest('.settings-section');
     section.open = true;
