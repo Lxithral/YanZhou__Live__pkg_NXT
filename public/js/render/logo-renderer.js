@@ -5,6 +5,8 @@ const STYLE_ID = 'yanzhou-logo-renderer-style';
 const STYLES = `
 .logo-lockup.module-layer { will-change: auto; }
 .logo-body { display: flex; align-items: center; gap: calc(18px * var(--logo-scale)); width: max-content; }
+.logo-rhythm { display: block; width: calc(340px * var(--logo-scale)); height: auto; }
+.logo-body[hidden], .logo-rhythm[hidden] { display: none; }
 .logo-emblem { display: block; flex: none; width: var(--logo-mark-size); height: var(--logo-mark-size); filter: drop-shadow(0 calc(1px * var(--logo-scale)) calc(3px * var(--logo-scale)) rgba(0, 0, 0, 0.28)); }
 .logo-emblem > :is(img, canvas) { display: block; width: 100%; height: 100%; object-fit: contain; }
 .logo-emblem > [hidden] { display: none; }
@@ -50,9 +52,11 @@ export function createLogoRenderer(container) {
   installStyles();
   const layer = createModuleLayer(container, {
     className: 'logo-lockup',
-    bodyHTML: '<div class="logo-body"><span class="logo-emblem" aria-hidden="true"><img src="/assets/A12.png" alt="" width="88" height="88"><canvas hidden></canvas></span><div class="logo-copy"><div class="logo-title"></div><div class="logo-subtitle"></div></div></div>',
+    bodyHTML: '<img class="logo-rhythm" src="/assets/yanzhou-rhythm.png" alt="" width="1038" height="267" hidden><div class="logo-body"><span class="logo-emblem" aria-hidden="true"><img src="/assets/A12.png" alt="" width="88" height="88"><canvas hidden></canvas></span><div class="logo-copy"><div class="logo-title"></div><div class="logo-subtitle"></div></div></div>',
   });
   const { element, body } = layer;
+  const rhythm = body.querySelector('.logo-rhythm');
+  const school = body.querySelector('.logo-body');
   const copy = body.querySelector('.logo-copy');
   const emblem = body.querySelector('.logo-emblem');
   const source = emblem.querySelector('img');
@@ -64,7 +68,7 @@ export function createLogoRenderer(container) {
   let markSize = EMBLEM_SIZE;
 
   function drawEmblem() {
-    if (!lastLogo?.visible || emblem.hidden || !markContext || !source.complete || !source.naturalWidth) return;
+    if (!lastLogo?.visible || school.hidden || emblem.hidden || !markContext || !source.complete || !source.naturalWidth) return;
     const pixels = Math.max(1, Math.round(markSize * (globalThis.devicePixelRatio || 1)));
     if (!canvas.hidden && canvas.width === pixels) return;
     const level = emblemLevel(source, pixels);
@@ -80,11 +84,18 @@ export function createLogoRenderer(container) {
 
   function update(logo) {
     lastLogo = logo;
+    const showRhythm = logo.variant === 'rhythm';
+    rhythm.hidden = !showRhythm;
+    school.hidden = showRhythm;
+    element.style.setProperty('--logo-scale', String(logo.scale));
+    layer.update({ ...logo, scale: 1 });
+    if (showRhythm) {
+      element.setAttribute('aria-label', 'YZBTVS 节拍线');
+      return;
+    }
     // Lay out the original badge directly at its output size before compositing.
     markSize = Math.round(EMBLEM_SIZE * logo.scale);
-    element.style.setProperty('--logo-scale', String(logo.scale));
     element.style.setProperty('--logo-mark-size', `${markSize}px`);
-    layer.update({ ...logo, scale: 1 });
     element.style.setProperty('--logo-text-color', logo.textColor);
     element.style.setProperty('--logo-weight', String(logo.weight ?? 500));
     title.textContent = logo.title;
