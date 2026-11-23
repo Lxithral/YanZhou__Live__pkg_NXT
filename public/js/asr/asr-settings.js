@@ -16,22 +16,28 @@ export const SCHOOL_HOTWORDS = Object.freeze([
   '烟洲中学广播电视总台', '中山市烟洲中学广播电视总台',
 ]);
 
-// 本届主持人姓名和节目单中的节目名称。
+// 活动称呼和主持人来自本届主持稿，选手、嘉宾代号和曲名来自节目单。
 export const CONTEST_HOTWORDS_2026 = Object.freeze([
   ...SCHOOL_HOTWORDS,
-  '罗智健', '周子谈', '瞿洁', '程紫芸',
-  "任我行",
-  "至少还有你",
-  "Rolling in the Deep",
-  "天若有情",
-  "天上掉下个林妹妹",
-  "那些你很冒险的梦",
-  "雨天",
-  "For the First Time in Forever",
-  "野心家",
-  "素颜",
-  "身骑白马",
-  "刻在我心底的名字",
+  '第四届歌手大赛', '校园歌手大赛',
+  '周子谈', '程紫芸', '罗智健', '瞿洁',
+  '高可心', '黄珈翎', '陈咏怡',
+  '张芷萍', '吴靖', '郗彬皓', '陈羽斯瀚',
+  '缪宇峰', '李殷悦', '温子晴', '部珊伊',
+  '张媛', '陈浩天', '魏子渝',
+  'kic', 'kpy',
+  '绿光',
+  '身骑白马',
+  '天若有情',
+  '素颜',
+  '背对背拥抱',
+  '天上掉下个林妹妹',
+  '至少还有你',
+  'Rolling in the Deep',
+  'For the First Time in Forever',
+  '够钟',
+  '大眠',
+  'RUDE',
 ]);
 
 export function splitHotwords(text) {
