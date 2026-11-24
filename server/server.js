@@ -23,6 +23,7 @@ const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u;
 
 const FIELD_RULES = {
   visible: { kind: 'boolean', label: '显示状态' },
+  variant: { kind: 'choice', values: ['school', 'rhythm'], label: '挂角样式' },
   showMark: { kind: 'boolean', label: '显示校徽' },
   title: { kind: 'text', max: 80, label: '主标题' },
   subtitle: { kind: 'text', max: 120, label: '副标题' },
@@ -46,10 +47,10 @@ const FIELD_RULES = {
   activeSlot: { kind: 'number', min: 0, max: 3, label: '当前主持人' },
 };
 // Fields that older settings files may lack; a missing value takes the default.
-const OPTIONAL_DEFAULTS = { hosts: { style: 'h', customColors: false, activeSlot: 0 }, program: { autoHideAfterTear: false } };
+const OPTIONAL_DEFAULTS = { logo: { variant: 'school' }, hosts: { style: 'h', customColors: false, activeSlot: 0 }, program: { autoHideAfterTear: false } };
 
 const MODULE_FIELDS = {
-  logo: ['visible', 'showMark', 'title', 'subtitle', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
+  logo: ['visible', 'variant', 'showMark', 'title', 'subtitle', 'textColor', 'weight', 'x', 'y', 'scale', 'opacity'],
   hosts: ['visible', 'label', 'names', 'slotCount', 'activeSlot', 'style', 'customColors', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   program: ['visible', 'autoHideAfterTear', 'label', 'current', 'nextLabel', 'next', 'queue', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
@@ -65,6 +66,7 @@ export const DEFAULT_SETTINGS = {
   modules: {
     logo: {
       visible: true,
+      variant: 'school',
       showMark: true,
       title: '中山市烟洲中学',
       subtitle: 'YANZHOU · LIVE',

@@ -56,6 +56,7 @@ const MODULES = {
     name: 'Logo 挂角',
     create: createLogoRenderer,
     fields: [
+      { key: 'variant', id: 'logoVariant', kind: 'select', fallback: 'school' },
       { key: 'title', id: 'logoTitle', kind: 'text' },
       { key: 'subtitle', id: 'logoSubtitle', kind: 'text' },
       { key: 'showMark', id: 'logoShowMark', kind: 'boolean' },
@@ -66,7 +67,7 @@ const MODULES = {
     ],
     position: { x: 'logoX', xRange: 'logoXRange', xMax: 'logoXMax', y: 'logoY', yRange: 'logoYRange', yMax: 'logoYMax' },
     animation: { enter: 'logoEnter', exit: 'logoExit', duration: 'logoDuration', durationNumber: 'logoDurationNumber' },
-    summary(module) { return module.title || 'Logo 挂角'; },
+    summary(module) { return module.variant === 'rhythm' ? 'YZBTVS 节拍线' : module.title || 'Logo 挂角'; },
   },
   hosts: {
     name: '人物信息条',
@@ -440,6 +441,9 @@ function moduleIsShowing(moduleId) {
 }
 
 function renderControls() {
+  for (const field of document.querySelectorAll('[data-school-logo]')) {
+    field.hidden = settings.modules.logo.variant === 'rhythm';
+  }
   for (const moduleId of MODULE_ORDER) {
     const module = settings.modules[moduleId];
     for (const field of MODULES[moduleId].fields) {
@@ -454,6 +458,8 @@ function renderControls() {
         }
       } else if (field.kind === 'boolean') {
         $(field.id).checked = Boolean(module[field.key]);
+      } else if (field.kind === 'select') {
+        setSelectValue(field.id, module[field.key] ?? field.fallback);
       } else if (field.kind === 'percent') {
         const percent = Math.round(module[field.key] * 100);
         updateRange(field.id, percent);
@@ -1100,6 +1106,8 @@ function bindFields() {
       if (field.kind === 'text' || field.kind === 'textarea') {
         $(field.id).addEventListener('input', (event) => edit(moduleId, { [field.key]: event.target.value }));
         $(field.id).addEventListener('blur', render);
+      } else if (field.kind === 'select') {
+        $(field.id).addEventListener('change', (event) => edit(moduleId, { [field.key]: event.target.value }));
       } else if (field.kind === 'boolean') {
         $(field.id).addEventListener('change', (event) => edit(moduleId, { [field.key]: event.target.checked }));
       } else if (field.kind === 'color') {
