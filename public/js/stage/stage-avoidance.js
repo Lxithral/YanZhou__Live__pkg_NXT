@@ -1,3 +1,6 @@
+import { stageSafeArea } from '../core/stage-area.js';
+import { offsetWithin } from '../render/caption-bounds.js';
+
 export const AVOID_GAP = 16;
 export const CANVAS = { width: 1920, height: 1080 };
 
@@ -52,9 +55,12 @@ function betterScore(score, best) {
   return firstDifference !== -1 && score[firstDifference] < best[firstDifference];
 }
 
-function findSpot(rects, placed, captions, { width, height, gap }) {
-  const xs = axisCandidates(rects, placed, 'x', 'w', axisBounds(rects, 'x', 'w', 0, width), gap);
-  const ys = axisCandidates(rects, placed, 'y', 'h', axisBounds(rects, 'y', 'h', height / 2, height), gap);
+function findSpot(rects, placed, captions, { width, height, gap }, area, preferCenter) {
+  const xBounds = axisBounds(rects, 'x', 'w', area.left, area.right);
+  const xs = axisCandidates(rects, placed, 'x', 'w', xBounds, gap);
+  const center = width / 2 - (rects[0].x + rects[0].w / 2);
+  if (preferCenter) xs.values.add(Math.min(xBounds[1], Math.max(xBounds[0], center)));
+  const ys = axisCandidates(rects, placed, 'y', 'h', axisBounds(rects, 'y', 'h', Math.max(area.top, height / 2), area.bottom), gap);
   let best;
   for (const dy of ys.values) {
     for (const dx of xs.values) {
@@ -67,6 +73,7 @@ function findSpot(rects, placed, captions, { width, height, gap }) {
         overlap,
         direction,
         !overlap && hits(moved, placed, gap) ? 1 : 0,
+        preferCenter ? Math.abs(center - dx) : 0,
         dx ** 2 + dy ** 2,
         -dy,
       ];
@@ -86,7 +93,7 @@ function placeModules(ids, rectsById, fixed, canvas, forcedCaption) {
   for (const id of ids) {
     const rects = rectsById.get(id);
     const offset = forcedCaption?.id === id ? forcedCaption.offset :
-      hits(rects, placed, 0) ? findSpot(rects, placed, captions, canvas) : { dx: 0, dy: 0 };
+      hits(rects, placed, 0) ? findSpot(rects, placed, captions, canvas, canvas.areas[id] ?? canvas.area, id === 'hosts') : { dx: 0, dy: 0 };
     offsets[id] = offset;
     const moved = shifted(rects, offset.dx, offset.dy);
     totalOverlap += coveredArea(moved, placed);
@@ -111,10 +118,12 @@ function improveCaptionRoom(id, otherIds, rectsById, fixed, canvas, initial) {
   for (const otherId of otherIds) {
     const other = rectsById.get(otherId);
     if (!other.length) continue;
-    const [top, bottom] = axisBounds(other, 'y', 'h', minY, canvas.height);
+    const area = canvas.areas[otherId] ?? canvas.area;
+    const [top, bottom] = axisBounds(other, 'y', 'h', Math.max(minY, area.top), area.bottom);
     guides.push(...other, ...shifted(other, 0, top), ...shifted(other, 0, bottom));
   }
-  const bounds = axisBounds(rects, 'y', 'h', minY, canvas.height);
+  const area = canvas.areas[id] ?? canvas.area;
+  const bounds = axisBounds(rects, 'y', 'h', Math.max(minY, area.top), area.bottom);
   const { values } = axisCandidates(rects, guides, 'y', 'h', bounds, canvas.gap);
   const fixedOverlap = coveredArea(shifted(rects, dx, dy), fixed);
   let best = initial;
@@ -136,7 +145,9 @@ function improveCaptionRoom(id, otherIds, rectsById, fixed, canvas, initial) {
  * 按保存位置计算临时偏移。角标固定，字幕先占位，其余模块按上屏顺序避让。
  * 只在实际重叠时调整；碰撞解除后偏移回到零。
  */
-export function resolveAvoidance(boxes, order = [], { width = CANVAS.width, height = CANVAS.height, gap = AVOID_GAP, fixed = [] } = {}) {
+export function resolveAvoidance(boxes, order = [], { width = CANVAS.width, height = CANVAS.height, gap = AVOID_GAP, fixed = [],
+  area = { left: 0, top: 0, right: width, bottom: height }, areas = {},
+} = {}) {
   const ids = [...new Set([...order, ...Object.keys(boxes)])].filter((id) => Object.hasOwn(boxes, id));
   const rectsById = new Map(ids.map((id) => [id, occupiedRects(boxes[id])]));
   const obstacles = occupiedRects(fixed);
@@ -146,7 +157,7 @@ export function resolveAvoidance(boxes, order = [], { width = CANVAS.width, heig
   const movable = ids.filter((id) => !CORNER_MODULES.includes(id));
   const captionIds = movable.filter((id) => CAPTION_MODULES.includes(id));
   const otherIds = movable.filter((id) => !CAPTION_MODULES.includes(id));
-  const canvas = { width, height, gap };
+  const canvas = { width, height, gap, area, areas };
   const initial = placeModules([...captionIds, ...otherIds], rectsById, obstacles, canvas);
   const layout = captionIds.length === 1 ?
     improveCaptionRoom(captionIds[0], otherIds, rectsById, obstacles, canvas, initial) : initial;
@@ -157,13 +168,6 @@ export function resolveAvoidance(boxes, order = [], { width = CANVAS.width, heig
 }
 
 /* ---------- 页面部分：量取模块实际尺寸并套用偏移 ---------- */
-
-function offsetWithin(node, root) {
-  let x = 0;
-  let y = 0;
-  for (let n = node; n && n !== root; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
-  return { x, y };
-}
 
 function isVisibleContent(moduleId, renderer, module) {
   return module?.visible && !renderer.element.hidden &&
@@ -179,9 +183,17 @@ export function measureModule(moduleId, renderer, module) {
     return [{ x: element.offsetLeft, y: element.offsetTop, w, h }];
   }
   const scale = Number(module.scale) || 1;
-  const target = moduleId === 'lyrics' ? element.querySelector('.lyrics-viewport') ?? renderer.body :
-    moduleId === 'speech' ? element.querySelector('.speech-viewport') ?? renderer.body :
-      moduleId === 'hosts' ? element.querySelector('.solo-name:not([hidden])') : renderer.body;
+  if (renderer.getCaptionRects) {
+    const rects = renderer.getCaptionRects();
+    if (!rects.length) return null;
+    return rects.map(({ x, y, w, h }) => ({
+      x: Number.parseFloat(element.style.left) + x * scale,
+      y: Number.parseFloat(element.style.top) + y * scale,
+      w: w * scale,
+      h: h * scale,
+    }));
+  }
+  const target = moduleId === 'hosts' ? element.querySelector('.solo-name:not([hidden])') : renderer.body;
   if (!target) return null;
   const { x, y } = offsetWithin(target, element);
   return [{
@@ -221,7 +233,7 @@ export function createAvoidance(renderers, getState, { animate = true, fixedElem
   for (const renderer of Object.values(renderers)) {
     if (animate) renderer.element.classList.add('avoid-animate');
     observer.observe(renderer.body ?? renderer.element);
-    visibilityObserver.observe(renderer.element, { attributeOldValue: true, attributeFilter: ['hidden', 'data-has-content'] });
+    visibilityObserver.observe(renderer.element, { attributeOldValue: true, attributeFilter: ['hidden', 'data-has-content', 'data-caption-bounds'] });
   }
   for (const element of fixedElements) observer.observe(element);
   document.fonts?.ready.then(() => schedule());
@@ -233,6 +245,7 @@ export function createAvoidance(renderers, getState, { animate = true, fixedElem
     if (!settings?.modules) return;
     const enabled = settings.layout?.autoAvoid !== false;
     const boxes = {};
+    const areas = {};
     const fixed = fixedElements.map(({ offsetLeft: x, offsetTop: y, offsetWidth: w, offsetHeight: h }) => ({ x, y, w, h }));
     const exiting = new Set();
     if (enabled) {
@@ -247,11 +260,14 @@ export function createAvoidance(renderers, getState, { animate = true, fixedElem
           continue;
         }
         const rects = measureModule(id, renderer, module);
-        if (rects) boxes[id] = rects;
+        if (rects) {
+          boxes[id] = rects;
+          if (renderer.getPlacementArea) areas[id] = renderer.getPlacementArea();
+        }
       }
     }
     const previous = offsets;
-    offsets = enabled ? resolveAvoidance(boxes, showOrder ?? Object.keys(renderers), { ...settings.canvas, fixed }) : {};
+    offsets = enabled ? resolveAvoidance(boxes, showOrder ?? Object.keys(renderers), { ...settings.canvas, fixed, areas, area: stageSafeArea(settings.canvas.width, settings.canvas.height) }) : {};
     for (const id of exiting) if (previous[id]) offsets[id] = previous[id];
     const appearing = [];
     for (const [id, renderer] of Object.entries(renderers)) {

@@ -772,7 +772,6 @@ function connect() {
       revision = message.revision ?? revision;
       updateSaveStatus();
     } else if (message.type === 'lyrics:songs') {
-      stageControls.setSongs(message.songs);
       renderLyricsPlaylist(message);
       renderSkipNotice(message.skipped);
     } else if (message.type === 'speech:state') {
@@ -1173,8 +1172,14 @@ function dragFrame() {
     // 人物条的宽度随 X 变化，需要重新排版。
     renderer.update(module, { animate: false });
   } else {
-    // 其余模块只改合成层位移（translate = 避让偏移 + 拖动距离），不触发重新排版；松手时再写回 left/top。
-    renderer.element.style.translate = `${drag.offset.dx + x - drag.left}px ${drag.offset.dy + y - drag.top}px`;
+    let stageX = drag.offset.dx + x;
+    let stageY = drag.offset.dy + y;
+    if (moduleId === 'program') {
+      stageX = Math.min(limits.maxX, Math.max(limits.minX, stageX));
+      stageY = Math.min(limits.maxY, Math.max(limits.minY, stageY));
+      drag.programOffset = { dx: stageX - x, dy: stageY - y };
+    }
+    renderer.element.style.translate = `${stageX - drag.left}px ${stageY - drag.top}px`;
   }
   const position = MODULES[moduleId].position;
   updateRange(position.xRange, x);
@@ -1253,7 +1258,7 @@ function bindDrag() {
       $('previewStage').classList.remove('dragging');
       flush();
       if (finished.moved) {
-        const { dx, dy } = finished.offset;
+        const { dx, dy } = finished.programOffset ?? finished.offset;
         element.classList.add('avoid-still');
         element.style.translate = dx || dy ? `${Math.round(dx)}px ${Math.round(dy)}px` : '';
         render();

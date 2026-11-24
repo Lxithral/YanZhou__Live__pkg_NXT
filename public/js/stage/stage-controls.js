@@ -56,8 +56,6 @@ export function bindStageControls({ send, edit, toast }) {
   let pendingMove;
   let undoMove;
   let pickerSlot = null;
-  let songs = [];
-  let songsSignature = '';
   const editors = new Map();
   const areas = {};
   for (const kind of ['hosts', 'program']) {
@@ -465,8 +463,7 @@ export function bindStageControls({ send, edit, toast }) {
     const editor = editors.get(kind);
     const items = editor?.isNew ? [...records, editor.item] : records;
     const cards = items.map((item, index) => {
-      const linkedSong = kind === 'program' && songs.find(({ id }) => id === item.songId);
-      const key = JSON.stringify([item, index, editor?.item.id === item.id, Boolean(editor), linkedSong?.title]);
+      const key = JSON.stringify([item, index, editor?.item.id === item.id, Boolean(editor)]);
       const cached = libraryCache[kind].get(item.id);
       if (cached?.key === key) {
         // 条目内容没变时卡片会复用。节目从 1 个变成多个后，拖动手柄必须重新允许拖动。
@@ -507,10 +504,6 @@ export function bindStageControls({ send, edit, toast }) {
       }
       const desc = kind === 'hosts' ? item.bio : item.desc;
       if (desc) body.append(node('p', desc, 'stage-record-desc'));
-      if (kind === 'program') {
-        const label = linkedSong ? `歌词 · 《${linkedSong.title}》` : item.songId ? '关联的歌词缺失' : '歌词 · 未关联';
-        body.append(node('p', label, 'stage-record-meta'));
-      }
       if (editor?.item.id === item.id) {
         card.classList.add('is-editing');
         body.append(editor.form);
@@ -543,13 +536,6 @@ export function bindStageControls({ send, edit, toast }) {
     cards.forEach((card, index) => { if (list.children[index] !== card) list.insertBefore(card, list.children[index] ?? null); });
     if (!items.length) areas[kind].list.append(node('p', '暂无资料，请添加。'));
   }
-  function fillSongSelect(select, value) {
-    select.replaceChildren(new Option('不关联歌曲', ''), ...songs.map((song) =>
-      new Option([song.title, song.artist, new Date(song.updatedAt).toLocaleString('zh-CN')].filter(Boolean).join(' · '), song.id)));
-    if (value && !songs.some(({ id }) => id === value)) select.add(new Option('关联的歌曲缺失', value));
-    select.value = value;
-  }
-
   function open(kind, item) {
     areas[kind].library.open = true;
     if (editors.has(kind)) {
@@ -574,15 +560,6 @@ export function bindStageControls({ send, edit, toast }) {
       input.dataset.focusKey = `edit-${kind}-${item.id}-${name}`;
       l.append(input); fields.append(l);
     }
-    if (kind === 'program') {
-      const label = node('label', '关联歌词', 'stage-song-field');
-      const select = node('select', undefined, 'select-input');
-      select.name = 'songId';
-      select.dataset.focusKey = `edit-program-${item.id}-songId`;
-      fillSongSelect(select, item.songId ?? '');
-      label.append(select);
-      fields.append(label);
-    }
     const message = node('p', '', 'stage-editor-status');
     message.setAttribute('role','status');
     const actions = node('div', undefined, 'stage-actions');
@@ -594,7 +571,7 @@ export function bindStageControls({ send, edit, toast }) {
     form.onsubmit = (event) => {
       event.preventDefault();
       const record = { ...item };
-      for (const input of fields.querySelectorAll('[name]')) record[input.name] = input.name === 'songId' ? input.value || null : input.value;
+      for (const input of fields.querySelectorAll('[name]')) record[input.name] = input.value;
       command(kind, { action:'save', item:record });
     };
     editors.set(kind, { item, form, message, isNew });
@@ -672,16 +649,6 @@ export function bindStageControls({ send, edit, toast }) {
   }
   return {
     render,
-    setSongs(next) {
-      const signature = JSON.stringify(next);
-      if (signature === songsSignature) return;
-      songs = next;
-      songsSignature = signature;
-      const select = editors.get('program')?.form.elements.namedItem('songId');
-      if (select) fillSongSelect(select, select.value);
-      renderLibraries('program');
-      refreshEnabled();
-    },
     navigateProgram: () => command('program',{ action:'navigate', direction:1 }),
     disconnected() {
       followUps = [];

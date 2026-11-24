@@ -43,7 +43,7 @@ test('moves a colliding nameplate sideways as a whole', () => {
   const program = rect(1240, 730, 680, 350);
   const result = resolveAvoidance({ hosts: [name], program: [program] }, ['program', 'hosts']);
   assert.deepEqual(result.program, origin);
-  assert.deepEqual(result.hosts, { dx: -524, dy: 0 });
+  assert.deepEqual(result.hosts, { dx: -539.5, dy: 0 });
   assert.ok(!overlaps(moved(name, result.hosts), program));
 });
 
@@ -110,7 +110,8 @@ test('releases the original position as soon as a fading obstacle is gone', () =
   const fixed = [rect(100, 800, 300, 100)];
   const boxes = { hosts: [name], lyrics: [] };
   const colliding = resolveAvoidance(boxes, ['hosts'], { fixed });
-  assert.deepEqual(colliding.hosts, { dx: 316, dy: 0 });
+  assert.equal(colliding.hosts.dy, 0);
+  assert.ok(!overlaps(moved(name, colliding.hosts), fixed[0]));
   assert.deepEqual(colliding.lyrics, origin);
   assert.deepEqual(resolveAvoidance(boxes).hosts, origin);
 });
@@ -120,4 +121,29 @@ test('a completely occupied canvas stays solvable and a moved box remains below 
   const fixed = [rect(0, 0, 1920, 1080)];
   const { program: offset } = resolveAvoidance({ program: [program] }, [], { fixed });
   assert.deepEqual(offset, { dx: 0, dy: 290 });
+});
+
+test('uses the safe area and keeps the program card within its animation allowance', () => {
+  const block = rect(495, 760, 1329, 266);
+  const card = rect(400, 810, 380, 180);
+  const area = { left: 96, top: 54, right: 1824, bottom: 1026 };
+  const programArea = { ...area, left: 115, bottom: 994 };
+  const { program } = resolveAvoidance({ lyrics: [block], program: [card] }, ['lyrics', 'program'],
+    { area, areas: { program: programArea } });
+  assert.deepEqual(moved(card, program), rect(115, 810, 380, 180));
+});
+
+test('allows other modules in the transparent corners between caption rows', () => {
+  const lyrics = [rect(480, 700, 640, 48), rect(700, 756, 200, 32)];
+  const card = rect(465, 750, 200, 80);
+  const { program } = resolveAvoidance({ lyrics, program: [card] });
+  assert.deepEqual(program, origin);
+});
+
+test('moves a colliding nameplate toward the horizontal center when there is room', () => {
+  const eventMark = rect(1460, 940, 420, 84);
+  const name = rect(1370, 936, 310, 90);
+  const { hosts } = resolveAvoidance({ eventMark: [eventMark], hosts: [name] });
+  assert.equal(hosts.dy, 0);
+  assert.equal(name.x + hosts.dx + name.w / 2, 960);
 });

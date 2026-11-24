@@ -1,3 +1,16 @@
+const SLIDE_TRAVEL = 64;
+const ENTER_TRAVEL = 26;
+const EXIT_TRAVEL = 22;
+
+export function moduleMotionInsets({ enter, exit } = {}) {
+  return {
+    left: enter === 'slide-left' || exit === 'slide-left' ? SLIDE_TRAVEL : 0,
+    right: enter === 'slide-right' || exit === 'slide-right' ? SLIDE_TRAVEL : 0,
+    top: enter === 'fade-down' ? ENTER_TRAVEL : exit === 'fade-up' ? EXIT_TRAVEL : 0,
+    bottom: enter === 'fade-up' ? ENTER_TRAVEL : exit === 'fade-down' ? EXIT_TRAVEL : 0,
+  };
+}
+
 const STYLE_ID = 'yanzhou-module-layer-style';
 
 const BASE_CSS = `
@@ -7,14 +20,14 @@ const BASE_CSS = `
 .module-body { display: block; }
 @keyframes enter-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes exit-fade { from { opacity: 1; } to { opacity: 0; } }
-@keyframes enter-fade-up { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes exit-fade-up { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-22px); } }
-@keyframes enter-fade-down { from { opacity: 0; transform: translateY(-26px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes exit-fade-down { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(22px); } }
-@keyframes enter-slide-left { from { opacity: 0; transform: translateX(-64px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes exit-slide-left { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-64px); } }
-@keyframes enter-slide-right { from { opacity: 0; transform: translateX(64px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes exit-slide-right { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(64px); } }
+@keyframes enter-fade-up { from { opacity: 0; transform: translateY(calc(${ENTER_TRAVEL}px * var(--module-motion-y, 1))); } to { opacity: 1; transform: translateY(0); } }
+@keyframes exit-fade-up { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(-${EXIT_TRAVEL}px * var(--module-motion-y, 1))); } }
+@keyframes enter-fade-down { from { opacity: 0; transform: translateY(calc(-${ENTER_TRAVEL}px * var(--module-motion-y, 1))); } to { opacity: 1; transform: translateY(0); } }
+@keyframes exit-fade-down { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(${EXIT_TRAVEL}px * var(--module-motion-y, 1))); } }
+@keyframes enter-slide-left { from { opacity: 0; transform: translateX(calc(-${SLIDE_TRAVEL}px * var(--module-motion-x, 1))); } to { opacity: 1; transform: translateX(0); } }
+@keyframes exit-slide-left { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(calc(-${SLIDE_TRAVEL}px * var(--module-motion-x, 1))); } }
+@keyframes enter-slide-right { from { opacity: 0; transform: translateX(calc(${SLIDE_TRAVEL}px * var(--module-motion-x, 1))); } to { opacity: 1; transform: translateX(0); } }
+@keyframes exit-slide-right { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(calc(${SLIDE_TRAVEL}px * var(--module-motion-x, 1))); } }
 @keyframes enter-scale-in { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
 @keyframes exit-scale-in { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.94); } }
 `;
