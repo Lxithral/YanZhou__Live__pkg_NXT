@@ -74,6 +74,14 @@ export function createModuleLayer(container, { className = '', bodyHTML = '' } =
       element.style.opacity = `${module.opacity / 100}`;
 
       const nextShown = Boolean(module.visible);
+      if (module.immediate && !nextShown) {
+        clearTimeout(hideTimer);
+        body.style.animation = 'none';
+        initialized = true;
+        shown = false;
+        element.hidden = true;
+        return;
+      }
       if (!initialized) {
         initialized = true;
         shown = nextShown;

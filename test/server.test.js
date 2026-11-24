@@ -503,6 +503,78 @@ test('one LRC load shares all lines with manual and preserves the committed on-a
   assert.equal(state.manual.index, 0);
 });
 
+test('same-title program songs are prepared separately, survive restart and take only on request', async (t) => {
+  const setup = await fixture(t);
+  const config = structuredClone(DEFAULT_SETTINGS);
+  const [first, second, unlinked] = config.modules.program.items;
+  const songA = 'a'.repeat(32);
+  const songB = 'b'.repeat(32);
+  const songDirectory = path.join(setup.directory, 'config', 'lyrics');
+  await mkdir(songDirectory, { recursive: true });
+  for (const [id, title] of [[songA, first.title], [songB, second.title]]) {
+    await writeFile(path.join(songDirectory, `${id}.json`), JSON.stringify({ title, updatedAt: 0, doc: demoDoc }));
+  }
+  await writeFile(setup.settingsPath, JSON.stringify(config));
+  const live = await setup.start();
+  const operator = await setup.connect(live.wsUrl);
+  const initial = await operator.waitFor((message) => message.type === 'state');
+  assert.equal(initial.settings.modules.program.items[0].songId, songA);
+  assert.equal(initial.settings.modules.program.items[1].songId, songB);
+  assert.equal(initial.settings.modules.program.items[2].songId, undefined);
+  await lyricCommand(operator, 'lyrics:take-prepared', { id: songA, source: 'manual' }, 'take-a');
+  operator.send({ type: 'program:manage', id: 'cue-b', payload: { action: 'select', id: second.id } });
+  await operator.waitFor((message) => message.type === 'management:result' && message.id === 'cue-b');
+  const pending = await operator.waitFor((message) => message.type === 'lyrics:songs' && message.prepared?.songId === songB);
+  assert.equal(pending.activeId, songA);
+  assert.equal(pending.prepared.mismatch, false);
+  assert.equal(live.app.getState().settings.modules.lyrics.source, 'manual');
+  operator.send({ type: 'program:manage', id: 'cue-unlinked', payload: { action: 'select', id: unlinked.id } });
+  await operator.waitFor((message) => message.type === 'management:result' && message.id === 'cue-unlinked');
+  const skipped = await operator.waitFor((message) => message.type === 'lyrics:songs' && message.prepared?.mismatch);
+  assert.equal(skipped.prepared.songId, songB);
+  assert.equal(skipped.activeId, songA);
+  await setup.stop(live.app);
+  const restarted = await setup.start();
+  const viewer = await setup.connect(restarted.wsUrl);
+  const restored = await viewer.waitFor((message) => message.type === 'lyrics:songs');
+  assert.deepEqual(restored.prepared, skipped.prepared);
+  assert.equal((await lyricCommand(viewer, 'lyrics:take-prepared', { id: songA, source: 'timeline' }, 'stale')).type, 'error');
+  const taken = await lyricCommand(viewer, 'lyrics:take-prepared', { id: songB, source: 'timeline' }, 'take-b');
+  assert.equal(taken.songId, songB);
+  assert.equal(taken.armed, true);
+  assert.equal(taken.transport.position, 0);
+  assert.equal(taken.transport.playing, false);
+  assert.equal(restarted.app.getState().settings.modules.lyrics.preparedSong, null);
+});
+
+test('emergency clear hides temporary modules together and preserves corner marks and the lyric session', async (t) => {
+  const setup = await fixture(t);
+  const config = structuredClone(DEFAULT_SETTINGS);
+  for (const module of Object.values(config.modules)) module.visible = true;
+  await writeFile(setup.settingsPath, JSON.stringify(config));
+  const { wsUrl } = await setup.start();
+  const operator = await setup.connect(wsUrl);
+  const viewer = await setup.connect(wsUrl);
+  await lyricCommand(operator, 'lyrics:manual', { action: 'load', value: ['当前句'] }, 'load-manual');
+  await lyricCommand(operator, 'lyrics:onair', { source: 'manual' }, 'push-manual');
+  operator.send({ type: 'stage:clear', id: 'clear' });
+  const cleared = await viewer.waitFor((message) => message.id === 'clear' && message.type === 'state');
+  for (const key of ['hosts', 'program', 'lyrics', 'speech']) {
+    assert.equal(cleared.settings.modules[key].visible, false);
+    assert.deepEqual(cleared.settings.modules[key].animation, config.modules[key].animation);
+  }
+  assert.deepEqual(cleared.cleared, ['hosts', 'program', 'lyrics', 'speech']);
+  assert.equal(cleared.settings.modules.logo.visible, true);
+  assert.equal(cleared.settings.modules.eventMark.visible, true);
+  assert.equal(cleared.settings.modules.lyrics.armed, true);
+  await viewer.waitFor((message) => message.type === 'saved' && message.revision === cleared.revision);
+  const saved = JSON.parse(await readFile(setup.settingsPath, 'utf8'));
+  assert.equal(saved.modules.lyrics.manual.current, '当前句');
+  assert.equal(saved.modules.lyrics.visible, false);
+  operator.send({ type: 'stage:clear', id: 'clear-again' });
+  assert.equal((await viewer.waitFor((message) => message.id === 'clear-again')).revision, cleared.revision);
+});
+
 test('an existing timeline-only import is available in manual without importing again', async (t) => {
   const setup = await fixture(t);
   const first = await setup.start();

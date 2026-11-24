@@ -34,6 +34,9 @@ let suggestedTitle = '';
 let suggestedArtist = '';
 let songCatalog = [];
 let selectedSong = null;
+let preparedSong;
+let preparedRequest;
+let clearRequest;
 let nextSong;
 let nextSongPreview;
 let nextColumnOpen = false;
@@ -80,6 +83,10 @@ function message(text = '') {
 
 function updateControls() {
   for (const control of liveControls) control.disabled = !ready;
+  $('emergency-clear').disabled = !ready || Boolean(clearRequest);
+  for (const id of ['prepared-timeline', 'prepared-manual']) {
+    $(id).disabled = !ready || !preparedSong?.title || Boolean(preparedRequest);
+  }
   for (const id of ['play', 'back', 'forward', 'rate', 'playback-progress']) $(id).disabled = !ready || !clock.doc.length;
   $('manual-play').disabled = !ready || !clock.state?.manual.next;
   $('load').disabled = !ready || !importDoc.length || !importFits || Boolean(importEndError) || !$('song-title').value.trim() || Boolean(importRequest);
@@ -310,7 +317,11 @@ function connect() {
       const module = state.settings.modules.lyrics;
       if (!module) return;
       lyricsVisible = module.visible;
-      preview.update(module);
+      preview.update(state.cleared?.includes('lyrics') ? { ...module, immediate: true } : module);
+      if (clearRequest && state.id === clearRequest) {
+        clearRequest = undefined;
+        message('已撤下节目卡、人名条和字幕');
+      }
       updateOutput();
       updateControls();
     } else if (state.type === 'lyrics:state') {
@@ -351,6 +362,11 @@ function connect() {
     } else if (state.type === 'lyrics:songs') {
       songCatalog = state.songs;
       selectedSong = state.activeId;
+      const prepared = state.prepared;
+      preparedSong = prepared && { ...songCatalog.find(({ id }) => id === prepared.songId), ...prepared };
+      $('prepared-song').hidden = !preparedSong;
+      $('prepared-title').textContent = preparedSong?.title ?? '关联的歌曲缺失';
+      $('prepared-warning').textContent = preparedSong?.mismatch ? '与当前节目不一致' : '';
       renderSongs();
       renderSkipNotice(state.skipped);
     } else if (state.type === 'lyrics:asr') {
@@ -361,6 +377,8 @@ function connect() {
       updateControls();
     } else if (state.type === 'error') {
       pending.delete(state.id);
+      if (state.id === preparedRequest) preparedRequest = undefined;
+      if (state.id === clearRequest) clearRequest = undefined;
       if (seekRequest && state.id === seekRequest) cancelSeekPreview();
       if (state.id && state.id === importRequest) {
         importRequest = undefined;
@@ -376,6 +394,8 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    preparedRequest = undefined;
+    clearRequest = undefined;
     correctionMotion = undefined;
     correctionFeedback = undefined;
     cancelSeekPreview();
@@ -575,6 +595,23 @@ function invalidateImport() {
 document.querySelectorAll('[data-push]').forEach((button) => {
   button.onclick = () => push(button.dataset.push);
 });
+for (const source of ['timeline', 'manual']) {
+  $(`prepared-${source}`).onclick = () => {
+    if (!preparedSong?.title || preparedRequest) return;
+    const { songId, title } = preparedSong;
+    preparedRequest = send('lyrics:take-prepared', { id: songId, source }, () => {
+      preparedRequest = undefined;
+      const mode = source === 'timeline' ? '时间轴' : '手动歌词';
+      message(`已推送《${title}》${mode}${lyricsVisible ? '' : ' · 歌词模块已隐藏'}`);
+    });
+    updateControls();
+  };
+}
+$('emergency-clear').onclick = () => {
+  if (clearRequest) return;
+  clearRequest = send('stage:clear');
+  updateControls();
+};
 $('output-source').onchange = (event) => {
   const source = event.target.value || null;
   updateOutput();

@@ -9,12 +9,13 @@ import { createLyricsSession, DEFAULT_LYRICS, LYRIC_COMMANDS, validateLyricSetti
 import { createAsrCapture, readDashScopeConfig } from './asr-capture.js';
 import { saveDashScopeConfig } from './asr-config.js';
 import { createSpeechSession } from './speech-session.js';
-import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-library.js';
+import { atomicWrite, normalizeSongTitle, openLyricLibrary, validateSongReference } from './lyrics-library.js';
 
 // 服务代码在 server/ 下；设置、public/、assets/ 都在项目根目录。
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark'];
+const TEMPORARY_MODULES = ['hosts', 'program', 'lyrics', 'speech'];
 const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
 // 与 program-renderer.js 的撕开动画时长一致；撕完后才执行节目单退场。
@@ -242,6 +243,7 @@ function validateModule(moduleId, module) {
     Object.keys(DEFAULT_LYRICS).forEach((key) => allowed.add(key));
     allowed.add('song');
     allowed.add('songOrder');
+    allowed.add('preparedSong');
   }
   // v5 曾保存主持人字幕的停顿清屏秒数；现在不再自动清屏，读到时直接忽略。
   if (moduleId === 'speech') allowed.add('holdSeconds');
@@ -277,9 +279,15 @@ function validateModule(moduleId, module) {
       new Set(songOrder).size !== songOrder.length)) {
     throw new Error('歌曲播放顺序无效。');
   }
+  const { preparedSong } = module;
+  if (preparedSong != null && (!isObject(preparedSong) || Object.keys(preparedSong).length !== 2 ||
+      typeof preparedSong.programId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/u.test(preparedSong.programId) ||
+      typeof preparedSong.songId !== 'string' || !/^[0-9a-f]{32}$/u.test(preparedSong.songId))) {
+    throw new Error('候场歌曲引用无效。');
+  }
   return { ...result, ...validateLyricSettings(module), ...(module.song !== undefined && {
     song: validateSongReference(module.song),
-  }), ...(songOrder !== undefined && { songOrder }) };
+  }), ...(songOrder !== undefined && { songOrder }), ...(preparedSong !== undefined && { preparedSong }) };
 }
 
 function validateSettings(settings) {
@@ -367,6 +375,32 @@ function settingsForDisk(settings) {
   return { ...settings, modules: { ...settings.modules, lyrics: { ...lyrics, doc: [] } } };
 }
 
+const currentProgram = (program) => program.items?.find(({ id }) => id === program.selectedId);
+
+function preparedFrom(program, songs) {
+  const item = currentProgram(program);
+  return item?.songId && songs.some(({ id }) => id === item.songId) ?
+    { programId: item.id, songId: item.songId } : null;
+}
+
+function seedSongLinks(settings, songs) {
+  const { program, lyrics } = settings.modules;
+  const byTitle = new Map();
+  for (const { id, title } of songs) {
+    const name = normalizeSongTitle(title);
+    byTitle.set(name, byTitle.has(name) ? null : id);
+  }
+  const items = program.items.map((item) => {
+    const songId = byTitle.get(normalizeSongTitle(item.title));
+    return songId && !Object.hasOwn(item, 'songId') ? { ...item, songId } : item;
+  });
+  const changed = items.some((item, index) => item !== program.items[index]);
+  if (changed) program.items = items;
+  const prepared = lyrics.preparedSong === undefined ? preparedFrom(program, songs) : null;
+  if (prepared) lyrics.preparedSong = prepared;
+  return changed || Boolean(prepared);
+}
+
 export async function createPackagingServer({
   settingsPath = path.join(ROOT, 'settings.json'),
   saveDelayMs = 120,
@@ -433,9 +467,11 @@ export async function createPackagingServer({
       const song = await library.migrate(currentLyrics.doc);
       currentLyrics.song = { id: song.id, version: song.version };
     }
-    if (needsManagement || legacyDoc || updatedSong || migrated !== raw || !Object.hasOwn(raw.modules, 'lyrics')) {
+    const linksChanged = seedSongLinks(settings, library.list());
+    const migratedSettings = needsManagement || legacyDoc || updatedSong || migrated !== raw || !Object.hasOwn(raw.modules, 'lyrics');
+    if (migratedSettings || (linksChanged && !skippedSong)) {
       try {
-        const backup = legacyDoc || updatedSong ? 'pre-library' : 'pre-lyrics';
+        const backup = legacyDoc || updatedSong ? 'pre-library' : migratedSettings ? 'pre-lyrics' : 'pre-song-links';
         await copyFile(settingsPath, `${settingsPath}.${backup}.bak`, constants.COPYFILE_EXCL);
       } catch (error) {
         if (error.code !== 'EEXIST') throw error;
@@ -446,6 +482,7 @@ export async function createPackagingServer({
   } catch (error) {
     if (hasSettings || error.code !== 'ENOENT') throw new Error(`无法读取设置文件；原文件已保留。${error.message}`, { cause: error });
     settings = clone(DEFAULT_SETTINGS);
+    seedSongLinks(settings, library.list());
     await mkdir(path.dirname(settingsPath), { recursive: true });
     await atomicWrite(settingsPath, settings);
     savedAt = new Date().toISOString();
@@ -550,10 +587,15 @@ export async function createPackagingServer({
     }
     return [...ordered, ...songs.values()];
   }
-  const songState = () => ({
-    type: 'lyrics:songs', songs: orderedSongs(), activeId: activeSongId(),
-    ...(skippedSong && { skipped: { ...skippedSong } }),
-  });
+  const songState = () => {
+    const reference = settings.modules.lyrics.preparedSong;
+    const item = currentProgram(settings.modules.program);
+    return {
+      type: 'lyrics:songs', songs: orderedSongs(), activeId: activeSongId(),
+      ...(reference && { prepared: { songId: reference.songId, mismatch: item?.id !== reference.programId || item?.songId !== reference.songId } }),
+      ...(skippedSong && { skipped: { ...skippedSong } }),
+    };
+  };
 
   function moveSong(payload, id) {
     if (!isObject(payload) || Object.keys(payload).length !== 2 ||
@@ -573,16 +615,27 @@ export async function createPackagingServer({
   }
 
   async function changeSong(type, payload, id) {
-    const keys = type === 'lyrics:load' ? ['doc', 'title', 'artist', 'replaceId', 'saveKey'] : ['id'];
+    const takingPrepared = type === 'lyrics:take-prepared';
+    const keys = type === 'lyrics:load' ? ['doc', 'title', 'artist', 'replaceId', 'saveKey'] :
+      takingPrepared ? ['id', 'source'] : ['id'];
     if (!isObject(payload) || Object.keys(payload).some((key) => !keys.includes(key)) ||
         (type === 'lyrics:load' && payload.replaceId !== undefined && typeof payload.title !== 'string')) {
       throw new Error('歌曲操作格式无效。');
+    }
+    if (takingPrepared && (!['timeline', 'manual'].includes(payload.source) ||
+        payload.id !== settings.modules.lyrics.preparedSong?.songId || !payload.id)) {
+      throw new Error('待推送歌曲已变化，请重新确认。');
     }
     const order = orderedSongs().map((song) => song.id);
     const song = type === 'lyrics:load'
       ? await library.save(payload.title === undefined ? '未命名歌曲' : payload.title, payload.doc, payload.replaceId, payload.saveKey, payload.artist)
       : await library.load(payload.id);
+    if (takingPrepared) lyrics.apply('lyrics:onair', { source: null });
     const include = lyrics.apply('lyrics:load', { doc: song.doc });
+    if (takingPrepared) {
+      lyrics.apply('lyrics:onair', { source: payload.source });
+      settings.modules.lyrics.preparedSong = null;
+    }
     if (!order.includes(song.id)) {
       settings.modules.lyrics.songOrder = [...order, song.id];
     }
@@ -791,6 +844,19 @@ export async function createPackagingServer({
           return;
         }
         if (message.type !== 'lyrics:load' && data.length > 16 * 1024) throw new Error('消息超过 16 KiB。');
+        if (message.type === 'stage:clear') {
+          if (Object.keys(message).some((key) => !['type', 'id'].includes(key))) throw new Error('应急清屏指令格式无效。');
+          const modules = { ...settings.modules };
+          if (TEMPORARY_MODULES.some((key) => modules[key].visible)) {
+            for (const key of TEMPORARY_MODULES) modules[key] = { ...modules[key], visible: false };
+            trackShown(settings.modules, modules);
+            settings = { ...settings, modules };
+            revision += 1;
+            scheduleSave();
+          }
+          broadcast({ ...getWireState(), cleared: TEMPORARY_MODULES, id });
+          return;
+        }
         if (message.type === 'program:ticket-set') {
           if (Object.keys(message).some((key) => !['type', 'id', 'cycle', 'torn'].includes(key)) ||
               !Number.isSafeInteger(message.cycle) || typeof message.torn !== 'boolean') {
@@ -818,15 +884,27 @@ export async function createPackagingServer({
           if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) throw new Error('管理消息包含未知字段。');
           const kind = message.type.split(':')[0];
           const task = writeQueue.catch(() => {}).then(async () => {
+            const previous = settings.modules[kind];
+            const songId = message.payload?.item?.songId;
+            if (kind === 'program' && songId && !library.list().some(({ id }) => id === songId) &&
+                previous.items.find(({ id }) => id === message.payload.item.id)?.songId !== songId) {
+              throw new Error('曲库中找不到要关联的歌曲。');
+            }
             const next = applyManagement(settings.modules[kind], kind, message.payload);
             // 已经在最后一项再按「下一项」，或重复提交同一个槽位：画面没变，就不要重写文件。
             if (JSON.stringify(next) === JSON.stringify(settings.modules[kind])) return false;
             const revisionBefore = revision;
             const candidate = { ...settings, modules: { ...settings.modules, [kind]: next } };
+            const before = kind === 'program' ? currentProgram(previous) : null;
+            const after = kind === 'program' ? currentProgram(next) : null;
+            const prepared = before?.id !== after?.id || before?.songId !== after?.songId ?
+              preparedFrom(next, library.list()) : null;
+            if (prepared) candidate.modules.lyrics = { ...candidate.modules.lyrics, preparedSong: prepared };
             await atomicWrite(settingsPath, settingsForDisk(candidate));
             const concurrent = revision !== revisionBefore;
             trackShown(settings.modules, candidate.modules);
             settings.modules[kind] = next;
+            if (prepared) settings.modules.lyrics.preparedSong = prepared;
             revision += 1;
             // 写盘期间歌词进度如果又往前走了，这份文件不含那次进度，不能把它标成已保存。
             if (!concurrent) {
@@ -840,18 +918,19 @@ export async function createPackagingServer({
           const changed = await task;
           if (changed) {
             broadcast({ ...getWireState(), id });
+            if (kind === 'program') broadcast(songState());
             if (savedRevision < revision) scheduleSave();
           }
           send(client, { type: 'management:result', id });
           return;
         }
-        if (LYRIC_COMMANDS.includes(message.type) || ['lyrics:select-song', 'lyrics:move-song'].includes(message.type)) {
+        if (LYRIC_COMMANDS.includes(message.type) || ['lyrics:select-song', 'lyrics:take-prepared', 'lyrics:move-song'].includes(message.type)) {
           if (Object.keys(message).some((key) => !['type', 'id', 'payload'].includes(key))) {
             throw new Error('歌词消息包含未知字段。');
           }
           const task = songQueue.then(async () => {
             if (closing) throw new Error('服务正在关闭。');
-            if (message.type === 'lyrics:load' || message.type === 'lyrics:select-song') {
+            if (['lyrics:load', 'lyrics:select-song', 'lyrics:take-prepared'].includes(message.type)) {
               await changeSong(message.type, message.payload, id);
             } else if (message.type === 'lyrics:move-song') {
               moveSong(message.payload, id);

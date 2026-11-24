@@ -133,6 +133,7 @@ svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; s
 .page-nav a[aria-current=page] { color: var(--text); background: var(--active); font-weight: 600; }
 html[data-theme=light] .page-nav a[aria-current=page] { background: var(--page); box-shadow: inset 0 0 0 1px var(--line-2); }
 .header-actions { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; }
+.header-actions .emergency-clear:not(:disabled) { color: var(--live-text); background: var(--live-soft); }
 .header-divider { width: 1px; height: 20px; background: var(--line-2); margin: 0 4px; }
 
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: var(--r-ctl); background: var(--raised); box-shadow: inset 0 0 0 1px var(--line-2); font-size: 13px; font-weight: 500; white-space: nowrap; transition: background-color 120ms, box-shadow 120ms, color 120ms; }
@@ -567,6 +568,7 @@ html[data-theme=light] :is(.text-input, .select-input, .number-unit input, .colo
 .stage-record.is-editing .stage-record-body { padding-left:0; }
 .stage-editor-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .stage-editor-fields label { display:grid; gap:4px; font-size:11px; color:var(--muted); min-width:0; }
+.stage-editor-fields .stage-song-field { grid-column:1/-1; }
 .stage-editor-fields label:has([name=title]),.stage-editor-fields label:has([name=performer]),.stage-editor-fields label:has(textarea),[data-management=hosts] .stage-editor-fields label { grid-column:1/-1; }
 .stage-management .stage-editor-fields input,.stage-management .stage-editor-fields textarea { min-width:0; width:100%; font-size:12px; padding:7px 8px; border-radius:var(--r-ctl); }
 .stage-editor-fields textarea { min-height:70px; resize:vertical; }
