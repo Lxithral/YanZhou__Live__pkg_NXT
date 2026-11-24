@@ -114,7 +114,7 @@ export function createHostsRenderer(container) {
         lastName = person.name;
       }
       const visibleNow = Boolean(hosts.visible) && shown;
-      if (lastVisible && !visibleNow && !matchMedia('(prefers-reduced-motion: reduce)').matches) burst();
+      if (lastVisible && !visibleNow && !hosts.immediate && !matchMedia('(prefers-reduced-motion: reduce)').matches) burst();
       lastVisible = visibleNow;
       layer.update({ ...hosts, x, y });
       layer.body.style.width = `${Math.max(360, 1920 - 2 * x) / hosts.scale}px`;

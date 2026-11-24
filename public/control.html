@@ -19,6 +19,7 @@
       <a href="/lyrics.html">歌词台</a>
     </nav>
     <div class="header-actions">
+      <button type="button" class="button emergency-clear" id="emergencyClear" title="立即撤下节目卡、人名条和字幕，保留两个角标" disabled>应急清屏</button>
       <a class="button output-link" href="/overlay.html" target="_blank" rel="noopener">打开输出</a>
       <button type="button" class="button" id="copyOutputUrl" title="复制 OBS 浏览器来源地址">复制 OBS 地址</button>
       <span class="header-divider" aria-hidden="true"></span>
@@ -92,7 +93,7 @@
             </div>
             <span class="tool-separator"></span>
             <label class="check-label" for="safeAreaToggle"><input type="checkbox" id="safeAreaToggle" checked><span>安全区</span></label>
-            <label class="check-label" for="autoAvoidToggle" title="模块重叠时，后出现的模块自动让开；不改变保存的位置"><input type="checkbox" id="autoAvoidToggle" checked><span>自动避让</span></label>
+            <label class="check-label" for="autoAvoidToggle" title="模块重叠时优先保护下方字幕，Logo 和活动角标保持设定位置"><input type="checkbox" id="autoAvoidToggle" checked><span>自动避让</span></label>
           </div>
         </div>
         <div class="preview-stage" id="previewStage" data-background="checker" tabindex="0" aria-label="画面位置预览，可拖动模块或使用方向键微调">

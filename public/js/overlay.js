@@ -24,13 +24,14 @@ let disposed = false;
 let reconnectAttempt = 0;
 let socket;
 
-function applyState(settings, stageState) {
+function applyState(settings, stageState, cleared = []) {
   if (!settings?.canvas || !settings?.modules) return;
   stage = { settings, showOrder: stageState?.showOrder };
   canvas.style.width = `${settings.canvas.width}px`;
   canvas.style.height = `${settings.canvas.height}px`;
   for (const [moduleId, renderer] of Object.entries(RENDERERS)) {
-    if (settings.modules[moduleId]) renderer.update(settings.modules[moduleId]);
+    const module = settings.modules[moduleId];
+    if (module) renderer.update(cleared.includes(moduleId) ? { ...module, immediate: true } : module);
   }
   RENDERERS.program.updateTicket(stageState?.ticket);
   avoidance.schedule();
@@ -44,7 +45,7 @@ function connect() {
     try { message = JSON.parse(event.data); } catch { return; }
     if (message.type === 'state') {
       reconnectAttempt = 0;
-      applyState(message.settings, message.stage);
+      applyState(message.settings, message.stage, message.cleared);
     } else if (message.type === 'program:ticket') {
       RENDERERS.program.updateTicket(message.ticket, { animate: true });
     } else if (message.type === 'speech:state') {

@@ -159,6 +159,8 @@ for (const moduleId of MODULE_ORDER) previewRenderers[moduleId] = MODULES[module
 let showOrder = null;
 let ticketState;
 let pendingTicketId;
+let pendingClearId;
+const emergencyClear = $('emergencyClear');
 const programTear = $('programTear');
 programTear.onclick = () => {
   if (programTear.disabled || socket?.readyState !== WebSocket.OPEN) return;
@@ -361,6 +363,7 @@ function updateConnection(state) {
   $('connectionStatus').className = 'connection-status ' + state;
   $('connectionText').textContent = state === 'connected' ? '服务已连接' : state === 'disconnected' ? '连接已断开' : '正在连接';
   $('previewOffline').hidden = state === 'connected';
+  emergencyClear.disabled = state !== 'connected' || Boolean(pendingClearId);
   stageControls.render(settings, ready);
   updateSaveStatus();
 }
@@ -646,6 +649,16 @@ function renderTicketControl() {
 function applyServerState(message) {
   if (!message.settings?.modules || !message.settings?.canvas) return;
   settings = structuredClone(message.settings);
+  for (const moduleId of message.cleared ?? []) {
+    localIntent.delete(`${moduleId}.visible`);
+    const queued = pendingPatches.get(moduleId);
+    if (queued) delete queued.visible;
+    previewRenderers[moduleId].update({ ...settings.modules[moduleId], immediate: true });
+  }
+  if (pendingClearId && message.id === pendingClearId) {
+    pendingClearId = undefined;
+    toast('已撤下节目卡、人名条和字幕');
+  }
   if (Array.isArray(message.stage?.showOrder)) showOrder = message.stage.showOrder;
   applyTicket(message.stage?.ticket);
   settings.modules.lyrics ??= structuredClone(FALLBACK_SETTINGS.modules.lyrics);
@@ -759,6 +772,7 @@ function connect() {
       revision = message.revision ?? revision;
       updateSaveStatus();
     } else if (message.type === 'lyrics:songs') {
+      stageControls.setSongs(message.songs);
       renderLyricsPlaylist(message);
       renderSkipNotice(message.skipped);
     } else if (message.type === 'speech:state') {
@@ -781,6 +795,12 @@ function connect() {
       updateSaveStatus();
     } else if (message.type === 'error') {
       if (stageControls.result(message)) return;
+      if (pendingClearId && message.id === pendingClearId) {
+        pendingClearId = undefined;
+        emergencyClear.disabled = !ready;
+        toast(message.message);
+        return;
+      }
       if (pendingTicketId && message.id === pendingTicketId) {
         pendingTicketId = undefined;
         renderTicketControl();
@@ -813,6 +833,7 @@ function connect() {
   });
   socket.addEventListener('close', () => {
     ready = false;
+    pendingClearId = undefined;
     pendingTicketId = undefined;
     renderTicketControl();
     stageControls.disconnected();
@@ -1248,6 +1269,14 @@ function bindDrag() {
 }
 
 function bindGlobalControls() {
+  emergencyClear.onclick = () => {
+    if (!ready || socket.readyState !== WebSocket.OPEN || pendingClearId) return;
+    flush();
+    if (!ready || socket.readyState !== WebSocket.OPEN) return;
+    pendingClearId = crypto.randomUUID();
+    emergencyClear.disabled = true;
+    socket.send(JSON.stringify({ type: 'stage:clear', id: pendingClearId }));
+  };
   for (const toggle of document.querySelectorAll('[data-module-visibility]')) {
     toggle.addEventListener('click', () => {
       const moduleId = toggle.dataset.moduleVisibility;

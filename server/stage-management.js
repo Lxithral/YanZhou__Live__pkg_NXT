@@ -5,6 +5,7 @@ const PROGRAMS = JSON.parse(readFileSync(new URL('../config/program-defaults.jso
 const STYLES = ['h', 'g', 'i'];
 const COLORS = { h: ['#143B83', '#123571'], g: ['#792B2D', '#792B2D'], i: ['#792B2D', '#58232C'] };
 const ID = /^[a-zA-Z0-9_-]{1,64}$/u;
+const SONG_ID = /^[0-9a-f]{32}$/u;
 
 function fields(value, allowed) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -24,9 +25,16 @@ function itemId(id) {
 function record(value, kind) {
   const limits = kind === 'hosts' ? { name: 80, title: 120, bio: 1000 } :
     { number: 40, type: 80, title: 80, performer: 1000, desc: 2000, cover: 500 };
-  fields(value, ['id', ...Object.keys(limits)]);
-  return { id: itemId(value.id), ...Object.fromEntries(Object.entries(limits).map(([key, max]) =>
+  fields(value, ['id', ...Object.keys(limits), ...(kind === 'program' ? ['songId'] : [])]);
+  const result = { id: itemId(value.id), ...Object.fromEntries(Object.entries(limits).map(([key, max]) =>
     [key, text(value[key] ?? '', max, key === (kind === 'hosts' ? 'name' : 'title'))])) };
+  if (Object.hasOwn(value, 'songId')) {
+    if (value.songId !== null && (typeof value.songId !== 'string' || !SONG_ID.test(value.songId))) {
+      throw new Error('关联的歌曲编号无效。');
+    }
+    result.songId = value.songId;
+  }
+  return result;
 }
 function list(values, kind) {
   if (!Array.isArray(values) || values.length > 200) throw new Error('资料库最多 200 项。');
@@ -86,7 +94,7 @@ export function applyManagement(module, kind, payload) {
     const item = record(payload.item, kind);
     const index = records.findIndex(({ id }) => id === item.id);
     if (index < 0) records.push(item);
-    else records[index] = item;
+    else records[index] = { ...records[index], ...item };
     if (kind === 'program' && next.selectedId === null) next.selectedId = item.id;
   } else if (payload.action === 'delete') {
     fields(payload, ['action', 'id']);
