@@ -1,4 +1,5 @@
-import { createModuleLayer } from '../core/module-layer.js';
+import { createModuleLayer, moduleMotionInsets } from '../core/module-layer.js';
+import { stageSafeArea } from '../core/stage-area.js';
 import { PERF_SCROLL, scrollPlan, startDelay, scrollKeyframes } from '../motion/perf-scroll.js';
 import { INTRO_SCROLL, introSpeed, introPlan, introBar, introKeyframes } from '../motion/intro-scroll.js';
 
@@ -192,6 +193,7 @@ export function createProgramRenderer(container) {
   let lastSignature = '';
   let module;
   let firstUpdate = true;
+  let constrained = true;
   let ticketCycle;
   let tornAt = null;
   let tearFrame = 0;
@@ -313,12 +315,23 @@ export function createProgramRenderer(container) {
   });
   const scrollers = [perfScroller, introScroller];
 
+  function getPlacementArea({ width, height } = layer.getBounds()) {
+    const area = stageSafeArea();
+    const scale = module?.scale ?? 1;
+    const { left, right, top, bottom } = moduleMotionInsets(module?.animation);
+    const nudge = Math.min(4 * scale, Math.max(0, area.bottom - area.top - height));
+    const x = Math.min(1, Math.max(0, area.right - area.left - width) / ((left + right) * scale || 1));
+    const y = Math.min(1, Math.max(0, area.bottom - area.top - height - nudge) / ((top + bottom) * scale || 1));
+    return { left: area.left + left * scale * x, right: area.right - right * scale * x,
+      top: area.top + top * scale * y, bottom: area.bottom - bottom * scale * y - nudge, motionX: x, motionY: y, nudge };
+  }
+
   function getPositionLimits() {
-    const { width, height } = layer.getBounds();
-    return {
-      minX: 0, maxX: Math.max(0, Math.floor(1920 - width)),
-      minY: 0, maxY: Math.max(0, Math.floor(1080 - height)),
-    };
+    const bounds = layer.getBounds();
+    const area = getPlacementArea(bounds);
+    const maxX = Math.max(0, Math.floor(area.right - bounds.width));
+    const maxY = Math.max(0, Math.floor(area.bottom - bounds.height));
+    return { minX: Math.min(Math.ceil(area.left), maxX), maxX, minY: Math.min(Math.ceil(area.top), maxY), maxY };
   }
 
   function place(constrain) {
@@ -338,7 +351,12 @@ export function createProgramRenderer(container) {
     if (wasHidden) element.hidden = false;
     fitTitle(ticket.title);
     if (wasHidden) element.hidden = true;
-    place(true);
+    if (constrained) {
+      const { motionX, motionY } = getPlacementArea();
+      body.style.setProperty('--module-motion-x', motionX);
+      body.style.setProperty('--module-motion-y', motionY);
+    }
+    place(constrained);
   }
   document.fonts?.ready.then(() => { if (!disposed) { refit(); if (shown) scrollers.forEach((s) => s.sync()); } });
 
@@ -346,6 +364,7 @@ export function createProgramRenderer(container) {
     element,
     body,
     getPositionLimits,
+    getPlacementArea,
     getTearClearance() {
       const scale = module?.scale ?? 1;
       return { right: TEAR_CLEARANCE.right * scale, bottom: TEAR_CLEARANCE.bottom * scale };
@@ -359,6 +378,7 @@ export function createProgramRenderer(container) {
     },
     update(program, { animate = true, constrain = true } = {}) {
       module = program;
+      constrained = constrain;
       const content = programContent(program);
       const visible = program.visible && Boolean(content.title || content.next);
       if (!visible && tearFrame) finishTear();
@@ -397,7 +417,6 @@ export function createProgramRenderer(container) {
       const last = [ticket.desc, ticket.perf, ticket.title].find((row) => !row.hidden) ?? ticket.title;
       for (const row of [ticket.title, ticket.perf, ticket.desc]) row.classList.toggle('is-last', row === last);
       refit();
-      if (!constrain) place(false);
 
       // 表演者 / 介绍滚动：上屏就一直滚；刚入场先等入场动画 + 停顿；切节目 / 内容变化从头开始；下屏放完退场后停止。
       const entering = visible && !shown;
@@ -423,7 +442,7 @@ export function createProgramRenderer(container) {
       if (signature !== lastSignature && lastSignature && shown && visible && animate && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
         ticket.card.getAnimations().forEach((animation) => animation.cancel());
         ticket.card.animate([
-          { transform: 'translateY(4px)' },
+          { transform: 'translateY(' + (constrain ? getPlacementArea().nudge / program.scale : 4) + 'px)' },
           { transform: 'translateY(0)' },
         ], { duration: 240, easing: 'ease-out' });
       }

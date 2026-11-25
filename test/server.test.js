@@ -503,48 +503,35 @@ test('one LRC load shares all lines with manual and preserves the committed on-a
   assert.equal(state.manual.index, 0);
 });
 
-test('same-title program songs are prepared separately, survive restart and take only on request', async (t) => {
+test('legacy prepared songs do not affect ordinary lyric playout or program changes', async (t) => {
   const setup = await fixture(t);
   const config = structuredClone(DEFAULT_SETTINGS);
-  const [first, second, unlinked] = config.modules.program.items;
-  const songA = 'a'.repeat(32);
-  const songB = 'b'.repeat(32);
+  const [first, second] = config.modules.program.items;
+  const songId = 'a'.repeat(32);
+  first.songId = songId;
+  config.modules.lyrics.preparedSong = { programId: first.id, songId };
   const songDirectory = path.join(setup.directory, 'config', 'lyrics');
   await mkdir(songDirectory, { recursive: true });
-  for (const [id, title] of [[songA, first.title], [songB, second.title]]) {
-    await writeFile(path.join(songDirectory, `${id}.json`), JSON.stringify({ title, updatedAt: 0, doc: demoDoc }));
-  }
+  await writeFile(path.join(songDirectory, songId + '.json'), JSON.stringify({ title: first.title, updatedAt: 0, doc: demoDoc }));
   await writeFile(setup.settingsPath, JSON.stringify(config));
-  const live = await setup.start();
-  const operator = await setup.connect(live.wsUrl);
-  const initial = await operator.waitFor((message) => message.type === 'state');
-  assert.equal(initial.settings.modules.program.items[0].songId, songA);
-  assert.equal(initial.settings.modules.program.items[1].songId, songB);
-  assert.equal(initial.settings.modules.program.items[2].songId, undefined);
-  await lyricCommand(operator, 'lyrics:take-prepared', { id: songA, source: 'manual' }, 'take-a');
-  operator.send({ type: 'program:manage', id: 'cue-b', payload: { action: 'select', id: second.id } });
-  await operator.waitFor((message) => message.type === 'management:result' && message.id === 'cue-b');
-  const pending = await operator.waitFor((message) => message.type === 'lyrics:songs' && message.prepared?.songId === songB);
-  assert.equal(pending.activeId, songA);
-  assert.equal(pending.prepared.mismatch, false);
-  assert.equal(live.app.getState().settings.modules.lyrics.source, 'manual');
-  operator.send({ type: 'program:manage', id: 'cue-unlinked', payload: { action: 'select', id: unlinked.id } });
-  await operator.waitFor((message) => message.type === 'management:result' && message.id === 'cue-unlinked');
-  const skipped = await operator.waitFor((message) => message.type === 'lyrics:songs' && message.prepared?.mismatch);
-  assert.equal(skipped.prepared.songId, songB);
-  assert.equal(skipped.activeId, songA);
-  await setup.stop(live.app);
-  const restarted = await setup.start();
-  const viewer = await setup.connect(restarted.wsUrl);
-  const restored = await viewer.waitFor((message) => message.type === 'lyrics:songs');
-  assert.deepEqual(restored.prepared, skipped.prepared);
-  assert.equal((await lyricCommand(viewer, 'lyrics:take-prepared', { id: songA, source: 'timeline' }, 'stale')).type, 'error');
-  const taken = await lyricCommand(viewer, 'lyrics:take-prepared', { id: songB, source: 'timeline' }, 'take-b');
-  assert.equal(taken.songId, songB);
-  assert.equal(taken.armed, true);
-  assert.equal(taken.transport.position, 0);
-  assert.equal(taken.transport.playing, false);
-  assert.equal(restarted.app.getState().settings.modules.lyrics.preparedSong, null);
+  const { app, wsUrl } = await setup.start();
+  const operator = await setup.connect(wsUrl);
+  const songs = await operator.waitFor((message) => message.type === 'lyrics:songs');
+  assert.equal(songs.prepared, undefined);
+  operator.send({ type: 'program:manage', id: 'link-removed', payload: { action: 'save', item: first } });
+  await operator.waitFor((message) => message.type === 'error' && message.id === 'link-removed');
+  assert.equal((await lyricCommand(operator, 'lyrics:take-prepared', { id: songId, source: 'manual' })).type, 'error');
+  const selected = await lyricCommand(operator, 'lyrics:select-song', { id: songId });
+  assert.equal(selected.songId, songId);
+  await lyricCommand(operator, 'lyrics:onair', { source: 'manual' });
+  operator.send({ type: 'program:manage', id: 'cue-second', payload: { action: 'select', id: second.id } });
+  await operator.waitFor((message) => message.type === 'management:result' && message.id === 'cue-second');
+  const { program, lyrics } = app.getState().settings.modules;
+  assert.equal(program.items[0].songId, undefined);
+  assert.equal(program.selectedId, second.id);
+  assert.equal(lyrics.preparedSong, undefined);
+  assert.equal(lyrics.song.id, songId);
+  assert.equal(lyrics.armed, true);
 });
 
 test('emergency clear hides temporary modules together and preserves corner marks and the lyric session', async (t) => {

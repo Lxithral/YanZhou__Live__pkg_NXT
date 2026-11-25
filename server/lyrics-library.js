@@ -33,7 +33,7 @@ function songTitle(value) {
   return title;
 }
 
-export function normalizeSongTitle(title) {
+function normalizeSongTitle(title) {
   return title.normalize('NFKC').trim().toLowerCase();
 }
 

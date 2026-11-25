@@ -244,6 +244,8 @@ input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: var(-
 .preview-canvas .module-layer { cursor: grab; }
 .dragging .module-layer { cursor: grabbing; }
 .preview-canvas .module-layer.is-selected { outline: 3px solid #ffffffd9; outline-offset: 8px; border-radius: 2px; box-shadow: 0 0 0 11px #00000059; }
+.preview-canvas .module-layer.is-selected:is(.lyrics-board, .speech-board) { outline: none; box-shadow: none; }
+.preview-canvas .module-layer.is-selected[data-caption-bounds]::after { content: ''; position: absolute; pointer-events: none; box-sizing: border-box; left: var(--caption-left); top: var(--caption-top); width: var(--caption-width); height: var(--caption-height); border: 2px solid #ffffffd9; border-radius: 4px; box-shadow: 0 0 0 3px #00000059; }
 .preview-offline { position: absolute; inset: 12px 12px auto auto; display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px; background: #1c1c1fe6; color: #ff8a8d; box-shadow: 0 0 0 1px #f2484b80; font-size: 12px; border-radius: var(--r-ctl); }
 .preview-offline span { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .meta-label { display: none; }
@@ -442,8 +444,7 @@ html[data-theme=light] :is(.text-input, .select-input, .number-unit input, .colo
 .style-name { text-align: center; white-space: nowrap; }
 /* Empty reserved canvas space never captures pointer input. */
 .preview-canvas .lyrics-board, .preview-canvas .hosts-board { pointer-events:none; }
-.preview-canvas .lyrics-board[data-has-content=true] .lyrics-text { pointer-events:auto; width:max-content; max-width:100%; justify-self:center; }
-.preview-canvas .lyrics-board[data-has-content=false].is-selected { outline:none; box-shadow:none; }
+.preview-canvas .lyrics-board[data-has-content=true] .lyrics-text :is(.lyrics-main, .lyrics-translation) { pointer-events: auto; }
 .preview-canvas .hosts-board .slot-content[aria-hidden=false] .host-visual { pointer-events:auto; }
 .preview-canvas .module-layer:not(.is-selected) { cursor:pointer; }
 /* Compact layout following res/controller.html. */
@@ -568,7 +569,6 @@ html[data-theme=light] :is(.text-input, .select-input, .number-unit input, .colo
 .stage-record.is-editing .stage-record-body { padding-left:0; }
 .stage-editor-fields { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .stage-editor-fields label { display:grid; gap:4px; font-size:11px; color:var(--muted); min-width:0; }
-.stage-editor-fields .stage-song-field { grid-column:1/-1; }
 .stage-editor-fields label:has([name=title]),.stage-editor-fields label:has([name=performer]),.stage-editor-fields label:has(textarea),[data-management=hosts] .stage-editor-fields label { grid-column:1/-1; }
 .stage-management .stage-editor-fields input,.stage-management .stage-editor-fields textarea { min-width:0; width:100%; font-size:12px; padding:7px 8px; border-radius:var(--r-ctl); }
 .stage-editor-fields textarea { min-height:70px; resize:vertical; }
@@ -713,8 +713,7 @@ html.is-stage-dragging,html.is-stage-dragging * { user-select:none !important; c
 .speech-transcript { min-height: 52px; margin: 0; padding: 10px; border-radius: 8px; background: var(--field); font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
 .speech-caption-status { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .preview-canvas .speech-board { pointer-events: none; }
-.preview-canvas .speech-board[data-has-content=true] .speech-text { pointer-events: auto; }
-.preview-canvas .speech-board[data-has-content=false].is-selected { outline: none; box-shadow: none; }
+.preview-canvas .speech-board[data-has-content=true] .speech-copy { pointer-events: auto; }
 
 :is(.select-input, .lyric-page select) option { background: var(--panel); color: var(--text); }
 :is(.select-input, .lyric-page select) option:disabled { color: var(--faint); }

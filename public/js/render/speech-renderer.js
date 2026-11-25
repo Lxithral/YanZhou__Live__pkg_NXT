@@ -1,4 +1,5 @@
 import { createModuleLayer } from '../core/module-layer.js';
+import { createCaptionBounds, measureCaptionText } from './caption-bounds.js';
 
 const STYLE_ID = 'yanzhou-speech-style';
 const HEIGHT = 184;
@@ -15,10 +16,13 @@ export function createSpeechRenderer(container, { sample = false } = {}) {
     document.head.append(style);
   }
   const layer = createModuleLayer(container, {
-    className: 'speech-board', bodyHTML: '<div class="speech-viewport"><div class="speech-text"></div></div>',
+    className: 'speech-board', bodyHTML: '<div class="speech-viewport"><div class="speech-text"><span class="speech-copy"></span></div></div>',
   });
   layer.element.setAttribute('aria-label', '语音字幕');
   const text = layer.body.querySelector('.speech-text');
+  const copy = text.firstElementChild;
+  const footprint = createCaptionBounds(layer.element);
+  let constrained = true;
   let module;
   let state;
   let disposed = false;
@@ -32,18 +36,25 @@ export function createSpeechRenderer(container, { sample = false } = {}) {
     }
   }
   function draw() {
-    if (disposed) return;
-    text.textContent = Array.from(state?.text || (sample ? '等待语音字幕' : '')).slice(-120).join('');
-    layer.element.dataset.hasContent = String(Boolean(text.textContent.trim()));
-    layer.body.style.visibility = text.textContent ? '' : 'hidden';
-    fit();
+    if (disposed || !module) return;
+    const next = Array.from(state?.text || (sample ? '等待语音字幕' : '')).slice(-120).join('');
+    if (copy.textContent !== next) copy.textContent = next;
+    const hasContent = Boolean(next.trim());
+    if (layer.element.dataset.hasContent !== String(hasContent)) layer.element.dataset.hasContent = String(hasContent);
+    layer.body.style.visibility = hasContent ? '' : 'hidden';
+    if (hasContent && !layer.element.hidden) fit();
+    const rects = hasContent ? measureCaptionText(layer.element, text, [copy.firstChild]) : [];
+    footprint.update(rects, module, constrained);
   }
-  document.fonts?.ready.then(draw);
+  document.fonts?.load('650 48px MiSans').then(draw, () => {});
   return {
     ...layer,
-    update(settings) {
-      module = settings;
-      layer.update({ ...module, y: Math.min(module.y, Math.max(0, 1080 - HEIGHT * module.scale)) });
+    getCaptionRects: footprint.rects,
+    update(settings, { constrain = true } = {}) {
+      constrained = constrain;
+      const y = constrain ? Math.min(settings.y, Math.max(0, 1080 - HEIGHT * settings.scale)) : settings.y;
+      module = { ...settings, y };
+      layer.update(module);
       layer.element.style.setProperty('--speech-text', settings.textColor);
       draw();
     },

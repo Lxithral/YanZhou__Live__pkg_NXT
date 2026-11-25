@@ -5,7 +5,6 @@ const PROGRAMS = JSON.parse(readFileSync(new URL('../config/program-defaults.jso
 const STYLES = ['h', 'g', 'i'];
 const COLORS = { h: ['#143B83', '#123571'], g: ['#792B2D', '#792B2D'], i: ['#792B2D', '#58232C'] };
 const ID = /^[a-zA-Z0-9_-]{1,64}$/u;
-const SONG_ID = /^[0-9a-f]{32}$/u;
 
 function fields(value, allowed) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -22,23 +21,16 @@ function itemId(id) {
   if (typeof id !== 'string' || !ID.test(id)) throw new Error('资料编号无效。');
   return id;
 }
-function record(value, kind) {
+function record(value, kind, allowLegacySongLink = false) {
   const limits = kind === 'hosts' ? { name: 80, title: 120, bio: 1000 } :
     { number: 40, type: 80, title: 80, performer: 1000, desc: 2000, cover: 500 };
-  fields(value, ['id', ...Object.keys(limits), ...(kind === 'program' ? ['songId'] : [])]);
-  const result = { id: itemId(value.id), ...Object.fromEntries(Object.entries(limits).map(([key, max]) =>
+  fields(value, ['id', ...Object.keys(limits), ...(allowLegacySongLink && kind === 'program' ? ['songId'] : [])]);
+  return { id: itemId(value.id), ...Object.fromEntries(Object.entries(limits).map(([key, max]) =>
     [key, text(value[key] ?? '', max, key === (kind === 'hosts' ? 'name' : 'title'))])) };
-  if (Object.hasOwn(value, 'songId')) {
-    if (value.songId !== null && (typeof value.songId !== 'string' || !SONG_ID.test(value.songId))) {
-      throw new Error('关联的歌曲编号无效。');
-    }
-    result.songId = value.songId;
-  }
-  return result;
 }
-function list(values, kind) {
+function list(values, kind, allowLegacySongLink) {
   if (!Array.isArray(values) || values.length > 200) throw new Error('资料库最多 200 项。');
-  const result = values.map((value) => record(value, kind));
+  const result = values.map((value) => record(value, kind, allowLegacySongLink));
   if (new Set(result.map(({ id }) => id)).size !== result.length) throw new Error('资料编号重复。');
   return result;
 }
@@ -56,7 +48,7 @@ export function defaultManagement(kind, module) {
   const items = PROGRAMS.map((p, i) => record({ ...p, id: `program-${i + 1}` }, kind));
   return projectProgram({ items, selectedId: items[0]?.id ?? null, visible: false });
 }
-export function validateManagement(module, kind) {
+export function validateManagement(module, kind, { allowLegacySongLink = false } = {}) {
   if (kind === 'hosts') {
     const people = list(module.people, kind);
     if (!Array.isArray(module.slots) || module.slots.length !== 4) throw new Error('必须保留四个槽位。');
@@ -74,7 +66,7 @@ export function validateManagement(module, kind) {
     if (Buffer.byteLength(JSON.stringify(result)) > 80 * 1024) throw new Error('人物资料库超过 80 KiB。');
     return result;
   }
-  const items = list(module.items, kind);
+  const items = list(module.items, kind, allowLegacySongLink);
   if (module.selectedId !== null && !items.some(({ id }) => id === module.selectedId)) throw new Error('当前节目不存在。');
   if (items.length && module.selectedId === null) throw new Error('请选择当前节目。');
   if (Buffer.byteLength(JSON.stringify(items)) > 80 * 1024) throw new Error('节目资料库超过 80 KiB。');
