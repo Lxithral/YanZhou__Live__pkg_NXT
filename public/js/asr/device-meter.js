@@ -29,10 +29,10 @@ function installStyles() {
 
 function explainDeviceError(error) {
   if (error?.name === 'NotAllowedError' || error?.name === 'SecurityError') {
-    return '浏览器或系统拒绝了麦克风。点地址栏左侧的图标 → 麦克风 → 允许；Windows 还要在「设置 → 隐私和安全性 → 麦克风」里打开「允许桌面应用访问麦克风」。';
+    return '麦克风未授权：地址栏 → 麦克风 → 允许；Windows 设置 → 隐私和安全性 → 麦克风 → 允许桌面应用访问麦克风。';
   }
-  if (error?.name === 'NotFoundError' || error?.name === 'OverconstrainedError') return '没有找到这个输入设备，可能已被拔出。';
-  if (error?.name === 'NotReadableError') return '输入设备被占用，无法读取。请关闭正在使用它的程序后重试。';
+  if (error?.name === 'NotFoundError' || error?.name === 'OverconstrainedError') return '设备未连接或已断开。';
+  if (error?.name === 'NotReadableError') return '设备被占用，请关闭占用程序后重试。';
   return error?.message || '无法读取输入设备。';
 }
 
@@ -61,7 +61,7 @@ export function createDeviceMeter({ select, list, constraints = {}, media = navi
   let probed = false;
   let starting = false;
   let restart = false;
-  const SUSPENDED_HINT = '浏览器暂停了音量检测，点一下页面任意位置即可显示各设备的音量。';
+  const SUSPENDED_HINT = '点击页面，启用音量检测。';
 
   function showHint(text, retry = false) {
     hint.replaceChildren();
@@ -159,22 +159,22 @@ export function createDeviceMeter({ select, list, constraints = {}, media = navi
     starting = true;
     try {
       if (!window.isSecureContext) {
-        setProblem('当前地址不能使用麦克风。请用 http://localhost:3000 或 http://127.0.0.1:3000 打开控制台。');
+        setProblem('麦克风需通过本机地址使用：localhost:3000 或 127.0.0.1:3000。');
         return;
       }
       if (!media) {
-        setProblem('这个浏览器不支持读取输入设备，请改用 Chrome 或 Edge。');
+        setProblem('请用 Chrome 或 Edge 读取音频设备。');
         return;
       }
       const ids = [...select.options].map((option) => option.value).filter((value) => value && value !== 'default');
       if (!ids.length) {
-        if (probed) { setProblem('没有检测到输入设备。请确认设备已插好，并在浏览器里允许麦克风权限。'); return; }
+        if (probed) { setProblem('未找到设备，请检查连接和麦克风权限。'); return; }
         // 未授权时浏览器不给设备名；先用默认设备申请一次权限，再让页面重新枚举。
         probed = true;
         try {
           const probe = await media.getUserMedia({ audio: constraints });
           probe.getTracks().forEach((track) => track.stop());
-          setProblem('已获得麦克风权限，正在读取设备…');
+          setProblem('已授权，读取设备…');
           onDevicesChanged?.();
         } catch (error) {
           setProblem(explainDeviceError(error));
@@ -230,7 +230,7 @@ export function createDeviceMeter({ select, list, constraints = {}, media = navi
     });
     list.replaceChildren(...rows);
     list.hidden = tab;
-    if (tab) showHint('浏览器标签页音源在启动识别时单独选择，不使用这里的输入设备。');
+    if (tab) showHint('启动识别时选择共享标签页音频。');
     else showHint(problem, Boolean(problem));
   }
 

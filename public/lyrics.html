@@ -28,7 +28,7 @@
       </select>
     </div>
     <div class="header-actions">
-      <button type="button" class="button emergency-clear" id="emergency-clear" title="立即撤下节目卡、人名条和字幕，保留两个角标" data-live disabled>应急清屏</button>
+      <button type="button" class="button emergency-clear" id="emergency-clear" title="撤下节目、人物和字幕，保留角标" data-live disabled>应急清屏</button>
       <div class="theme-switch" role="group" aria-label="界面主题">
         <button type="button" data-theme-option="auto" title="跟随系统" aria-label="跟随系统主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button>
         <button type="button" data-theme-option="light" title="浅色" aria-label="浅色主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
@@ -39,7 +39,7 @@
   </header>
   <div class="now-playing">
     <span>当前歌曲</span>
-    <strong id="current-song">尚未载入歌曲</strong>
+    <strong id="current-song">未载入歌曲</strong>
     <span id="current-artist"></span>
   </div>
   <div class="now-playing prepared-song" id="prepared-song" hidden>
@@ -47,8 +47,8 @@
     <strong id="prepared-title"></strong>
     <span id="prepared-warning" role="status"></span>
     <div class="tool-row">
-      <button type="button" id="prepared-timeline" class="primary" data-live disabled>推送候场时间轴</button>
-      <button type="button" id="prepared-manual" data-live disabled>推送候场手动</button>
+      <button type="button" id="prepared-timeline" class="primary" data-live disabled>推送时间轴</button>
+      <button type="button" id="prepared-manual" data-live disabled>推送手动</button>
     </div>
   </div>
   <div class="skip-notice" id="skip-notice" role="status" hidden>
@@ -76,7 +76,7 @@
           <label for="song-select">曲库</label>
           <select id="song-select" data-live disabled>
             <button type="button"><selectedcontent></selectedcontent></button>
-            <option value="">曲库暂无歌曲</option>
+            <option value="">曲库为空</option>
           </select>
           <button id="song-load" data-live disabled>载入歌曲</button>
           <button id="open-import">导入 LRC</button>
@@ -92,15 +92,15 @@
         <button data-push="manual" data-live disabled>推送手动</button>
       </header>
       <div class="column-controls">
-        <p class="line-preview">手动当前句 <span id="manual-current">—</span></p>
-        <p class="line-preview">手动下一句 <span id="manual-next">—</span></p>
+        <p class="line-preview">当前句 <span id="manual-current">—</span></p>
+        <p class="line-preview">下一句 <span id="manual-next">—</span></p>
         <div class="tool-row">
           <button id="previous" data-live disabled>上一句</button>
           <button id="next" data-live disabled>下一句</button>
           <button id="clear" class="caution" data-live disabled>清屏</button>
           <label for="auto">切句间隔</label>
           <select id="auto" data-live disabled><option value="5">5 秒</option><option value="10">10 秒</option></select>
-          <button id="manual-play" class="primary" data-live disabled>开始自动切句</button>
+          <button id="manual-play" class="primary" data-live disabled>自动切句</button>
         </div>
         <div id="manual-hotkeys" class="hotkey-area" tabindex="0" title="Enter / → / 空格 下一句，← 上一句，Esc 清屏"><span class="hotkey-title">切句热键</span><span class="hotkey-keys"><kbd>Enter</kbd><kbd>→</kbd><kbd>空格</kbd> 下一句 · <kbd>←</kbd> 上一句 · <kbd>Esc</kbd> 清屏</span></div>
       </div>
@@ -111,20 +111,20 @@
         <h2 id="asr-title"><span>C</span> 时间轴纠偏</h2>
       </header>
       <div class="column-controls">
-        <p class="asr-status" id="asr-status" role="status">等待连接本机服务…</p>
+        <p class="asr-status" id="asr-status" role="status">等待连接…</p>
         <div class="tool-row asr-engine-row">
           <label class="field-label" for="asr-model">识别模型</label><select class="select-input" id="asr-model"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式</option><option value="__custom">自定义模型 ID</option></select><button id="asr-test" type="button" disabled>测试连接</button>
         </div>
         <div class="tool-row" id="model-custom-wrap" hidden><label for="model-custom">模型 ID</label><input id="model-custom" type="text" maxlength="64" spellcheck="false" autocomplete="off" placeholder="填写百炼模型 ID" aria-label="自定义模型 ID"></div>
         <div class="tool-row">
           <label for="audio-source">音源</label>
-          <select id="audio-source"><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select>
+          <select id="audio-source"><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">标签页音频</option></select>
           <button id="asr-start" class="primary" type="button" disabled>启动采集</button><button id="asr-stop" type="button" disabled>停止采集</button>
         </div>
-        <div class="tool-row"><label for="audio-device">输入设备</label><select id="audio-device" hidden><option value="">系统默认麦克风</option></select><div class="device-list" id="device-list" role="radiogroup" aria-label="输入设备"></div></div>
-        <p class="muted">采集音频送百炼识别。A 列播放并推送时，用识别结果比对已导入的歌词，校准播放进度。</p>
+        <div class="tool-row"><label for="audio-device">输入设备</label><select id="audio-device" hidden><option value="">默认麦克风</option></select><div class="device-list" id="device-list" role="radiogroup" aria-label="输入设备"></div></div>
+        <p class="muted">A 列播放并推送后，比对识别结果校准进度；音频发送至百炼。</p>
         <label><input id="asr-correct" type="checkbox" disabled> 时间轴自动纠偏</label>
-        <p class="muted" id="asr-alignment">偏移 — · 对齐置信度 —</p>
+        <p class="muted" id="asr-alignment">偏移 — · 匹配度 —</p>
       </div>
       <div class="reference-heading"><h3>参考歌词</h3></div>
       <div class="reference-scroll" role="region" aria-label="参考歌词与纠偏记录" tabindex="0">
@@ -132,15 +132,15 @@
           <details>
             <summary>纠偏记录</summary>
             <div class="tool-row">
-              <button type="button" id="clear-correction-log" disabled>清空纠偏记录</button>
+              <button type="button" id="clear-correction-log" disabled>清空记录</button>
               <span id="asr-history-empty" class="muted">暂无记录</span>
             </div>
             <ol class="asr-events" id="asr-history"></ol>
           </details>
           <details class="asr-transcript">
-            <summary>匹配参考（不上屏）</summary>
+            <summary>识别参考（不上屏）</summary>
             <p id="asr-partial">等待语音</p>
-            <details><summary>已确认的识别句</summary><ol class="asr-events" id="asr-finals"></ol></details>
+            <details><summary>已确认句</summary><ol class="asr-events" id="asr-finals"></ol></details>
           </details>
         </div>
         <ol id="reference-list" class="lyric-list lyric-follow" aria-label="时间轴纠偏参考歌词"></ol>
@@ -162,7 +162,7 @@
     <div class="mini-preview" aria-label="OBS 歌词小预览"><div id="mini-canvas"></div></div>
     <div class="playback-progress">
       <div class="playback-progress-label">
-        <span id="playback-state">尚未载入歌词</span>
+        <span id="playback-state">未载入歌词</span>
         <output id="playback-time" aria-label="当前播放时间与总时长">00:00 / 00:00</output>
       </div>
       <input id="playback-progress" type="range" min="0" max="100" step="any" value="0" aria-label="调整当前歌曲播放进度" aria-valuetext="00:00 / 00:00" data-live disabled>
@@ -170,7 +170,7 @@
     <span id="message" role="status"></span>
   </footer>
   <dialog id="import-dialog" aria-labelledby="import-title">
-    <div class="dialog-head"><h2 id="import-title">导入 LRC 歌词</h2><button id="close-import" aria-label="关闭导入窗口">关闭</button></div>
+    <div class="dialog-head"><h2 id="import-title">导入 LRC</h2><button id="close-import" aria-label="关闭导入窗口">关闭</button></div>
     <label for="lrc-input">粘贴 LRC 文本</label>
     <textarea id="lrc-input" rows="4" placeholder="[00:01.00]第一句歌词"></textarea>
     <div class="tool-row">
@@ -179,15 +179,15 @@
     </div>
     <div class="tool-row">
       <label for="song-end">歌曲结束时间</label>
-      <input id="song-end" maxlength="13" placeholder="如 03:45.500（选填）" aria-describedby="import-result">
+      <input id="song-end" maxlength="13" placeholder="03:45.500（选填）" aria-describedby="import-result">
     </div>
-    <p id="import-result" role="status">解析后可逐行编辑、删除或跳过。</p>
+    <p id="import-result" role="status">解析后可编辑、删除或跳过。</p>
     <ol id="import-list" class="import-list" aria-label="导入逐行预览"></ol>
     <div class="tool-row">
       <label for="song-title">歌名</label><input id="song-title" maxlength="100" placeholder="输入歌名">
       <label for="song-artist">歌手</label><input id="song-artist" maxlength="100" placeholder="选填">
       <label id="replace-song-field" hidden>同名歌曲
-        <select id="replace-song"><option value="">保留已有版本，新建</option></select>
+        <select id="replace-song"><option value="">另存新版本</option></select>
       </label>
       <button id="load" data-live disabled>保存并载入</button>
     </div>

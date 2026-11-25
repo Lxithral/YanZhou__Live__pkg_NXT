@@ -16,13 +16,11 @@ const CSS = `
 .hosts-solo .solo-name { position: relative; display: flex; align-items: center; width: max-content; height: 106px; padding: 0 68px 12px 92px; box-sizing: border-box; }
 .hosts-solo .solo-name[hidden] { display: none; }
 .hosts-solo .solo-ribbon { position: absolute; left: 8px; top: 24px; width: calc(100% - 8px); height: 76px; overflow: visible; filter: drop-shadow(0 3px 5px #21000680); }
-.hosts-solo .solo-scroll { position: absolute; right: 6px; top: 48px; width: 52px; height: 52px; color: #dbb775; filter: drop-shadow(0 1px 1px #31080e); }
+.hosts-solo .solo-tail { position: absolute; right: 14px; top: 36px; width: 36px; height: 52px; color: #dabb7d; }
 .hosts-solo .solo-logo { position: absolute; left: 18px; top: 8px; display: block; width: auto; height: 68px; filter: drop-shadow(0 2px 2px #30070e80); }
 .hosts-solo .solo-copy { position: relative; display: grid; grid-template-rows: 24px 70px; justify-items: center; align-items: center; }
 .hosts-solo .solo-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 1px; text-shadow: 0 1px 2px #30070e; white-space: nowrap; }
-.hosts-solo .solo-school { color: #e8c67f; }
 .hosts-solo .solo-class { display: inline-flex; align-items: center; gap: 8px; font: inherit; color: #d1bc94; }
-.hosts-solo .solo-class::before { content: ''; width: 1px; height: 9px; background: #cda66b80; }
 .hosts-solo .solo-class:empty { display: none; }
 .hosts-solo .solo-name-text { font-family: 'KaiTi', 'STKaiti', 'Kaiti SC', serif; font-size: 48px; font-weight: 400; line-height: 1; letter-spacing: 12px; padding-left: 12px; color: #f3dba0; text-shadow: 0 1px 0 #be8b43, 0 2px 2px #30070e; white-space: nowrap; }
 .solo-dissolve { position: absolute; z-index: 60; pointer-events: none; transform-origin: top left; font-family: 'MiSans', sans-serif; line-height: 1; }
@@ -59,15 +57,15 @@ export function createHostsRenderer(container) {
           <stop offset="0" stop-color="#bd3229"/><stop offset=".18" stop-color="#97201f"/>
           <stop offset=".55" stop-color="#772B2C"/><stop offset="1" stop-color="#490c14"/>
         </linearGradient></defs>
-        <path class="solo-ribbon-fill" d="M18 1.5H520a38.5 38.5 0 0 1 0 77H1.5Z" fill="url(#${ribbonId})" stroke="#e8c67f" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
-        <path class="solo-ribbon-inset" d="M22 4H520a36 36 0 0 1 0 72H6" fill="none" stroke="#f5dfa5" stroke-opacity=".26" stroke-width=".7" vector-effect="non-scaling-stroke"/>
+        <path class="solo-ribbon-fill" d="M18 1.5H542L558.5 18V62L542 78.5H1.5Z" fill="url(#${ribbonId})" stroke="#e8c67f" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+        <path class="solo-ribbon-inset" d="M22 4H540L555 18V62L540 76H6" fill="none" stroke="#f5dfa5" stroke-opacity=".26" stroke-width=".7" vector-effect="non-scaling-stroke"/>
       </svg>
-      <svg class="solo-scroll" viewBox="0 0 80 80" fill="none" aria-hidden="true">
-        <path d="M0 78H16C44 78 68 63 68 41C68 23 54 13 40 16C26 19 20 33 26 45C32 56 48 55 52 45C56 35 47 28 40 32C34 35 35 42 41 42" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+      <svg class="solo-tail" viewBox="0 0 36 52" fill="none" aria-hidden="true">
+        <path d="M5 6H16L29 19V33L16 46H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="square"/>
       </svg>
       <img class="solo-logo" src="/assets/mark-emblem.png" alt="" width="238" height="254">
       <span class="solo-copy">
-        <span class="solo-meta"><span class="solo-school">烟洲中学</span><small class="solo-class"></small></span>
+        <span class="solo-meta"><small class="solo-class"></small></span>
         <strong class="solo-name-text"></strong>
       </span>
     </div>`,
@@ -201,8 +199,8 @@ export function createHostsRenderer(container) {
       const ribbonWidth = plate.offsetWidth - 8;
       if (ribbonWidth > 0 && ribbonWidth !== lastRibbonWidth) {
         ribbon.setAttribute('viewBox', `0 0 ${ribbonWidth} 80`);
-        ribbonFill.setAttribute('d', `M18 1.5H${ribbonWidth - 40}a38.5 38.5 0 0 1 0 77H1.5Z`);
-        ribbonInset.setAttribute('d', `M22 4H${ribbonWidth - 40}a36 36 0 0 1 0 72H6`);
+        ribbonFill.setAttribute('d', `M18 1.5H${ribbonWidth - 18}L${ribbonWidth - 1.5} 18V62L${ribbonWidth - 18} 78.5H1.5Z`);
+        ribbonInset.setAttribute('d', `M22 4H${ribbonWidth - 20}L${ribbonWidth - 5} 18V62L${ribbonWidth - 20} 76H6`);
         lastRibbonWidth = ribbonWidth;
       }
       layer.element.setAttribute('aria-label', shown ? [person?.name, person?.title].filter(Boolean).join(' · ') : '人物信息条');

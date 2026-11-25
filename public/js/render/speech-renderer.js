@@ -17,7 +17,7 @@ export function createSpeechRenderer(container, { sample = false } = {}) {
   const layer = createModuleLayer(container, {
     className: 'speech-board', bodyHTML: '<div class="speech-viewport"><div class="speech-text"></div></div>',
   });
-  layer.element.setAttribute('aria-label', '主持人语音字幕');
+  layer.element.setAttribute('aria-label', '语音字幕');
   const text = layer.body.querySelector('.speech-text');
   let module;
   let state;
@@ -33,7 +33,7 @@ export function createSpeechRenderer(container, { sample = false } = {}) {
   }
   function draw() {
     if (disposed) return;
-    text.textContent = Array.from(state?.text || (sample ? '主持人语音将在这里显示' : '')).slice(-120).join('');
+    text.textContent = Array.from(state?.text || (sample ? '等待语音字幕' : '')).slice(-120).join('');
     layer.element.dataset.hasContent = String(Boolean(text.textContent.trim()));
     layer.body.style.visibility = text.textContent ? '' : 'hidden';
     fit();

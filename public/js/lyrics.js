@@ -234,7 +234,7 @@ function drawClock() {
   const playbackTime = `${timecode(displayPosition).slice(0, -4)} / ${timecode(state.transport.end).slice(0, -4)}`;
   if ($('playback-time').value !== playbackTime) $('playback-time').value = playbackTime;
   if (progress.getAttribute('aria-valuetext') !== playbackTime) progress.setAttribute('aria-valuetext', playbackTime);
-  const playbackState = !clock.doc.length ? '尚未载入歌词' : seekPreview !== null ? '调节中' : playing ? '播放中' :
+  const playbackState = !clock.doc.length ? '未载入歌词' : seekPreview !== null ? '调节中' : playing ? '播放中' :
     position >= state.transport.end ? '已结束' : '已暂停';
   if ($('playback-state').textContent !== playbackState) $('playback-state').textContent = playbackState;
   updateNextColumn(position);
@@ -287,7 +287,7 @@ function renderState(state) {
   $('manual-next').textContent = state.manual.next || '—';
   $('rate').value = state.transport.rate;
   if (state.manual.autoSeconds) $('auto').value = state.manual.autoSeconds;
-  $('manual-play').textContent = state.manual.autoSeconds ? '停止自动切句' : '开始自动切句';
+  $('manual-play').textContent = state.manual.autoSeconds ? '停止切句' : '自动切句';
   updateOutput();
   updateControls();
   cancelAnimationFrame(renderFrame);
@@ -330,7 +330,7 @@ function connect() {
         ready = true;
         reconnectDelay = 500;
         saveError = '';
-        $('connection').textContent = '服务已连接';
+        $('connection').textContent = '已连接';
         $('connection').className = 'connection-status connected';
       }
       const corrected = clock.state && !state.doc && seekPreview === null && Number.isFinite(state.correctionDelta);
@@ -404,9 +404,9 @@ function connect() {
     pending.clear();
     if (importRequest) {
       importRequest = undefined;
-      $('import-result').textContent = '连接中断。重连后可以重试保存。';
+      $('import-result').textContent = '已断线，重连后重试。';
     }
-    $('connection').textContent = '已断线 · 正在重连';
+    $('connection').textContent = '已断线 · 重连中';
     $('connection').className = 'connection-status disconnected';
     updateControls();
     updateOutput();
@@ -438,14 +438,14 @@ function renderSongs() {
   }
   const select = $('song-select');
   select.replaceChildren(...select.querySelectorAll(':scope > button'),
-    new Option(songCatalog.length ? '选择歌曲' : '曲库暂无歌曲', ''),
+    new Option(songCatalog.length ? '选择歌曲' : '曲库为空', ''),
     ...songCatalog.map((song) => new Option(counts.get(songNameKey(song.title)) > 1
       ? `${song.title} · ${songVersionLabel(song)}` : song.title, song.id)));
   select.value = selectedSong ?? '';
   const activeIndex = songCatalog.findIndex((song) => song.id === selectedSong);
   const current = songCatalog[activeIndex];
-  $('current-song').textContent = current?.title ?? '尚未载入歌曲';
-  $('current-artist').textContent = current ? current.artist || '歌手未填写' : '';
+  $('current-song').textContent = current?.title ?? '未载入歌曲';
+  $('current-artist').textContent = current ? current.artist || '未填歌手' : '';
   nextSong = current ? songCatalog[activeIndex + 1] : undefined;
   if (!nextSong || nextSongPreview?.id !== nextSong.id || nextSongPreview.updatedAt !== nextSong.updatedAt) {
     nextSongPreview = undefined;
@@ -477,19 +477,19 @@ function updateNextColumn(position = clock.position()) {
   }
   if (nextSongPreview) return;
   $('next-song').textContent = nextSong.title;
-  $('next-artist').textContent = nextSong.artist || '歌手未填写';
+  $('next-artist').textContent = nextSong.artist || '未填歌手';
   const request = nextSongPreview = { id: nextSong.id, updatedAt: nextSong.updatedAt };
-  $('up-next-list').textContent = '正在读取歌词…';
+  $('up-next-list').textContent = '读取歌词…';
   fetch(`/api/lyrics/song?${new URLSearchParams({ id: request.id })}`)
     .then((response) => {
-      if (!response.ok) throw new Error('无法读取下一首歌词。');
+      if (!response.ok) throw new Error('下一首歌词读取失败。');
       return response.json();
     })
     .then((lines) => {
       if (nextSongPreview === request) renderList('up-next-list', lines, (line) => line);
     })
     .catch(() => {
-      if (nextSongPreview === request) $('up-next-list').textContent = '无法读取下一首歌词。';
+      if (nextSongPreview === request) $('up-next-list').textContent = '下一首歌词读取失败。';
     });
 }
 
@@ -523,8 +523,8 @@ function syncImport() {
     entry.status.classList.toggle('invalid', Boolean(error));
   }
   const endLabel = importDoc.length ? ` · 结束 ${timecode(documentEnd(importDoc))}${importDoc.at(-1).end === undefined ? '（自动）' : ''}` : '';
-  $('import-result').textContent = importEndError || (!importFits ? '歌词文档超过 200 KiB，请删减后再载入。' :
-    `${importDoc.length} 句可载入 · ${invalid} 行有问题${endLabel}`);
+  $('import-result').textContent = importEndError || (!importFits ? '歌词超过 200 KiB，请删减后重试。' :
+    `${importDoc.length} 句${invalid ? ` · ${invalid} 行待修正` : ''}${endLabel}`);
   updateControls();
 }
 
@@ -532,7 +532,7 @@ function prepareImport(filename = '') {
   const source = $('lrc-input').value;
   if (new TextEncoder().encode(source).length > LYRIC_BYTES) {
     invalidateImport();
-    $('import-result').textContent = '输入文件超过 200 KiB。';
+    $('import-result').textContent = '文件超过 200 KiB。';
     return;
   }
   const fromMetadata = /^\s*\[ti:([^\]\r\n]+)\]/imu.exec(source)?.[1].trim();
@@ -589,7 +589,7 @@ function invalidateImport() {
   entries = [];
   $('import-list').replaceChildren();
   syncImport();
-  $('import-result').textContent = '文本已更改，请重新解析预览。';
+  $('import-result').textContent = '文本已修改，请重新解析。';
 }
 
 document.querySelectorAll('[data-push]').forEach((button) => {
@@ -689,7 +689,7 @@ $('lrc-file').onchange = async ({ target }) => {
   if (!file) return;
   if (file.size > LYRIC_BYTES) {
     invalidateImport();
-    $('import-result').textContent = '输入文件超过 200 KiB。';
+    $('import-result').textContent = '文件超过 200 KiB。';
     return;
   }
   try {
@@ -697,7 +697,7 @@ $('lrc-file').onchange = async ({ target }) => {
     prepareImport(file.name);
   } catch {
     invalidateImport();
-    $('import-result').textContent = '无法读取文件，请选择 UTF-8 编码的 LRC。';
+    $('import-result').textContent = '读取失败，请使用 UTF-8 LRC。';
   }
 };
 $('load').onclick = () => {

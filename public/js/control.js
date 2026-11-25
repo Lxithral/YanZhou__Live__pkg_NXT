@@ -30,7 +30,7 @@ const NO_CLAMP_KEYS = new Set(['x', 'y', 'scale', 'opacity', 'visible', 'autoHid
 
 const MODULES = {
   speech: {
-    name: '主持人语音字幕',
+    name: '语音字幕',
     create: createSpeechRenderer,
     fields: [
       { key: 'textColor', id: 'speechTextColor', hexId: 'speechTextColorHex', kind: 'color' },
@@ -39,7 +39,7 @@ const MODULES = {
     ],
     position: { x: 'speechX', xRange: 'speechXRange', xMax: 'speechXMax', y: 'speechY', yRange: 'speechYRange', yMax: 'speechYMax' },
     animation: { enter: 'speechEnter', exit: 'speechExit', duration: 'speechDuration', durationNumber: 'speechDurationNumber' },
-    summary() { return '主持人语音字幕'; },
+    summary() { return '语音字幕'; },
   },
   eventMark: {
     name: '活动角标',
@@ -341,16 +341,16 @@ function updateSaveStatus(deferred = false) {
   status.classList.remove('saving', 'offline', 'error');
   if (saveError) {
     status.classList.add('error');
-    $('saveText').textContent = '设置保存失败';
+    $('saveText').textContent = '保存失败';
     $('saveDetail').textContent = saveError;
   } else if (!ready) {
     status.classList.add('offline');
-    $('saveText').textContent = localIntent.size ? '连接断开 · 改动待同步' : '正在连接本地服务';
+    $('saveText').textContent = localIntent.size ? '已断线 · 待同步' : '连接中…';
     $('saveDetail').textContent = '';
   } else if (localIntent.size || hasPendingChanges() || savedRevision < revision) {
     if (!saveStatusSince) saveStatusSince = performance.now();
     status.classList.add('saving');
-    $('saveText').textContent = '正在保存设置';
+    $('saveText').textContent = '保存中…';
     $('saveDetail').textContent = '';
   } else {
     saveStatusSince = 0;
@@ -361,7 +361,7 @@ function updateSaveStatus(deferred = false) {
 
 function updateConnection(state) {
   $('connectionStatus').className = 'connection-status ' + state;
-  $('connectionText').textContent = state === 'connected' ? '服务已连接' : state === 'disconnected' ? '连接已断开' : '正在连接';
+  $('connectionText').textContent = state === 'connected' ? '已连接' : state === 'disconnected' ? '已断线' : '连接中…';
   $('previewOffline').hidden = state === 'connected';
   emergencyClear.disabled = state !== 'connected' || Boolean(pendingClearId);
   stageControls.render(settings, ready);
@@ -509,8 +509,8 @@ function renderControls() {
   $('moduleVisible').setAttribute('aria-pressed', String(Boolean(active.visible)));
   $('moduleVisible').setAttribute('aria-label', `${active.visible ? '隐藏' : '显示'} ${moduleName}`);
   $('visibilityTitle').textContent = moduleName;
-  $('visibilityHint').textContent = showing ? '显示中 · 点击隐藏，按退场动画离开画面' :
-    active.visible ? '已启用 · 当前没有上屏的字幕条' : '已隐藏 · 点击显示，按出场动画进入画面';
+  $('visibilityHint').textContent = showing ? '按退场动画隐藏' :
+    active.visible ? '暂无上屏内容' : '按出场动画显示';
   $('visibilityAction').textContent = active.visible ? '隐藏' : '显示';
   document.querySelector('.visibility-row').classList.toggle('is-live', showing);
 }
@@ -639,11 +639,11 @@ function renderTicketControl() {
   programTear.disabled = !ready || !ticketState || Boolean(pendingTicketId) ||
     !program.visible || !(program.current || program.next);
   programTear.textContent = torn ? '恢复票根' : '撕开票根';
-  hint.textContent = !ready ? '等待连接本机服务。' : !ticketState ? '请更新并重启包装服务。' :
-    !program.visible ? '打开「显示 节目单」后即可撕票。' :
-    torn ? (program.autoHideAfterTear ? '撕票动画结束后自动隐藏，可点恢复取消。' : '票根已撕开，可恢复后再撕。') :
-    program.autoHideAfterTear ? '撕票动画结束后自动隐藏节目单。' :
-    supportsAutoHide ? '撕开和恢复都会同步到 OBS。' : '自动隐藏需重启包装服务后启用。';
+  hint.textContent = !ready ? '等待连接…' : !ticketState ? '请更新并重启服务。' :
+    !program.visible ? '先显示节目单，再撕票。' :
+    torn ? (program.autoHideAfterTear ? '动画结束后隐藏，恢复可取消。' : '票根已撕开，可恢复。') :
+    program.autoHideAfterTear ? '撕票动画结束后隐藏。' :
+    supportsAutoHide ? '撕票与恢复同步到 OBS。' : '重启服务后可启用自动隐藏。';
 }
 
 function applyServerState(message) {
@@ -734,7 +734,7 @@ function renderLyricsPlaylist({ songs, activeId, skipped }) {
   }));
   if (!songs.length) {
     const empty = document.createElement('li');
-    empty.textContent = '曲库暂无歌曲';
+    empty.textContent = '曲库为空';
     list.append(empty);
   }
   focusTarget?.focus({ preventScroll: true });

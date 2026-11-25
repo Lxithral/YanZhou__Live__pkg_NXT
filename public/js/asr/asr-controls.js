@@ -8,9 +8,9 @@ const ASR_OPTIONS_KEY = 'yanzhou-asr-options';
 const stopTracks = (stream) => stream?.getTracks().forEach((track) => track.stop());
 
 function explain(error) {
-  if (error.name === 'NotAllowedError') return '音频权限被拒绝，或你取消了共享。';
-  if (error.name === 'NotFoundError' || error.name === 'OverconstrainedError') return '所选音频设备不可用，请检查连接。';
-  if (error.name === 'NotReadableError') return '无法打开音频设备，设备可能正被占用。';
+  if (error.name === 'NotAllowedError') return '权限被拒绝或共享已取消。';
+  if (error.name === 'NotFoundError' || error.name === 'OverconstrainedError') return '音频设备不可用，请检查连接。';
+  if (error.name === 'NotReadableError') return '设备可能被占用，无法打开。';
   return error.message || '音频采集启动失败。';
 }
 
@@ -92,7 +92,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     const inputs = (await media.enumerateDevices()).filter(({ kind, label }) =>
       kind === 'audioinput' && (source.value === 'cable' ? CABLE.test(label) : !CABLE.test(label)));
     device.replaceChildren(...device.querySelectorAll(':scope > button'),
-      new Option(source.value === 'cable' ? '自动选择 CABLE Output' : '系统默认麦克风', ''));
+      new Option(source.value === 'cable' ? '自动选择 CABLE Output' : '默认麦克风', ''));
     for (const [index, input] of inputs.entries()) {
       if (input.deviceId && input.deviceId !== 'default') {
         device.add(new Option(input.label || `音频输入 ${index + 1}`, input.deviceId));
@@ -112,13 +112,13 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       configSave.disabled = !online || !editable || busy || Boolean(local) || configPending;
       apiKey.disabled = workspaceId.disabled = busy || Boolean(local) || configPending;
       keyToggle.disabled = apiKey.disabled;
-      configSave.textContent = configPending ? '正在保存…' : '保存 API Key';
-      apiKey.placeholder = shared?.configured ? '已配置，填写新 Key 可替换' : '填写北京区百炼 API Key';
+      configSave.textContent = configPending ? '保存中…' : '保存 API Key';
+      apiKey.placeholder = shared?.configured ? '已配置，填写新 Key 可替换' : '北京区百炼 API Key';
       if (!configDirty) workspaceId.value = shared?.workspaceId ?? '';
-      configStatus.textContent = !online ? '等待连接本机服务…' :
-        !editable ? '重启包装服务后即可在这里保存 API Key。' :
-        configPending ? '正在保存到本机…' : configMessage ||
-        (shared?.configured ? 'API Key 已配置，可测试连接。' : '填写并保存 API Key 后即可使用语音识别。');
+      configStatus.textContent = !online ? '等待连接…' :
+        !editable ? '重启服务后可保存 API Key。' :
+        configPending ? '保存中…' : configMessage ||
+        (shared?.configured ? '已配置，可测试连接。' : '未配置 API Key。');
     }
     start.disabled = !online || !media || !shared?.configured || Boolean(local) || busy;
     stop.disabled = !online || (!local && !['listening', 'loading'].includes(phase));
@@ -138,14 +138,14 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       $('asr-correct').disabled = !online;
       $('asr-correct').checked = Boolean(shared?.correction?.enabled);
     }
-    $('asr-status').textContent = !online ? '等待连接本机服务…' : failure || (
+    $('asr-status').textContent = !online ? '等待连接…' : failure || (
       phase === 'error' && !local ? shared.message :
-      phase === 'listening' ? (shared.owner === 'speech' ? '主持人字幕正在采集' : '歌词纠偏正在采集') :
-      phase === 'stopping' ? '正在完成最后一句…' :
-      local || phase === 'loading' ? '正在连接音源与百炼…' :
-      !media && shared?.configured ? '当前浏览器无法采集音频，请用 Edge 或 Chrome 打开本机地址。' :
-      shared && !shared.configured ? '填写并保存 API Key 后即可使用语音识别。' :
-      shared?.serviceMessage || '正在读取百炼配置…');
+      phase === 'listening' ? (shared.owner === 'speech' ? '语音字幕采集中' : '歌词纠偏采集中') :
+      phase === 'stopping' ? '结束最后一句…' :
+      local || phase === 'loading' ? '连接音源与百炼…' :
+      !media && shared?.configured ? '请用 Chrome 或 Edge 打开本机地址采集音频。' :
+      shared && !shared.configured ? '先保存 API Key，再启动识别。' :
+      shared?.serviceMessage || '读取百炼配置…');
     $('asr-partial').textContent = (ownCapture && (shared.partial || (owner === 'speech' ? shared.finals?.at(-1)?.text : ''))) || '等待语音';
     const finals = shared?.resultOwner === owner ? shared.finals : undefined;
     if ($('asr-finals') && finals !== lastFinals) {
@@ -160,7 +160,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     const correction = shared?.correction;
     const offset = correction?.offset == null ? '—' : `${correction.offset > 0 ? '+' : ''}${(correction.offset / 1000).toFixed(2)} 秒`;
     const score = correction?.confidence == null ? '—' : `${Math.round(correction.confidence * 100)}%`;
-    $('asr-alignment').textContent = `偏移 ${offset} · 对齐置信度 ${score}${correction?.estimated && correction.offset != null ? ' · 时间估算' : ''}`;
+    $('asr-alignment').textContent = `偏移 ${offset} · 匹配度 ${score}${correction?.estimated && correction.offset != null ? ' · 时间估算' : ''}`;
     const history = correction?.history;
     $('clear-correction-log').disabled = !online || !history?.length;
     $('asr-history-empty').hidden = Boolean(history?.length);
@@ -195,7 +195,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       });
       if (!stream.getAudioTracks().length) {
         stopTracks(stream);
-        throw new Error('共享未带音轨，请选浏览器标签页并勾选「共享标签页音频」。');
+        throw new Error('未共享音频，请选择标签页并勾选「共享标签页音频」。');
       }
       if (stream.getVideoTracks()[0]?.getSettings().displaySurface !== 'browser') {
         stopTracks(stream);
@@ -238,7 +238,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       }
       session.stream = stream;
       session.startTimer = setTimeout(() => {
-        if (local === session) stopCapture('音频采集启动超时，请检查音源后重试。');
+        if (local === session) stopCapture('采集超时，请检查音源后重试。');
       }, 40_000);
       for (const track of stream.getTracks()) track.addEventListener('ended', () => {
         if (local === session) stopCapture('音源已断开或停止共享。');
@@ -267,7 +267,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
           mute.gain.value = 0;
           worklet.port.onmessage = ({ data: pcm }) => {
             if (socket.readyState !== WebSocket.OPEN) return;
-            if (socket.bufferedAmount > 32000) stopCapture('音频发送积压，请重新启动识别。');
+            if (socket.bufferedAmount > 32000) stopCapture('音频发送积压，请重启识别。');
             else socket.send(pcm);
           };
           input.connect(worklet).connect(mute).connect(session.context.destination);
@@ -277,9 +277,9 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
           stopCapture(explain(error));
         }
       };
-      socket.onerror = () => { if (local === session) stopCapture('无法连接本机识别服务。'); };
+      socket.onerror = () => { if (local === session) stopCapture('识别服务连接失败。'); };
       socket.onclose = ({ wasClean }) => {
-        if (local === session) stopCapture(wasClean ? '' : '本机识别连接已断开。');
+        if (local === session) stopCapture(wasClean ? '' : '识别服务已断开。');
       };
     } catch (error) {
       if (local === session) stopCapture(explain(error));
@@ -295,7 +295,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     render();
   };
   if (configSave) {
-    const changed = () => { configDirty = true; configMessage = '配置已修改，保存后生效。'; render(); };
+    const changed = () => { configDirty = true; configMessage = '配置已修改，请保存。'; render(); };
     apiKey.oninput = workspaceId.oninput = changed;
     keyToggle.onclick = () => {
       const visible = apiKey.type === 'password';
@@ -317,7 +317,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       configPending = true;
       configMessage = '';
       try { command('asr:configure', { apiKey: key, workspaceId: workspace }); }
-      catch { configPending = false; configMessage = '无法保存，请检查本机服务连接。'; }
+      catch { configPending = false; configMessage = '保存失败，请检查服务连接。'; }
       render();
     };
   }
@@ -338,7 +338,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       const existing = splitHotwords(hotwords.value);
       const combined = [...new Set([...existing, ...CONTEST_HOTWORDS_2026])];
       if (combined.length > MAX_HOTWORDS) {
-        hotwordHint.textContent = `合并后有 ${combined.length} 项。请删减一些热词再补入，最多 ${MAX_HOTWORDS} 项。`;
+        hotwordHint.textContent = `共 ${combined.length} 项，超过 ${MAX_HOTWORDS} 项上限，请删减。`;
         return;
       }
       const draft = combined.join('\n');
@@ -347,7 +347,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
       hotwords.value = draft;
       hotwords.oninput();
       const added = combined.length - existing.length;
-      hotwordHint.textContent = added ? `已补入 ${added} 项，共 ${combined.length} 项，下次启动识别生效。` : '2026 活动词表已在列表中。';
+      hotwordHint.textContent = added ? `新增 ${added} 项，共 ${combined.length} 项；重启识别生效。` : '活动词表已在列表中。';
     };
   }
   window.addEventListener('storage', ({ key }) => {
@@ -365,7 +365,7 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     configResult(result) {
       if (!configSave) return;
       configPending = false;
-      configMessage = result.message || (result.ok ? 'API Key 已保存，可测试连接。' : '保存失败，请重试。');
+      configMessage = result.message || (result.ok ? '已保存，可测试连接。' : '保存失败，请重试。');
       if (result.ok) {
         apiKey.value = '';
         apiKey.type = 'password';
@@ -379,8 +379,8 @@ export function bindAsrControls({ correct, timecode, prefix = '', owner = 'lyric
     update(state, connected) {
       shared = state;
       online = connected;
-      if (!online && configPending) { configPending = false; configMessage = '连接已断开，请重连后检查配置。'; }
-      if (!online && local) stopCapture('与本机服务断开，已停止采集。');
+      if (!online && configPending) { configPending = false; configMessage = '已断线，重连后检查配置。'; }
+      if (!online && local) stopCapture('服务已断线，采集已停止。');
       else if (local?.started && !['listening', 'loading'].includes(shared?.phase)) stopCapture(shared?.phase === 'error' ? shared.message : '');
       render();
     },

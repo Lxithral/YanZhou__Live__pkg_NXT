@@ -18,7 +18,7 @@ export function createEventMarkRenderer(container) {
   installStyles();
   const layer = createModuleLayer(container, {
     className: 'event-mark-board',
-    bodyHTML: '<img class="event-mark-image" src="/assets/singing-competition-mark-4th.png?v=3" alt="烟洲中学 · 第四届歌手大赛" width="1720" height="346">',
+    bodyHTML: '<img class="event-mark-image" src="/assets/singing-competition-mark-4th.png?v=4" alt="烟洲中学 · 第四届歌手大赛" width="1720" height="346">',
   });
   return {
     element: layer.element,

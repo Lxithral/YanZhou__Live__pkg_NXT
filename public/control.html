@@ -19,7 +19,7 @@
       <a href="/lyrics.html">歌词台</a>
     </nav>
     <div class="header-actions">
-      <button type="button" class="button emergency-clear" id="emergencyClear" title="立即撤下节目卡、人名条和字幕，保留两个角标" disabled>应急清屏</button>
+      <button type="button" class="button emergency-clear" id="emergencyClear" title="撤下节目、人物和字幕，保留角标" disabled>应急清屏</button>
       <a class="button output-link" href="/overlay.html" target="_blank" rel="noopener">打开输出</a>
       <button type="button" class="button" id="copyOutputUrl" title="复制 OBS 浏览器来源地址">复制 OBS 地址</button>
       <span class="header-divider" aria-hidden="true"></span>
@@ -28,7 +28,7 @@
         <button type="button" data-theme-option="light" title="浅色" aria-label="浅色主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
         <button type="button" data-theme-option="dark" title="深色" aria-label="深色主题" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
       </div>
-      <span class="connection-status" id="connectionStatus" role="status"><i></i><span id="connectionText">正在连接</span></span>
+      <span class="connection-status" id="connectionStatus" role="status"><i></i><span id="connectionText">连接中…</span></span>
     </div>
   </header>
   <div class="app-shell">
@@ -61,9 +61,9 @@
         </div>
         <div class="module-card">
           <button type="button" class="module-item" data-module-button="speech" role="tab" aria-selected="false">
-            <span class="module-tally" aria-hidden="true"></span><span class="module-copy"><span class="module-title-row"><strong>主持人语音字幕</strong></span><span class="module-state" data-module-state="speech">—</span><span class="module-summary" data-module-summary="speech"></span><span class="module-foot"><span class="module-detail" data-module-detail="speech"></span><span class="module-map" aria-hidden="true"><span class="module-map-frame"><span class="module-map-rect" data-module-map="speech"></span></span></span></span></span>
+            <span class="module-tally" aria-hidden="true"></span><span class="module-copy"><span class="module-title-row"><strong>语音字幕</strong></span><span class="module-state" data-module-state="speech">—</span><span class="module-summary" data-module-summary="speech"></span><span class="module-foot"><span class="module-detail" data-module-detail="speech"></span><span class="module-map" aria-hidden="true"><span class="module-map-frame"><span class="module-map-rect" data-module-map="speech"></span></span></span></span></span>
           </button>
-          <button type="button" class="module-toggle" data-module-visibility="speech" aria-label="隐藏主持人语音字幕">隐藏</button>
+          <button type="button" class="module-toggle" data-module-visibility="speech" aria-label="隐藏语音字幕">隐藏</button>
         </div>
         <div class="module-card">
           <button type="button" class="module-item" data-module-button="eventMark" role="tab" aria-selected="false">
@@ -73,14 +73,14 @@
         </div>
       </div>
       <dl class="sidebar-help">
-        <div><dt>拖动</dt><dd>先选中，再拖动可见内容</dd></div>
-        <div><dt>方向键</dt><dd>聚焦预览后微调 1 px</dd></div>
-        <div><dt>Shift</dt><dd>配合方向键每次 10 px</dd></div>
+        <div><dt>拖动</dt><dd>选中后拖动</dd></div>
+        <div><dt>方向键</dt><dd>聚焦预览，移动 1 px</dd></div>
+        <div><dt>Shift</dt><dd>方向键移动 10 px</dd></div>
       </dl>
     </aside>
     <main class="monitor-column">
       <div class="section-heading">
-        <h1>画面监看<span class="heading-tag">当前选中 <b id="activeModuleTag">Logo 挂角</b></span></h1>
+        <h1>画面监看<span class="heading-tag">选中 <b id="activeModuleTag">Logo 挂角</b></span></h1>
       </div>
       <section class="preview-card" aria-label="包装实时预览">
         <div class="preview-toolbar">
@@ -89,18 +89,18 @@
             <div class="background-switch" role="group" aria-label="预览背景">
               <button type="button" data-background="dark" aria-label="实色灰底预览背景" aria-pressed="false" title="实色灰底"><span class="bg-sample dark"></span></button>
               <button type="button" data-background="light" aria-label="浅色预览背景" aria-pressed="false" title="浅色背景"><span class="bg-sample light"></span></button>
-              <button type="button" class="active" data-background="checker" aria-label="中灰棋盘格预览背景" aria-pressed="true" title="中灰棋盘格（推荐）"><span class="bg-sample checker"></span></button>
+              <button type="button" class="active" data-background="checker" aria-label="中灰棋盘格预览背景" aria-pressed="true" title="棋盘格"><span class="bg-sample checker"></span></button>
             </div>
             <span class="tool-separator"></span>
             <label class="check-label" for="safeAreaToggle"><input type="checkbox" id="safeAreaToggle" checked><span>安全区</span></label>
-            <label class="check-label" for="autoAvoidToggle" title="模块重叠时优先保护下方字幕，Logo 和活动角标保持设定位置"><input type="checkbox" id="autoAvoidToggle" checked><span>自动避让</span></label>
+            <label class="check-label" for="autoAvoidToggle" title="优先避让字幕，两个角标位置固定"><input type="checkbox" id="autoAvoidToggle" checked><span>自动避让</span></label>
           </div>
         </div>
-        <div class="preview-stage" id="previewStage" data-background="checker" tabindex="0" aria-label="画面位置预览，可拖动模块或使用方向键微调">
+        <div class="preview-stage" id="previewStage" data-background="checker" tabindex="0" aria-label="位置预览，可拖动或用方向键移动">
           <div class="preview-canvas" id="previewCanvas">
             <div class="safe-area" id="safeArea" aria-hidden="true"></div>
           </div>
-          <div class="preview-offline" id="previewOffline" hidden><span></span>连接恢复后同步</div>
+          <div class="preview-offline" id="previewOffline" hidden><span></span>重连后同步</div>
         </div>
       </section>
       <section class="focus-card" aria-labelledby="focusTitle">
@@ -109,7 +109,7 @@
           <div class="focus-canvas" id="focusCanvas"></div>
         </div>
         <div class="focus-bottom">
-          <div class="focus-summary"><span class="meta-label">当前元素</span><strong id="summaryTitle">中山市烟洲中学</strong><span class="visible-badge" id="visibilitySummary">显示中</span></div>
+          <div class="focus-summary"><span class="meta-label">选中元素</span><strong id="summaryTitle">中山市烟洲中学</strong><span class="visible-badge" id="visibilitySummary">显示中</span></div>
           <div class="meta-values"><span>X <b id="summaryX">72</b></span><span>Y <b id="summaryY">64</b></span><span>大小 <b id="summaryScale">100%</b></span></div>
         </div>
       </section>
@@ -119,10 +119,10 @@
         <h2 id="propertiesTitle">Logo 挂角设置</h2>
       </div>
       <section class="properties-card">
-        <button type="button" class="visibility-row is-live" id="moduleVisible" aria-pressed="true" aria-label="隐藏当前模块"><span class="visibility-copy"><strong id="visibilityTitle">Logo 挂角</strong><small id="visibilityHint">显示中 · 点击隐藏，按退场动画离开画面</small></span><span class="visibility-action" id="visibilityAction" aria-hidden="true">隐藏</span></button>
+        <button type="button" class="visibility-row is-live" id="moduleVisible" aria-pressed="true" aria-label="隐藏当前模块"><span class="visibility-copy"><strong id="visibilityTitle">Logo 挂角</strong><small id="visibilityHint">按退场动画隐藏</small></span><span class="visibility-action" id="visibilityAction" aria-hidden="true">隐藏</span></button>
         <div class="ticket-controls" id="programTicketControls" hidden>
           <button type="button" class="button" id="programTear" aria-describedby="programTearHint" disabled>撕开票根</button>
-          <label class="check-label" for="programAutoHideAfterTear"><input type="checkbox" id="programAutoHideAfterTear"><span>撕开票根后自动隐藏</span></label>
+          <label class="check-label" for="programAutoHideAfterTear"><input type="checkbox" id="programAutoHideAfterTear"><span>撕票后隐藏</span></label>
           <p id="programTearHint" class="ticket-hint"></p>
         </div>
         <div class="module-panel" data-module-panel="logo">
@@ -132,7 +132,7 @@
               <div class="field field-wide"><label class="field-label" for="logoVariant">挂角样式</label><select class="select-input" id="logoVariant"><option value="school">校徽与标题</option><option value="rhythm">YZBTVS 节拍线</option></select></div>
               <div class="field" data-school-logo><label class="field-label" for="logoTitle">主标题</label><input class="text-input" id="logoTitle" type="text" maxlength="80" autocomplete="off"></div>
               <div class="field" data-school-logo><label class="field-label" for="logoSubtitle">副标题 <span class="hint">可留空</span></label><input class="text-input" id="logoSubtitle" type="text" maxlength="120" autocomplete="off"></div>
-              <div class="field field-wide" data-school-logo><div class="field-line"><label class="field-label" for="logoShowMark">显示校徽 <span class="hint">关闭后仅显示文字</span></label><label class="switch"><input id="logoShowMark" type="checkbox" checked aria-label="显示校徽图标"><span></span></label></div></div>
+              <div class="field field-wide" data-school-logo><div class="field-line"><label class="field-label" for="logoShowMark">显示校徽 <span class="hint">关闭后显示文字</span></label><label class="switch"><input id="logoShowMark" type="checkbox" checked aria-label="显示校徽图标"><span></span></label></div></div>
             </div>
           </details>
           <details class="settings-section">
@@ -173,8 +173,8 @@
             <summary><h3><span>01</span>显示内容</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="hostsLabel">标签</label><input class="text-input" id="hostsLabel" type="text" maxlength="40" autocomplete="off"></div>
-              <div class="field field-wide"><label class="field-label" for="hostsSlotCount">启用槽位 <span class="hint">停用槽位保留原选择</span></label><div class="slider-line"><input id="hostsSlotCount" class="range-input" type="range" min="1" max="4" step="1"><div class="number-unit"><input id="hostsSlotCountNumber" type="number" min="1" max="4" step="1" aria-label="显示人数"><span></span></div></div></div>
-              <div class="field field-wide"><label class="field-label">当前主持人 <span class="hint">画面只显示这一位</span></label><div class="host-pick" id="hostsActivePick" role="group" aria-label="当前主持人"></div></div>
+              <div class="field field-wide"><label class="field-label" for="hostsSlotCount">启用槽位 <span class="hint">停用保留人选</span></label><div class="slider-line"><input id="hostsSlotCount" class="range-input" type="range" min="1" max="4" step="1"><div class="number-unit"><input id="hostsSlotCountNumber" type="number" min="1" max="4" step="1" aria-label="显示人数"><span></span></div></div></div>
+              <div class="field field-wide"><label class="field-label">当前主持人 <span class="hint">每次显示一位</span></label><div class="host-pick" id="hostsActivePick" role="group" aria-label="当前主持人"></div></div>
             </div>
           </details>
           <details class="settings-section">
@@ -185,7 +185,7 @@
             </div>
           </details>
           <details class="settings-section">
-            <summary><h3><span>03</span>位置 <span class="hint">左右人物条一起移动，X 调整两侧边距</span></h3></summary>
+            <summary><h3><span>03</span>位置 <span class="hint">X 调整边距，Y 调整高度</span></h3></summary>
             <div class="field-grid">
               <div class="field">
                 <div class="field-line"><label class="field-label" for="hostsX">水平 X</label><div class="number-unit"><input id="hostsX" type="number" min="0" max="1920" step="1" aria-label="水平 X 像素"><span>px</span></div></div>
@@ -256,7 +256,7 @@
               <button type="button" class="skip-notice-close" id="skip-notice-close" aria-label="关闭提示" title="关闭提示"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg></button>
             </div>
             <div class="lyrics-playlist-progress">
-              <label for="lyricsProgress">当前歌曲进度</label>
+              <label for="lyricsProgress">歌曲进度</label>
               <output id="lyricsProgressTime">—</output>
             </div>
             <progress id="lyricsProgress" max="1" value="0"></progress>
@@ -266,7 +266,7 @@
             <summary><h3><span>02</span>外观</h3></summary>
             <div class="field-grid">
               <div class="field"><label class="field-label" for="lyricsAccent">强调色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsAccent" aria-label="标签色，打开取色器"></button><input id="lyricsAccentHex" class="hex-input" type="text" maxlength="7" aria-label="标签色十六进制值" spellcheck="false"></div></div>
-              <div class="field"><label class="field-label" for="lyricsTextColor">姓名颜色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsTextColor" aria-label="文字颜色，打开取色器"></button><input id="lyricsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
+              <div class="field"><label class="field-label" for="lyricsTextColor">文字颜色</label><div class="color-control"><button type="button" class="color-swatch" id="lyricsTextColor" aria-label="文字颜色，打开取色器"></button><input id="lyricsTextColorHex" class="hex-input" type="text" maxlength="7" aria-label="文字颜色十六进制值" spellcheck="false"></div></div>
               <div class="field"><label class="field-label" for="lyricsScale">整体大小</label><div class="slider-line"><input id="lyricsScale" class="range-input" type="range" min="25" max="300" step="1"><div class="number-unit"><input id="lyricsScaleNumber" type="number" min="25" max="300" step="1" aria-label="整体大小百分比"><span>%</span></div></div></div>
               <div class="field"><label class="field-label" for="lyricsOpacity">不透明度</label><div class="slider-line"><input id="lyricsOpacity" class="range-input" type="range" min="0" max="100" step="1"><div class="number-unit"><input id="lyricsOpacityNumber" type="number" min="0" max="100" step="1" aria-label="不透明度百分比"><span>%</span></div></div></div>
             </div>
@@ -297,15 +297,15 @@
         </div>
         <div class="module-panel" data-module-panel="speech" hidden>
           <details class="settings-section" open>
-            <summary><h3><span>01</span>主持人语音</h3></summary>
-            <p class="speech-status" id="speech-asr-status" role="status">等待连接本机服务…</p>
+            <summary><h3><span>01</span>语音识别</h3></summary>
+            <p class="speech-status" id="speech-asr-status" role="status">等待连接…</p>
             <div class="speech-actions"><button class="button primary" id="speech-asr-start" type="button" disabled>启动识别</button><button class="button" id="speech-asr-stop" type="button" disabled>停止采集</button><button class="button" id="speech-clear" type="button" disabled>清屏</button><button class="button" id="speech-asr-test" type="button" disabled>测试连接</button></div>
             <details class="asr-settings-group" id="speech-asr-config" open>
-              <summary><strong>API Key 配置</strong></summary>
+              <summary><strong>API Key</strong></summary>
               <div class="asr-group-content">
                 <div class="field"><label class="field-label" for="speech-asr-api-key">API Key</label><div class="asr-key-row"><input class="text-input" id="speech-asr-api-key" type="password" autocomplete="off" spellcheck="false" maxlength="1024" placeholder="输入阿里云百炼 API Key"><button class="button" id="speech-asr-key-toggle" type="button" aria-label="显示 API Key" aria-pressed="false">显示</button></div></div>
                 <div class="field"><label class="field-label" for="speech-asr-workspace-id">业务空间 ID <span class="hint">可选</span></label><input class="text-input" id="speech-asr-workspace-id" type="text" autocomplete="off" spellcheck="false" maxlength="256"></div>
-                <div class="asr-config-footer"><button class="button primary" id="speech-asr-config-save" type="button" disabled>保存配置</button><p class="asr-config-note">保存到本机，主控台与歌词台共用。</p></div>
+                <div class="asr-config-footer"><button class="button primary" id="speech-asr-config-save" type="button" disabled>保存配置</button><p class="asr-config-note">两页共用，保存到本机。</p></div>
                 <p class="asr-config-status" id="speech-asr-config-status" role="status"></p>
               </div>
             </details>
@@ -313,31 +313,31 @@
               <summary><strong>识别模型</strong></summary>
               <div class="asr-group-content">
                 <select class="select-input" id="speech-asr-model" aria-label="识别模型"><option value="qwen3-asr-flash-realtime">千问 3 实时</option><option value="qwen-audio-3.0-asr-flash-streaming">千问音频 3.0 流式 · 支持热词</option><option value="__custom">自定义模型 ID</option></select>
-                <div id="speech-model-custom-wrap" hidden><input class="text-input" id="speech-model-custom" type="text" maxlength="64" spellcheck="false" autocomplete="off" placeholder="填写百炼模型 ID，如 qwen3-asr-flash-realtime" aria-label="自定义模型 ID"></div>
+                <div id="speech-model-custom-wrap" hidden><input class="text-input" id="speech-model-custom" type="text" maxlength="64" spellcheck="false" autocomplete="off" placeholder="百炼模型 ID" aria-label="自定义模型 ID"></div>
               </div>
             </details>
             <details class="asr-settings-group asr-hotwords" id="speech-asr-hotword-field" hidden>
               <summary><strong>临时热词</strong></summary>
               <div class="asr-group-content">
                 <div class="asr-hotword-heading">
-                  <button class="button" id="speech-asr-hotword-preset" type="button">补入 2026 活动词表</button>
+                  <button class="button" id="speech-asr-hotword-preset" type="button">补入活动词表</button>
                 </div>
                 <textarea class="text-input textarea-input" id="speech-asr-hotwords" rows="3" maxlength="3000" aria-label="临时热词" aria-describedby="speech-asr-hotword-hint" placeholder="烟洲中学&#10;烟声润景"></textarea>
-                <p class="muted" id="speech-asr-hotword-hint" aria-live="polite">一行一个，最多 50 项，下次启动识别生效。</p>
+                <p class="muted" id="speech-asr-hotword-hint" aria-live="polite">每行一项，最多 50 项；重启识别生效。</p>
               </div>
             </details>
             <details class="asr-settings-group">
               <summary><strong>音源 / 设备</strong></summary>
               <div class="asr-group-content">
-                <div class="field"><label class="field-label" for="speech-audio-source">音源</label><select class="select-input" id="speech-audio-source"><button type="button"><selectedcontent></selectedcontent></button><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">浏览器标签页音频</option></select></div>
-                <div class="field"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device" hidden><button type="button"><selectedcontent></selectedcontent></button><option value="">系统默认麦克风</option></select><div class="device-list" id="speech-device-list" role="radiogroup" aria-label="输入设备"></div></div>
+                <div class="field"><label class="field-label" for="speech-audio-source">音源</label><select class="select-input" id="speech-audio-source"><button type="button"><selectedcontent></selectedcontent></button><option value="mic">麦克风</option><option value="cable">VB-CABLE</option><option value="tab">标签页音频</option></select></div>
+                <div class="field"><label class="field-label" for="speech-audio-device">输入设备</label><select class="select-input" id="speech-audio-device" hidden><button type="button"><selectedcontent></selectedcontent></button><option value="">默认麦克风</option></select><div class="device-list" id="speech-device-list" role="radiogroup" aria-label="输入设备"></div></div>
               </div>
             </details>
             <details class="asr-settings-group">
               <summary><strong>实时识别结果</strong></summary>
               <div class="asr-group-content"><p class="speech-transcript" id="speech-asr-partial">等待语音</p><p class="speech-caption-status" id="speech-caption-status">字幕待推送</p></div>
             </details>
-            <p class="speech-hint">点击启动后，所选音源会发送到阿里云百炼。打开上方显示开关即可上屏。切到歌词纠偏前请先停止采集。</p>
+            <p class="speech-hint">音频发送至百炼识别。开启显示后上屏；切换歌词纠偏前先停止采集。</p>
           </details>
           <details class="settings-section">
             <summary><h3><span>02</span>外观</h3></summary>
@@ -403,7 +403,7 @@
             </div>
           </details>
         </div>
-        <div class="save-status" id="saveStatus" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><div><strong id="saveText">正在读取设置</strong><small id="saveDetail"></small></div></div>
+        <div class="save-status" id="saveStatus" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg><div><strong id="saveText">读取设置…</strong><small id="saveDetail"></small></div></div>
       </section>
     </aside>
   </div>

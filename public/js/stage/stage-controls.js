@@ -352,7 +352,7 @@ export function bindStageControls({ send, edit, toast }) {
     sortLock.textContent = sortingEnabled ? '锁定排序' : '解锁排序';
     sortLock.dataset.unavailable = String(Boolean(request) || editors.has('program') || programOrder().length < 2);
     sortUndo.dataset.unavailable = String(!canUndo());
-    const orderStatus = sortingEnabled ? '拖动手柄，或聚焦手柄后按 ↑ / ↓' : '排序已锁定';
+    const orderStatus = sortingEnabled ? '拖动手柄或按 ↑ / ↓ 排序' : '排序已锁定';
     if (sortStatus.textContent !== orderStatus) sortStatus.textContent = orderStatus;
     if (personPicker.open) pickerResults.querySelectorAll('button').forEach((input) => { input.disabled = !ready || Boolean(request); });
     for (const [kind, { area, status }] of Object.entries(areas)) {
@@ -364,7 +364,7 @@ export function bindStageControls({ send, edit, toast }) {
         input.disabled = !ready || input.dataset.unavailable === 'true' ||
           (Boolean(request) && Boolean(input.closest('form') || input.matches('.stage-drag-handle')));
       });
-      status.textContent = !ready ? '连接断开 · 草稿已保留' : (request || settling) ? '正在保存…' : 'settings.json · 已连接';
+      status.textContent = !ready ? '已断线 · 草稿保留' : (request || settling) ? '保存中…' : '已连接';
       status.classList.toggle('is-offline', !ready);
     }
   }
@@ -541,7 +541,7 @@ export function bindStageControls({ send, edit, toast }) {
     // Keep unchanged cards attached, preserving focus and CSS transitions.
     [...list.children].filter((child) => !cards.includes(child)).forEach((child) => child.remove());
     cards.forEach((card, index) => { if (list.children[index] !== card) list.insertBefore(card, list.children[index] ?? null); });
-    if (!items.length) areas[kind].list.append(node('p', '暂无资料，请添加。'));
+    if (!items.length) areas[kind].list.append(node('p', '暂无资料'));
   }
   function fillSongSelect(select, value) {
     select.replaceChildren(new Option('不关联歌曲', ''), ...songs.map((song) =>
@@ -690,7 +690,7 @@ export function bindStageControls({ send, edit, toast }) {
       cancelDrag();
       if (personPicker.open) personPicker.close();
       request = undefined; ready = false; savingKind = null; refreshEnabled();
-      for (const { message } of editors.values()) message.textContent = '连接中断，草稿已保留。';
+      for (const { message } of editors.values()) message.textContent = '已断线，草稿保留。';
     },
     result(message) {
       if (!request || message.id !== request) return false;
