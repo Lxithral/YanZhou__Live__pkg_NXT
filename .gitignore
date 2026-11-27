@@ -1,10 +1,13 @@
 node_modules/
 .asr-models/
 /backups/
+/logs/
 settings.json.pre-*.bak
 settings.json.tmp
 *.log
 .tmp*
+tmp-*
+tmp-*.png
 desktop.ini
 .venv-qwen-asr/
 .runtime-node/
