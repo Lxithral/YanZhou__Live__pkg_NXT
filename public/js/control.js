@@ -7,13 +7,14 @@ import { createLyricsClock, timecode } from './lyrics/lyrics-clock.js';
 import { createAvoidance } from './stage/stage-avoidance.js';
 import { createSpeechRenderer } from './render/speech-renderer.js';
 import { createEventMarkRenderer } from './render/event-mark-renderer.js';
+import { createCountdownRenderer } from './render/countdown-renderer.js';
 import { bindAsrControls } from './asr/asr-controls.js';
 
 import { initThemedSelects } from './core/themed-select.js';
 
 const $ = (id) => document.getElementById(id);
 initThemedSelects();
-const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark'];
+const MODULE_ORDER = ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark', 'countdown'];
 const lyricsClock = createLyricsClock();
 const ANIMATION_OPTIONS = [
   ['none', '无动画'],
@@ -51,6 +52,23 @@ const MODULES = {
     position: { x: 'eventMarkX', xRange: 'eventMarkXRange', xMax: 'eventMarkXMax', y: 'eventMarkY', yRange: 'eventMarkYRange', yMax: 'eventMarkYMax' },
     animation: { enter: 'eventMarkEnter', exit: 'eventMarkExit', duration: 'eventMarkDuration', durationNumber: 'eventMarkDurationNumber' },
     summary() { return '烟洲中学 · 歌手大赛'; },
+  },
+  countdown: {
+    name: '倒计时',
+    create: createCountdownRenderer,
+    fields: [
+      { key: 'label', id: 'countdownLabel', kind: 'text' },
+      { key: 'target', id: 'countdownTarget', kind: 'text' },
+      { key: 'textColor', id: 'countdownTextColor', hexId: 'countdownTextColorHex', kind: 'color' },
+      { key: 'scale', id: 'countdownScale', numberId: 'countdownScaleNumber', kind: 'percent' },
+      { key: 'opacity', id: 'countdownOpacity', numberId: 'countdownOpacityNumber', kind: 'opacity' },
+    ],
+    position: { x: 'countdownX', xRange: 'countdownXRange', xMax: 'countdownXMax', y: 'countdownY', yRange: 'countdownYRange', yMax: 'countdownYMax' },
+    animation: { enter: 'countdownEnter', exit: 'countdownExit', duration: 'countdownDuration', durationNumber: 'countdownDurationNumber' },
+    summary(module) {
+      const target = String(module.target ?? '').trim();
+      return [module.label || '倒计时', target ? target.replace('T', ' ') : '未设目标'].join(' · ');
+    },
   },
   logo: {
     name: 'Logo 挂角',
@@ -122,6 +140,7 @@ const FALLBACK_SETTINGS = {
   modules: {
     speech: { visible: false, textColor: '#F4F0E8', x: 240, y: 848, scale: 1, opacity: 100, animation: { enter: 'fade', exit: 'fade', duration: 200 } },
     eventMark: { visible: true, x: 1544, y: 940, scale: 1, opacity: 100, animation: { enter: 'none', exit: 'none', duration: 200 } },
+    countdown: { visible: false, label: '距离开始', target: '', textColor: '#F4F0E8', x: 760, y: 96, scale: 1, opacity: 100, animation: { enter: 'fade-up', exit: 'fade-down', duration: 400 } },
     logo: { visible: true, showMark: true, title: '中山市烟洲中学', subtitle: 'YANZHOU · LIVE', textColor: '#F4F0E8', weight: 500, x: 112, y: 70, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     hosts: { visible: false, label: '主持人', names: '张三\n李四', slotCount: 2, activeSlot: 0, style: 'h', customColors: false, accentColor: '#71C4DE', textColor: '#2C2C2E', x: 96, y: 912, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
     program: { visible: false, autoHideAfterTear: false, label: '正在演出', current: '节目名称', nextLabel: '接下来', next: '下一个节目', accentColor: '#A69AF5', textColor: '#F4F0E8', x: 1280, y: 770, scale: 1, opacity: 100, animation: { ...DEFAULT_ANIMATION } },
@@ -663,6 +682,7 @@ function applyServerState(message) {
   applyTicket(message.stage?.ticket);
   settings.modules.lyrics ??= structuredClone(FALLBACK_SETTINGS.modules.lyrics);
   settings.modules.speech ??= structuredClone(FALLBACK_SETTINGS.modules.speech);
+  settings.modules.countdown ??= structuredClone(FALLBACK_SETTINGS.modules.countdown);
   if (message.id) sentPatches.delete(message.id);
   for (const [path, intent] of localIntent) {
     if (readValue(intent.module, intent.key) === intent.value) localIntent.delete(path);

@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { applyManagement, defaultManagement, validateManagement } from './stage-management.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +15,27 @@ import { atomicWrite, openLyricLibrary, validateSongReference } from './lyrics-l
 // 服务代码在 server/ 下；设置、public/、assets/ 都在项目根目录。
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark'];
+// 允许访问的 Host/Origin 主机名：本机回环 + 本机网卡 IPv4，供局域网内其他设备打开控制面板。
+function localHostNames() {
+  const names = new Set(['localhost', '127.0.0.1', '[::1]']);
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) names.add(entry.address);
+    }
+  }
+  return names;
+}
+
+function primaryLanAddress() {
+  for (const entries of Object.values(networkInterfaces())) {
+    for (const entry of entries || []) {
+      if (entry.family === 'IPv4' && !entry.internal) return entry.address;
+    }
+  }
+  return null;
+}
+
+export const MODULE_IDS = ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark', 'countdown'];
 const TEMPORARY_MODULES = ['hosts', 'program', 'lyrics', 'speech'];
 const ANIMATION_PRESETS = ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'scale-in'];
 const DEFAULT_ANIMATION = { enter: 'fade-up', exit: 'fade-down', duration: 600 };
@@ -29,6 +50,7 @@ const FIELD_RULES = {
   title: { kind: 'text', max: 80, label: '主标题' },
   subtitle: { kind: 'text', max: 120, label: '副标题' },
   label: { kind: 'text', max: 40, label: '标签' },
+  target: { kind: 'text', max: 40, label: '目标时间' },
   names: { kind: 'text', max: 240, label: '名单' },
   current: { kind: 'text', max: 80, label: '当前节目' },
   next: { kind: 'text', max: 80, label: '下一个节目' },
@@ -57,6 +79,7 @@ const MODULE_FIELDS = {
   lyrics: ['visible', 'accentColor', 'textColor', 'x', 'y', 'scale', 'opacity'],
   speech: ['visible', 'textColor', 'x', 'y', 'scale', 'opacity'],
   eventMark: ['visible', 'x', 'y', 'scale', 'opacity'],
+  countdown: ['visible', 'label', 'target', 'textColor', 'x', 'y', 'scale', 'opacity'],
 };
 
 const clone = (value) => structuredClone(value);
@@ -124,6 +147,11 @@ export const DEFAULT_SETTINGS = {
     eventMark: {
       visible: true, x: 1544, y: 940, scale: 1, opacity: 100,
       animation: { enter: 'none', exit: 'none', duration: 200 },
+    },
+    countdown: {
+      visible: false, label: '距离开始', target: '', textColor: '#F4F0E8',
+      x: 760, y: 96, scale: 1, opacity: 100,
+      animation: { enter: 'fade-up', exit: 'fade-down', duration: 400 },
     },
   },
 };
@@ -687,7 +715,33 @@ export async function createPackagingServer({
       const url = new URL(req.url, 'http://localhost');
       const pathname = decodeURIComponent(url.pathname);
       if (pathname === '/api/state' || pathname === '/health') {
-        const body = JSON.stringify(pathname === '/health' ? { ok: true } : getState());
+        const health = {
+          ok: true,
+          uptimeSeconds: Math.round(process.uptime()),
+          clients: clients.size,
+          pid: process.pid,
+          host: server.address()?.address,
+          port: server.address()?.port,
+        };
+        const body = JSON.stringify(pathname === '/health' ? health : getState());
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(req.method === 'HEAD' ? undefined : body);
+        return;
+      }
+      // 诊断用：列出当前连着的页面（控制台/OBS/歌词台），便于确认 overlay 是否真的连上。
+      if (pathname === '/api/clients') {
+        const body = JSON.stringify({
+          ok: true,
+          uptimeSeconds: Math.round(process.uptime()),
+          pid: process.pid,
+          count: clients.size,
+          clients: [...clients].map((client) => ({
+            peer: `${client._socket?.remoteAddress || '?'}:${client._socket?.remotePort || '?'}`,
+            origin: client.meta?.origin || '',
+            userAgent: client.meta?.userAgent || '',
+            connectedSeconds: client.meta?.since ? Math.round((Date.now() - client.meta.since) / 1000) : null,
+          })),
+        });
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end(req.method === 'HEAD' ? undefined : body);
         return;
@@ -731,14 +785,21 @@ export async function createPackagingServer({
       }
       if (req.headers.origin || audio) {
         const origin = req.headers.origin ? new URL(req.headers.origin) : null;
-        const allowedHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
+        const allowedHosts = localHostNames();
         const currentPort = String(server.address()?.port);
         if (!origin || !allowedHosts.has(origin.hostname) || origin.port !== currentPort) {
           socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
           return;
         }
       }
-      wss.handleUpgrade(req, socket, head, (client) => wss.emit('connection', client, url));
+      wss.handleUpgrade(req, socket, head, (client) => {
+        client.meta = {
+          origin: req.headers.origin || '',
+          userAgent: String(req.headers['user-agent'] || '').slice(0, 180),
+          since: Date.now(),
+        };
+        wss.emit('connection', client, url);
+      });
     } catch {
       socket.destroy();
     }
@@ -982,9 +1043,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     app = await createPackagingServer();
     const port = Number(process.env.PORT || 3000);
+    const host = process.env.HOST || '127.0.0.1';
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须为 1–65535 的整数。');
-    await app.listen(port);
-    console.log(`\n烟洲直播包装服务已启动\n控制面板：http://localhost:${port}/control.html\n歌词控制台：http://localhost:${port}/lyrics.html\nOBS 浏览器来源：http://localhost:${port}/overlay.html\n设置文件：${path.join(ROOT, 'settings.json')}\n按 Ctrl+C 可保存设置并退出。\n`);
+    await app.listen(port, host);
+    const lanAddress = primaryLanAddress();
+    const lanBase = lanAddress ? `http://${lanAddress}:${port}` : null;
+    console.log(`\n烟洲直播包装服务已启动\n控制面板：http://localhost:${port}/control.html\n歌词控制台：http://localhost:${port}/lyrics.html\nOBS 浏览器来源：http://localhost:${port}/overlay.html\n设置文件：${path.join(ROOT, 'settings.json')}\n按 Ctrl+C 可保存设置并退出。\n${lanBase ? `局域网访问：${lanBase}/control.html（歌词：${lanBase}/lyrics.html）\n` : ''}${host === '127.0.0.1' ? '当前仅本机可访问；如需局域网访问，请用 start.cmd 启动或设置 HOST=0.0.0.0。\n' : ''}`);
     let shuttingDown = false;
     const shutdown = async () => {
       if (shuttingDown) return;

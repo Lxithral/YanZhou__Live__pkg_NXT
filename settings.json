@@ -24,18 +24,18 @@
       }
     },
     "hosts": {
-      "visible": true,
+      "visible": false,
       "label": "主持人",
       "names": "张三｜高三（2）班\n李四｜学生会",
       "slotCount": 4,
-      "activeSlot": 0,
+      "activeSlot": 3,
       "style": "g",
       "customColors": false,
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
       "x": 80,
       "y": 866,
-      "scale": 1,
+      "scale": 1.17,
       "opacity": 100,
       "animation": {
         "enter": "fade-up",
@@ -107,9 +107,9 @@
       "visible": true,
       "autoHideAfterTear": true,
       "label": "正在演出",
-      "current": "For the First Time in Forever",
+      "current": "绿光",
       "nextLabel": "接下来",
-      "next": "够钟",
+      "next": "Shadow Surge",
       "queue": "",
       "accentColor": "#D4AB78",
       "textColor": "#F4F0E8",
@@ -128,13 +128,22 @@
           "number": "01",
           "type": "嘉宾节目",
           "title": "绿光",
-          "performer": "kic",
+          "performer": "",
+          "desc": "",
+          "cover": ""
+        },
+        {
+          "id": "486879ea-82ec-4113-9abf-a07763a8858f",
+          "number": "02",
+          "type": "",
+          "title": "Shadow Surge",
+          "performer": "KIC",
           "desc": "",
           "cover": ""
         },
         {
           "id": "program-2",
-          "number": "02",
+          "number": "03",
           "type": "歌曲",
           "title": "身骑白马",
           "performer": "高二16班 高可心",
@@ -143,7 +152,7 @@
         },
         {
           "id": "program-3",
-          "number": "03",
+          "number": "04",
           "type": "歌曲",
           "title": "天若有情",
           "performer": "高一8班 黄珈翎、陈咏怡",
@@ -152,7 +161,7 @@
         },
         {
           "id": "program-4",
-          "number": "04",
+          "number": "05",
           "type": "歌曲",
           "title": "素颜",
           "performer": "高二10班 张芷萍；高二18班 吴靖；高二15班 郗彬皓、陈羽斯瀚",
@@ -161,7 +170,7 @@
         },
         {
           "id": "program-5",
-          "number": "05",
+          "number": "06",
           "type": "歌曲",
           "title": "背对背拥抱",
           "performer": "高一25班 缪宇峰",
@@ -170,7 +179,7 @@
         },
         {
           "id": "program-6",
-          "number": "06",
+          "number": "07",
           "type": "歌曲",
           "title": "天上掉下个林妹妹",
           "performer": "高一3班 李殷悦",
@@ -178,17 +187,8 @@
           "cover": ""
         },
         {
-          "id": "program-7",
-          "number": "07",
-          "type": "互动",
-          "title": "互动游戏",
-          "performer": "",
-          "desc": "",
-          "cover": ""
-        },
-        {
           "id": "program-8",
-          "number": "08",
+          "number": "09",
           "type": "歌曲",
           "title": "至少还有你",
           "performer": "高二19班 温子晴",
@@ -197,7 +197,7 @@
         },
         {
           "id": "program-9",
-          "number": "09",
+          "number": "10",
           "type": "歌曲",
           "title": "Rolling in the Deep",
           "performer": "高一14班 部珊伊",
@@ -206,7 +206,7 @@
         },
         {
           "id": "program-10",
-          "number": "10",
+          "number": "11",
           "type": "歌曲",
           "title": "For the First Time in Forever",
           "performer": "高二30班 张媛",
@@ -215,7 +215,7 @@
         },
         {
           "id": "program-11",
-          "number": "11",
+          "number": "12",
           "type": "歌曲",
           "title": "够钟",
           "performer": "高一10班 陈浩天",
@@ -224,7 +224,7 @@
         },
         {
           "id": "program-12",
-          "number": "12",
+          "number": "13",
           "type": "歌曲",
           "title": "大眠",
           "performer": "高一13班 魏子渝",
@@ -233,7 +233,7 @@
         },
         {
           "id": "program-13",
-          "number": "13",
+          "number": "14",
           "type": "嘉宾节目",
           "title": "RUDE",
           "performer": "kpy",
@@ -241,10 +241,10 @@
           "cover": ""
         }
       ],
-      "selectedId": "program-10"
+      "selectedId": "program-1"
     },
     "lyrics": {
-      "visible": true,
+      "visible": false,
       "accentColor": "#FFFFFF",
       "textColor": "#F4F0E8",
       "x": 260,
@@ -259,37 +259,36 @@
       "source": "timeline",
       "doc": [],
       "transport": {
-        "position": 8200,
+        "position": 0,
         "rate": 1
       },
       "manual": {
         "lines": null,
-        "index": null,
-        "current": "",
+        "index": 0,
+        "current": "过眼云烟聚了散了心神不定",
         "autoSeconds": 0
       },
       "armed": true,
       "song": {
-        "id": "9f285ea723c5ab1cad4b8a4b4435d3a0",
-        "version": "47b7a6ef42d68cf40c308a01e02ffb4e1f7edcf5ee080d2dbfaeefbe708348a4"
+        "id": "0db7d75d86c2b8e0d54125eb866c0175",
+        "version": "bb0c7da9e8103ddf256d281b206e23464b6437e5a49f060bc2721458de02e9a0"
       },
       "songOrder": [
-        "4b1800ed81c9578d9081a1f95746155a",
+        "3d5bb6d2e15cd109e0ed4e904d2979f8",
+        "06046e742980304b5a9f8133049ee368",
+        "3d85199925690214422f53fabc3e52e0",
+        "6a8eb0e86fc9d7f5131082433155ca1a",
+        "6fcc268f426d255879fe01ab8f1defc6",
+        "0db7d75d86c2b8e0d54125eb866c0175",
         "9f50634dedf338673a73ccfc62cffc87",
         "41d461c9cbb315e45740ee4ba613bf38",
-        "3d85199925690214422f53fabc3e52e0",
-        "0db7d75d86c2b8e0d54125eb866c0175",
-        "a532d4e1feb3133fa5dfa102e4328618",
-        "68932b2d9b09338bdf6b02527960b2ec",
         "9f285ea723c5ab1cad4b8a4b4435d3a0",
-        "bbe2ae84c112a2441604178118c96cd1",
-        "6a8eb0e86fc9d7f5131082433155ca1a",
-        "06046e742980304b5a9f8133049ee368",
-        "bbd96a5efacf4665e92ea038114a622e"
+        "f3ed60ffa11f1f55270aa914a87e6c7a",
+        "da4e3643c6fa586b31265abc69663dc2"
       ]
     },
     "speech": {
-      "visible": false,
+      "visible": true,
       "textColor": "#F4F0E8",
       "x": 219,
       "y": 881,
@@ -303,7 +302,7 @@
     },
     "eventMark": {
       "visible": true,
-      "x": 1404,
+      "x": 1440,
       "y": 936,
       "scale": 1,
       "opacity": 100,
@@ -311,6 +310,21 @@
         "enter": "fade",
         "exit": "fade",
         "duration": 200
+      }
+    },
+    "countdown": {
+      "visible": false,
+      "label": "距离开始",
+      "target": "",
+      "textColor": "#F4F0E8",
+      "x": 760,
+      "y": 96,
+      "scale": 1,
+      "opacity": 100,
+      "animation": {
+        "enter": "fade-up",
+        "exit": "fade-down",
+        "duration": 400
       }
     }
   },

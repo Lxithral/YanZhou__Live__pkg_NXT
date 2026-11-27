@@ -16,7 +16,6 @@ const CSS = `
 .hosts-solo .solo-name { position: relative; display: flex; align-items: center; width: max-content; height: 106px; padding: 0 68px 12px 92px; box-sizing: border-box; }
 .hosts-solo .solo-name[hidden] { display: none; }
 .hosts-solo .solo-ribbon { position: absolute; left: 8px; top: 24px; width: calc(100% - 8px); height: 76px; overflow: visible; filter: drop-shadow(0 3px 5px #21000680); }
-.hosts-solo .solo-tail { position: absolute; right: 14px; top: 36px; width: 36px; height: 52px; color: #dabb7d; }
 .hosts-solo .solo-logo { position: absolute; left: 18px; top: 8px; display: block; width: auto; height: 68px; filter: drop-shadow(0 2px 2px #30070e80); }
 .hosts-solo .solo-copy { position: relative; display: grid; grid-template-rows: 24px 70px; justify-items: center; align-items: center; }
 .hosts-solo .solo-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 1px; text-shadow: 0 1px 2px #30070e; white-space: nowrap; }
@@ -59,9 +58,6 @@ export function createHostsRenderer(container) {
         </linearGradient></defs>
         <path class="solo-ribbon-fill" d="M18 1.5H542L558.5 18V62L542 78.5H1.5Z" fill="url(#${ribbonId})" stroke="#e8c67f" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
         <path class="solo-ribbon-inset" d="M22 4H540L555 18V62L540 76H6" fill="none" stroke="#f5dfa5" stroke-opacity=".26" stroke-width=".7" vector-effect="non-scaling-stroke"/>
-      </svg>
-      <svg class="solo-tail" viewBox="0 0 36 52" fill="none" aria-hidden="true">
-        <path d="M5 6H16L29 19V33L16 46H5" stroke="currentColor" stroke-width="1.4" stroke-linecap="square"/>
       </svg>
       <img class="solo-logo" src="/assets/mark-emblem.png" alt="" width="238" height="254">
       <span class="solo-copy">

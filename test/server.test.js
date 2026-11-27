@@ -111,7 +111,7 @@ test('a control change immediately reaches another client and is saved on disk',
   const overlayInitial = await overlay.waitFor((message) => message.type === 'state');
   assert.deepEqual(overlayInitial.settings, initial.settings);
   assert.equal(initial.settings.version, 5);
-  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark']);
+  assert.deepEqual(Object.keys(initial.settings.modules), ['logo', 'hosts', 'program', 'lyrics', 'speech', 'eventMark', 'countdown']);
 
   controller.send({ type: 'patch', id: 'custom-logo', patch: { modules: { logo: {
     title: '校园开放日', subtitle: 'LIVE · 2026', textColor: '#abcdef',

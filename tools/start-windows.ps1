@@ -62,6 +62,9 @@ try {
         & $npm ci --no-audit --no-fund
         if ($LASTEXITCODE -ne 0) { throw 'Application dependency installation failed. Check the network and run start.cmd again.' }
     }
+    # 默认监听所有网卡，方便同一局域网内的其他电脑打开控制面板；
+    # 如果只想本机访问，启动前设置环境变量 HOST=127.0.0.1。
+    if (!$env:HOST) { $env:HOST = '0.0.0.0' }
     & $node (Join-Path $root 'server\server.js')
     exit $LASTEXITCODE
 } catch {

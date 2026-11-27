@@ -6,6 +6,7 @@ import { createLyricsClock } from './lyrics/lyrics-clock.js';
 import { createAvoidance } from './stage/stage-avoidance.js';
 import { createSpeechRenderer } from './render/speech-renderer.js';
 import { createEventMarkRenderer } from './render/event-mark-renderer.js';
+import { createCountdownRenderer } from './render/countdown-renderer.js';
 
 const canvas = document.getElementById('overlay-canvas');
 const RENDERERS = {
@@ -15,6 +16,7 @@ const RENDERERS = {
   lyrics: createLyricsRenderer(canvas),
   speech: createSpeechRenderer(canvas),
   eventMark: createEventMarkRenderer(canvas),
+  countdown: createCountdownRenderer(canvas),
 };
 const lyricsClock = createLyricsClock();
 let stage = { settings: null, showOrder: null };

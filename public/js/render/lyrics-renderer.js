@@ -1,8 +1,10 @@
 import { animateModuleElement, createModuleLayer, moduleMotionInsets } from '../core/module-layer.js';
 import { createCaptionBounds, measureCaptionText } from './caption-bounds.js';
+import { markLimitedWidth } from './corner-limit.js';
 import { timelineIndex } from '../lyrics/lyrics-model.js';
 
 const STYLE_ID = 'yanzhou-lyrics-renderer-style';
+const BOARD_WIDTH = 1440;
 const BOARD_HEIGHT = 290;
 const VIEWPORT_TOP = 69;
 const VIEWPORT_HEIGHT = 168;
@@ -12,7 +14,7 @@ const MAIN_ROW_TOP = BOARD_HEIGHT / 2 - VIEWPORT_TOP - MAIN_ROW_HEIGHT / 2;
 const TRANSLATION_RATIO = 0.6;
 const MIN_FONT = 16;
 const STYLES = `
-.lyrics-board .module-body { position: relative; width: 1440px; height: ${BOARD_HEIGHT}px; display: grid; align-items: start; }
+.lyrics-board .module-body { position: relative; width: ${BOARD_WIDTH}px; height: ${BOARD_HEIGHT}px; display: grid; align-items: start; }
 .lyrics-board .lyrics-viewport { position: relative; height: ${VIEWPORT_HEIGHT}px; margin-top: ${VIEWPORT_TOP}px; overflow: hidden; display: grid; align-items: start; }
 .lyrics-board :is(.lyrics-text, .lyrics-outgoing-text) { display: grid; justify-items: center; align-content: start; align-items: center; grid-template-rows: ${MAIN_ROW_HEIGHT}px auto; margin-top: ${MAIN_ROW_TOP}px; gap: 4px; min-width: 0; max-width: 100%; }
 /* MiSans 的下伸部和阴影会超出紧凑行框；统一由外层 viewport 裁剪换行动画。 */
@@ -63,6 +65,25 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
     line.style.animation = '';
   }
 
+  // 歌词板同样不能伸到活动角标底下：按角标左缘收窄，长句在板内缩字号。
+  function applyBoardWidth() {
+    const width = markLimitedWidth(container, layer.element, BOARD_WIDTH);
+    if (layer.body.style.width !== `${width}px`) layer.body.style.width = `${width}px`;
+  }
+
+  // 活动角标可能是稍后才上屏的模块，下一帧按它的实际位置再收一次板宽。
+  function recheckWidth() {
+    requestAnimationFrame(() => {
+      if (disposed || !module) return;
+      const before = layer.body.style.width;
+      applyBoardWidth();
+      if (layer.body.style.width !== before) {
+        fit();
+        refreshBounds();
+      }
+    });
+  }
+
   function refreshBounds() {
     if (!module || disposed) return;
     const rects = measureCaptionText(layer.element, line, [main.firstChild, translation.firstChild], { clip: viewport, travel: incomingTravel });
@@ -92,6 +113,7 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
   function draw() {
     cancelAnimationFrame(raf);
     if (!module || disposed) return;
+    applyBoardWidth();
     const state = clock?.state;
     const selected = state?.armed ? state.source : null;
     let text = '';
@@ -201,12 +223,14 @@ export function createLyricsRenderer(container, { sample = false } = {}) {
       const y = constrain ? Math.min(settings.y, Math.max(0, 1080 - BOARD_HEIGHT * settings.scale)) : settings.y;
       module = { ...settings, y };
       layer.update(module);
+      applyBoardWidth();
       layer.element.style.setProperty('--lyrics-accent', settings.accentColor);
       layer.element.style.setProperty('--lyrics-text', settings.textColor);
       if (!draw()) {
         if (wasHidden && !layer.element.hidden) fit();
         refreshBounds();
       }
+      recheckWidth();
     },
     updateLyrics(nextClock) { clock = nextClock; draw(); },
     dispose() { disposed = true; cancelAnimationFrame(raf); clearTransition(); },
